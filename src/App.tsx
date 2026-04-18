@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { SignInPage } from './features/auth/SignInPage';
@@ -30,8 +30,29 @@ const pageConfig: Record<string, { title: string; subtitle?: string }> = {
 
 function AppShell() {
   const { user, loading } = useAuth();
-  const [currentPath, setCurrentPath] = useState('/');
+  const knownPaths = useMemo(() => new Set(Object.keys(pageConfig)), []);
+  const getPathFromLocation = () => {
+    const pathname = window.location.pathname || '/';
+    return knownPaths.has(pathname) ? pathname : '/';
+  };
+  const [currentPath, setCurrentPath] = useState(getPathFromLocation);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPath(getPathFromLocation());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (nextPath: string) => {
+    const safePath = knownPaths.has(nextPath) ? nextPath : '/';
+    const nextUrl = safePath === '/bookings' ? `/bookings${window.location.search}` : safePath;
+    if (window.location.pathname !== safePath || window.location.search !== (safePath === '/bookings' ? window.location.search : '')) {
+      window.history.pushState({}, '', nextUrl);
+    }
+    setCurrentPath(safePath);
+  };
 
   if (loading) {
     return (
@@ -51,8 +72,10 @@ function AppShell() {
   const page = pageConfig[currentPath] || { title: 'Partner Console' };
 
   const renderPage = () => {
-    if (currentPath === '/') return <DashboardPage onNavigate={setCurrentPath} />;
-    if (currentPath === '/bookings') return <BookingsPage />;
+    if (currentPath === '/') return <DashboardPage onNavigate={navigateTo} />;
+    if (currentPath === '/bookings') {
+      return <BookingsPage onHeaderActionsChange={setHeaderActions} />;
+    }
     if (currentPath === '/fulfillment') return <FulfillmentPage />;
     if (currentPath === '/resources') return <ResourcesPage />;
     if (currentPath === '/variants') return <VariantsPage />;
@@ -61,20 +84,20 @@ function AppShell() {
     if (currentPath === '/pricing') return <PricingPage />;
     if (currentPath === '/policy') return <PolicyPage />;
     if (currentPath === '/reports') return <ReportsPage />;
-    return <DashboardPage onNavigate={setCurrentPath} />;
+    return <DashboardPage onNavigate={navigateTo} />;
   };
 
   return (
-    <div className="flex min-h-screen bg-transparent">
+    <div className="flex h-screen overflow-hidden bg-transparent">
       <Sidebar
         currentPath={currentPath}
-        onNavigate={setCurrentPath}
+        onNavigate={navigateTo}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
-      <div className="relative flex min-w-0 flex-1 flex-col bg-[#f3f6fb]">
-        <Header title={page.title} subtitle={page.subtitle} />
-        <main className="relative flex-1 overflow-y-auto">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#f3f6fb]">
+        <Header title={page.title} subtitle={page.subtitle} actions={headerActions} />
+        <main className={`relative min-h-0 flex-1 ${currentPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderPage()}
         </main>
       </div>
