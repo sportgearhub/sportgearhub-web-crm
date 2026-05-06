@@ -6,8 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { OfferDetail } from './OfferDetail';
 import { OfferForm } from './OfferForm';
-import { mockOffers, mockResources } from '../../lib/mock-data';
-import type { Offer, OfferStatus } from '../../types';
+import type { Offer, OfferStatus, Resource } from '../../types';
 
 const statusBadge: Record<OfferStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
   active: { label: 'Active', variant: 'green' },
@@ -25,13 +24,13 @@ const statusOptions = [
 
 const resourceOptions = [
   { value: '', label: 'All resources' },
-  ...mockResources.map(resource => ({ value: resource.id, label: resource.title })),
 ];
 
 type View = 'list' | 'detail' | 'create' | 'edit';
 
 export function OffersPage() {
-  const [offers, setOffers] = useState<Offer[]>(mockOffers);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const resources: Resource[] = [];
   const [statusFilter, setStatusFilter] = useState('');
   const [resourceFilter, setResourceFilter] = useState('');
   const [query, setQuery] = useState('');
@@ -58,10 +57,10 @@ export function OffersPage() {
       title: data.title || 'New Offer',
       slug: (data.title || 'new-offer').toLowerCase().replace(/\s+/g, '-'),
       status: 'draft',
-      resourceId: data.resourceId || resourceFilter || mockResources[0].id,
+      resourceId: data.resourceId || resourceFilter || '',
       resourceTitle:
         data.resourceTitle ||
-        mockResources.find(resource => resource.id === (data.resourceId || resourceFilter || mockResources[0].id))?.title ||
+        resources.find(resource => resource.id === (data.resourceId || resourceFilter))?.title ||
         '',
       description: data.description,
       basePrice: data.basePrice || 0,

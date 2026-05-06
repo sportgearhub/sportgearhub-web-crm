@@ -5,11 +5,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { PrototypeBanner } from '../../components/ui/PrototypeBanner';
-import { mockProviderPolicies } from '../../lib/mock-data';
 import type { ProviderPolicy } from '../../types';
 
 export function PolicyPage() {
-  const [policies, setPolicies] = useState<ProviderPolicy[]>(mockProviderPolicies);
+  const [policies, setPolicies] = useState<ProviderPolicy[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<ProviderPolicy>>({});
 

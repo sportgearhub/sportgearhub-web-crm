@@ -8,7 +8,6 @@ import { HandoverForm } from './HandoverForm';
 import { ReturnForm } from './ReturnForm';
 import { CompleteForm } from './CompleteForm';
 import { IssueReportForm } from './IssueReportForm';
-import { mockFulfillmentQueue } from '../../lib/mock-data';
 import type { FulfillmentItem, FulfillmentStatus } from '../../types';
 
 const statusConfig: Record<FulfillmentStatus, { label: string; variant: 'yellow' | 'blue' | 'teal' | 'green' | 'red' }> = {
@@ -22,7 +21,7 @@ const statusConfig: Record<FulfillmentStatus, { label: string; variant: 'yellow'
 type FulfillmentAction = 'handover' | 'return' | 'complete' | 'issue';
 
 export function FulfillmentPage() {
-  const [queue, setQueue] = useState<FulfillmentItem[]>(mockFulfillmentQueue);
+  const [queue, setQueue] = useState<FulfillmentItem[]>([]);
   const [selected, setSelected] = useState<FulfillmentItem | null>(null);
   const [action, setAction] = useState<FulfillmentAction | null>(null);
   const [successMsg, setSuccessMsg] = useState('');

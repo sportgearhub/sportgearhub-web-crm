@@ -4,11 +4,11 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { PrototypeBanner } from '../../components/ui/PrototypeBanner';
-import { mockAvailabilityProfiles, mockResources } from '../../lib/mock-data';
-import type { AvailabilityProfile } from '../../types';
+import type { AvailabilityProfile, Resource } from '../../types';
 
 export function AvailabilityPage() {
-  const [profiles, setProfiles] = useState<AvailabilityProfile[]>(mockAvailabilityProfiles);
+  const [profiles, setProfiles] = useState<AvailabilityProfile[]>([]);
+  const resources: Resource[] = [];
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<AvailabilityProfile>>({});
 
@@ -25,7 +25,7 @@ export function AvailabilityPage() {
     setEditData({});
   };
 
-  const unconfigured = mockResources.filter(r =>
+  const unconfigured = resources.filter(r =>
     r.status === 'active' && !profiles.find(p => p.resourceId === r.id)
   );
 

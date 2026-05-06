@@ -2,11 +2,12 @@ import { BarChart2, TrendingUp, Download } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { mockBookings, mockStats } from '../../lib/mock-data';
+import type { Booking } from '../../types';
 
 export function ReportsPage() {
-  const completedBookings = mockBookings.filter(b => b.status === 'completed');
-  const totalRevenue = mockBookings
+  const bookings: Booking[] = [];
+  const completedBookings = bookings.filter(b => b.status === 'completed');
+  const totalRevenue = bookings
     .filter(b => b.status === 'confirmed' || b.status === 'completed')
     .reduce((sum, b) => sum + b.totalAmount, 0);
 
@@ -26,10 +27,10 @@ export function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Total Bookings" value={String(mockBookings.length)} />
+        <MetricCard label="Total Bookings" value={String(bookings.length)} />
         <MetricCard label="Completed" value={String(completedBookings.length)} />
         <MetricCard label="Revenue (confirmed)" value={`${totalRevenue.toLocaleString()} RUB`} />
-        <MetricCard label="Catalog Readiness" value={`${mockStats.catalogReadiness}%`} />
+        <MetricCard label="Catalog Readiness" value="0%" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -40,8 +41,8 @@ export function ReportsPage() {
           </div>
           <div className="space-y-3">
             {(['confirmed', 'pending', 'completed', 'cancelled'] as const).map(status => {
-              const count = mockBookings.filter(b => b.status === status).length;
-              const pct = Math.round((count / mockBookings.length) * 100);
+              const count = bookings.filter(b => b.status === status).length;
+              const pct = bookings.length > 0 ? Math.round((count / bookings.length) * 100) : 0;
               const colorMap = { confirmed: 'bg-emerald-500', pending: 'bg-amber-500', completed: 'bg-blue-500', cancelled: 'bg-red-400' };
               return (
                 <div key={status}>

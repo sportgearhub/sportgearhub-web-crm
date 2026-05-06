@@ -1,12 +1,19 @@
-export type UserRole = 'provider_manager' | 'rental_staff' | 'partner_ops';
+export type UserRole = 'provider_manager' | 'rental_staff' | 'partner_ops' | string;
 
 export interface AuthUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  roles: string[];
+  emailVerified?: boolean;
+}
+
+export interface ProviderMembership {
   providerId: string;
-  providerName: string;
+  displayName: string;
+  role: string;
+  operatingState: string;
 }
 
 // ─── Provider / Profile ──────────────────────────────────────────────────────

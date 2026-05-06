@@ -14,12 +14,13 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { mockVariants, mockResources } from '../../lib/mock-data';
-import type { ResourceVariant } from '../../types';
+import type { Resource, ResourceVariant } from '../../types';
+
+const resources: Resource[] = [];
 
 const resourceOptions = [
   { value: '', label: 'All resources' },
-  ...mockResources.map(resource => ({ value: resource.id, label: resource.title })),
+  ...resources.map(resource => ({ value: resource.id, label: resource.title })),
 ];
 
 const statusOptions = [
@@ -29,7 +30,7 @@ const statusOptions = [
 ];
 
 export function VariantsPage() {
-  const [variants, setVariants] = useState<ResourceVariant[]>(mockVariants);
+  const [variants, setVariants] = useState<ResourceVariant[]>([]);
   const [resourceFilter, setResourceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [query, setQuery] = useState('');
@@ -42,7 +43,7 @@ export function VariantsPage() {
     const haystack = [
       variant.title,
       variant.sku ?? '',
-      mockResources.find(resource => resource.id === variant.resourceId)?.title ?? '',
+      resources.find(resource => resource.id === variant.resourceId)?.title ?? '',
       ...Object.entries(variant.attributes).flatMap(([key, value]) => [key, value]),
     ]
       .join(' ')
@@ -51,7 +52,7 @@ export function VariantsPage() {
     return matchesResource && matchesStatus && matchesQuery;
   });
 
-  const resourceOf = (id: string) => mockResources.find(resource => resource.id === id)?.title || id;
+  const resourceOf = (id: string) => resources.find(resource => resource.id === id)?.title || id;
 
   const toggle = (id: string) => {
     setVariants(prev =>
@@ -98,7 +99,7 @@ export function VariantsPage() {
         )
       );
     } else {
-      const resourceId = data.resourceId || resourceFilter || mockResources[0].id;
+      const resourceId = data.resourceId || resourceFilter || '';
       const sortOrder =
         variants.filter(variant => variant.resourceId === resourceId).length + 1;
 
@@ -288,7 +289,7 @@ export function VariantsPage() {
         <VariantFormModal
           open={showForm}
           variant={editTarget}
-          initialResourceId={resourceFilter || mockResources[0].id}
+          initialResourceId={resourceFilter}
           onSave={handleSave}
           onClose={() => {
             setShowForm(false);
@@ -344,7 +345,7 @@ function VariantFormModal({
       <div className="space-y-3">
         <Select
           label="Resource"
-          options={mockResources.map(resource => ({ value: resource.id, label: resource.title }))}
+          options={resourceOptions}
           value={resourceId}
           onChange={event => setResourceId(event.target.value)}
         />

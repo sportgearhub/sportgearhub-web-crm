@@ -6,11 +6,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { PrototypeBanner } from '../../components/ui/PrototypeBanner';
-import { mockPricingPolicies } from '../../lib/mock-data';
 import type { PricingPolicy, PricingAdjustment } from '../../types';
 
 export function PricingPage() {
-  const [policies, setPolicies] = useState<PricingPolicy[]>(mockPricingPolicies);
+  const [policies, setPolicies] = useState<PricingPolicy[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<PricingPolicy>>({});
 

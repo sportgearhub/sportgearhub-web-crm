@@ -2,8 +2,7 @@ import { Archive, CalendarDays, CreditCard as Edit2, Package, Tag, TrendingUp } 
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import type { Resource, ResourceStatus } from '../../types';
+import type { Booking, Offer, Resource, ResourceStatus, ResourceVariant } from '../../types';
 
 const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
   active: { label: 'Active', variant: 'green' },
@@ -20,9 +19,9 @@ interface ResourceDetailProps {
 
 export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailProps) {
   const status = statusBadge[resource.status];
-  const variants = mockVariants.filter(variant => variant.resourceId === resource.id);
-  const offers = mockOffers.filter(offer => offer.resourceId === resource.id);
-  const bookings = mockBookings.filter(booking => booking.selection.resourceId === resource.id);
+  const variants: ResourceVariant[] = [];
+  const offers: Offer[] = [];
+  const bookings: Booking[] = [];
 
   const totalStock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
   const basePrice = offers.length > 0 ? Math.min(...offers.map(offer => offer.basePrice)) : null;

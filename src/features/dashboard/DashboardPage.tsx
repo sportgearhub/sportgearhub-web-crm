@@ -11,19 +11,29 @@ import {
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { mockStats, mockFulfillmentQueue, mockBookings } from '../../lib/mock-data';
 import { useAuth } from '../../context/useAuth';
+import type { Booking, DashboardStats, FulfillmentItem } from '../../types';
 
 interface DashboardPageProps {
   onNavigate: (path: string) => void;
 }
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const { user } = useAuth();
-  const stats = mockStats;
-  const pendingHandovers = mockFulfillmentQueue.filter(f => f.status === 'pending_handover');
-  const pendingReturns = mockFulfillmentQueue.filter(f => f.status === 'pending_return');
-  const recentBookings = mockBookings.slice(0, 4);
+  const { user, activeMembership } = useAuth();
+  const stats: DashboardStats = {
+    activeBookings: 0,
+    pendingHandovers: 0,
+    pendingReturns: 0,
+    totalRevenueMTD: 0,
+    currency: 'RUB',
+    catalogReadiness: 0,
+    openIssues: 0,
+  };
+  const fulfillmentQueue: FulfillmentItem[] = [];
+  const bookings: Booking[] = [];
+  const pendingHandovers = fulfillmentQueue.filter(f => f.status === 'pending_handover');
+  const pendingReturns = fulfillmentQueue.filter(f => f.status === 'pending_return');
+  const recentBookings = bookings.slice(0, 4);
 
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -33,7 +43,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <h2 className="text-lg font-semibold text-gray-900">
           Good morning, {user?.name.split(' ')[0]}
         </h2>
-        <p className="text-sm text-gray-500">{today} · {user?.providerName}</p>
+        <p className="text-sm text-gray-500">{today} · {activeMembership?.displayName ?? 'Provider console'}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

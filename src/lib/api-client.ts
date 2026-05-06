@@ -1,5 +1,7 @@
 import type {
   Provider,
+  AuthUser,
+  ProviderMembership,
   DashboardResponse,
   OnboardingResponse,
   Resource,
@@ -28,10 +30,87 @@ import type {
   OfferStatus,
 } from '../types';
 
-const BASE_URL = '/v1/provider';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const PROVIDER_BASE_URL = '/v1/provider';
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+type ApiUser = {
+  id?: string;
+  userId?: string;
+  email: string;
+  name?: string;
+  surname?: string;
+  roles?: string[];
+  role?: string;
+  emailVerified?: boolean;
+};
+
+export type OnboardingChecklistValue = 'missing' | 'ready';
+export type OnboardingStatus =
+  | 'not_started'
+  | 'draft'
+  | 'changes_requested'
+  | 'submitted'
+  | 'in_review'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+export type ProviderOnboardingDraft = {
+  displayName: string | null;
+  legalName: string | null;
+  legalCountryCode: string | null;
+  legalForm: string | null;
+  taxNumber: string | null;
+  registrationNumber: string | null;
+  branchNumber: string | null;
+  registeredAddress: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  city: string | null;
+  addressLine: string | null;
+  description: string | null;
+};
+
+export type ProviderOnboarding = {
+  applicationId: string | null;
+  providerId: string | null;
+  status: OnboardingStatus;
+  checklist: {
+    profileContact: OnboardingChecklistValue;
+    providerIdentity: OnboardingChecklistValue;
+    legalIdentity: OnboardingChecklistValue;
+  } | null;
+  draft: ProviderOnboardingDraft | null;
+  updatedAt: string;
+};
+
+function normalizeUser(user: ApiUser): AuthUser {
+  const roles = user.roles ?? (user.role ? [user.role] : ['User']);
+  const name = user.name && user.surname ? `${user.name} ${user.surname}` : user.name ?? user.email;
+
+  return {
+    id: user.userId ?? user.id ?? user.email,
+    email: user.email,
+    name,
+    role: roles[0] ?? 'User',
+    roles,
+    emailVerified: user.emailVerified,
+  };
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -40,19 +119,86 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `API error ${res.status}`);
+    throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`);
   }
+
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return res.json();
 }
+
+function providerRequest<T>(path: string, options: RequestInit = {}) {
+  return request<T>(`${PROVIDER_BASE_URL}${path}`, options);
+}
+
+export const authApi = {
+  login: async (email: string, password: string) =>
+    normalizeUser(await request<ApiUser>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })),
+  me: async () => normalizeUser(await request<ApiUser>('/api/v1/auth/me')),
+  register: async (data: { name: string; surname: string; email: string; password: string }) =>
+    normalizeUser(await request<ApiUser>('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })),
+  verifyEmail: (token: string) =>
+    request<void>('/api/v1/auth/email/verify', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  resendVerification: (email: string) =>
+    request<void>('/api/v1/auth/email/verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  forgotPassword: (email: string) =>
+    request<void>('/api/v1/auth/password/forgot', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<void>('/api/v1/auth/password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
+  signout: () => request<void>('/api/v1/auth/signout', { method: 'POST' }),
+  providerMemberships: async () =>
+    (await request<{ memberships: ProviderMembership[] }>('/api/v1/auth/provider-memberships')).memberships,
+  googleStart: () => `${API_BASE_URL}/api/v1/auth/oauth/google/start`,
+  yandexStart: () => `${API_BASE_URL}/api/v1/auth/oauth/yandex/start`,
+  devEmails: () => `${API_BASE_URL}/api/v1/development/emails`,
+};
+
+export const providerOnboardingApi = {
+  current: () => request<ProviderOnboarding>('/api/v1/provider-onboarding/current'),
+  create: () =>
+    request<ProviderOnboarding>('/api/v1/provider-onboarding/current', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  updateProfile: (data: Partial<ProviderOnboardingDraft>) =>
+    request<ProviderOnboarding>('/api/v1/provider-onboarding/current/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  submit: () =>
+    request<ProviderOnboarding>('/api/v1/provider-onboarding/current/submit', {
+      method: 'POST',
+    }),
+};
 
 // ─── Profile & Dashboard ──────────────────────────────────────────────────────
 
 export const dashboardApi = {
-  get: () => request<DashboardResponse>('/dashboard'),
+  get: () => providerRequest<DashboardResponse>('/dashboard'),
 };
 
 export const profileApi = {
-  get: () => request<Provider>('/profile'),
+  get: () => providerRequest<Provider>('/profile'),
 
   patch: (data: {
     displayName?: string;
@@ -62,14 +208,14 @@ export const profileApi = {
     city?: string;
     addressLine?: string;
     description?: string;
-  }) => request<Provider>('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+  }) => providerRequest<Provider>('/profile', { method: 'PATCH', body: JSON.stringify(data) }),
 
-  getOperatingState: () => request<Provider['operatingState']>('/operating-state'),
+  getOperatingState: () => providerRequest<Provider['operatingState']>('/operating-state'),
 
-  getOnboarding: () => request<OnboardingResponse>('/onboarding'),
+  getOnboarding: () => providerRequest<OnboardingResponse>('/onboarding'),
 
   submitOnboarding: (note: string) =>
-    request<OnboardingResponse>('/onboarding/submit', {
+    providerRequest<OnboardingResponse>('/onboarding/submit', {
       method: 'POST',
       body: JSON.stringify({ note }),
     }),
@@ -78,34 +224,34 @@ export const profileApi = {
 // ─── Resources ────────────────────────────────────────────────────────────────
 
 export const resourcesApi = {
-  list: () => request<Resource[]>('/resources'),
+  list: () => providerRequest<Resource[]>('/resources'),
 
   create: (data: {
     resourceType: string;
     capacityMode: string;
     title: string;
     baseCapacity: number;
-  }) => request<Resource>('/resources', { method: 'POST', body: JSON.stringify(data) }),
+  }) => providerRequest<Resource>('/resources', { method: 'POST', body: JSON.stringify(data) }),
 
-  get: (resourceId: string) => request<Resource>(`/resources/${resourceId}`),
+  get: (resourceId: string) => providerRequest<Resource>(`/resources/${resourceId}`),
 
   patch: (
     resourceId: string,
     data: { status?: ResourceStatus; title?: string; baseCapacity?: number }
   ) =>
-    request<Resource>(`/resources/${resourceId}`, {
+    providerRequest<Resource>(`/resources/${resourceId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   archive: (resourceId: string, reasonCode: string) =>
-    request<Resource>(`/resources/${resourceId}/archive`, {
+    providerRequest<Resource>(`/resources/${resourceId}/archive`, {
       method: 'POST',
       body: JSON.stringify({ reasonCode }),
     }),
 
   getRoutabilityImpact: (resourceId: string) =>
-    request<{
+    providerRequest<{
       downstreamOfferCount: number;
       impactedOfferCount: number;
       status: string;
@@ -119,7 +265,7 @@ export const resourcesApi = {
 
 export const availabilityApi = {
   getProfile: (resourceId: string) =>
-    request<AvailabilityProfile>(`/resources/${resourceId}/availability-profile`),
+    providerRequest<AvailabilityProfile>(`/resources/${resourceId}/availability-profile`),
 
   putProfile: (
     resourceId: string,
@@ -130,13 +276,13 @@ export const availabilityApi = {
       status: string;
     }
   ) =>
-    request<AvailabilityProfile>(`/resources/${resourceId}/availability-profile`, {
+    providerRequest<AvailabilityProfile>(`/resources/${resourceId}/availability-profile`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   getCalendar: (resourceId: string) =>
-    request<AvailabilityCalendar>(`/resources/${resourceId}/availability-calendar`),
+    providerRequest<AvailabilityCalendar>(`/resources/${resourceId}/availability-calendar`),
 
   putCalendar: (
     resourceId: string,
@@ -147,7 +293,7 @@ export const availabilityApi = {
       exceptions: unknown[];
     }
   ) =>
-    request<AvailabilityCalendar>(`/resources/${resourceId}/availability-calendar`, {
+    providerRequest<AvailabilityCalendar>(`/resources/${resourceId}/availability-calendar`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
@@ -158,7 +304,7 @@ export const availabilityApi = {
   ) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && qs.set(k, v));
-    return request<CapacitySlot[]>(`/resources/${resourceId}/capacity-slots?${qs}`);
+    return providerRequest<CapacitySlot[]>(`/resources/${resourceId}/capacity-slots?${qs}`);
   },
 
   createSlot: (
@@ -171,31 +317,31 @@ export const availabilityApi = {
       bookingSubjectRef?: CapacitySlot['bookingSubjectRef'];
     }
   ) =>
-    request<CapacitySlot>(`/resources/${resourceId}/capacity-slots`, {
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   patchSlot: (resourceId: string, slotId: string, data: Partial<CapacitySlot>) =>
-    request<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}`, {
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   closeSlot: (resourceId: string, slotId: string) =>
-    request<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}/close`, {
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}/close`, {
       method: 'POST',
     }),
 
   getDiagnostics: (resourceId: string) =>
-    request<AvailabilityDiagnostics>(`/resources/${resourceId}/availability-diagnostics`),
+    providerRequest<AvailabilityDiagnostics>(`/resources/${resourceId}/availability-diagnostics`),
 };
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
 
 export const variantsApi = {
   list: (resourceId: string) =>
-    request<ResourceVariant[]>(`/resources/${resourceId}/variants`),
+    providerRequest<ResourceVariant[]>(`/resources/${resourceId}/variants`),
 
   create: (
     resourceId: string,
@@ -208,40 +354,40 @@ export const variantsApi = {
       status: string;
     }
   ) =>
-    request<ResourceVariant>(`/resources/${resourceId}/variants`, {
+    providerRequest<ResourceVariant>(`/resources/${resourceId}/variants`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   get: (resourceId: string, variantId: string) =>
-    request<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`),
+    providerRequest<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`),
 
   patch: (
     resourceId: string,
     variantId: string,
     data: Partial<Pick<ResourceVariant, 'label' | 'variantKey' | 'variantType' | 'normalizedAttributes' | 'sortOrder' | 'status'>>
   ) =>
-    request<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`, {
+    providerRequest<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
   archive: (resourceId: string, variantId: string) =>
-    request<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}/archive`, {
+    providerRequest<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}/archive`, {
       method: 'POST',
     }),
 
   getAllocation: (resourceId: string, variantId: string) =>
-    request<VariantAllocation>(`/resources/${resourceId}/variants/${variantId}/allocation`),
+    providerRequest<VariantAllocation>(`/resources/${resourceId}/variants/${variantId}/allocation`),
 
   putAllocation: (resourceId: string, variantId: string, data: VariantAllocation) =>
-    request<VariantAllocation>(`/resources/${resourceId}/variants/${variantId}/allocation`, {
+    providerRequest<VariantAllocation>(`/resources/${resourceId}/variants/${variantId}/allocation`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   getDiagnostics: (resourceId: string, variantId: string) =>
-    request<Record<string, unknown>>(
+    providerRequest<Record<string, unknown>>(
       `/resources/${resourceId}/variants/${variantId}/diagnostics`
     ),
 };
@@ -250,7 +396,7 @@ export const variantsApi = {
 
 export const pricingApi = {
   getResourcePolicy: (resourceId: string) =>
-    request<PricingPolicy>(`/resources/${resourceId}/pricing-policy`),
+    providerRequest<PricingPolicy>(`/resources/${resourceId}/pricing-policy`),
 
   putResourcePolicy: (
     resourceId: string,
@@ -262,13 +408,13 @@ export const pricingApi = {
       status: string;
     }
   ) =>
-    request<PricingPolicy>(`/resources/${resourceId}/pricing-policy`, {
+    providerRequest<PricingPolicy>(`/resources/${resourceId}/pricing-policy`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   getResourceDiagnostics: (resourceId: string) =>
-    request<PricingDiagnostics>(`/resources/${resourceId}/pricing-diagnostics`),
+    providerRequest<PricingDiagnostics>(`/resources/${resourceId}/pricing-diagnostics`),
 
   quotePreview: (data: {
     offerId?: string;
@@ -279,13 +425,13 @@ export const pricingApi = {
       quantity: number;
     };
   }) =>
-    request<PricingQuotePreview>('/pricing/quote-preview', {
+    providerRequest<PricingQuotePreview>('/pricing/quote-preview', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getOfferPolicy: (offerId: string) =>
-    request<PricingPolicy>(`/offers/${offerId}/pricing-policy`),
+    providerRequest<PricingPolicy>(`/offers/${offerId}/pricing-policy`),
 
   putOfferPolicy: (
     offerId: string,
@@ -297,13 +443,13 @@ export const pricingApi = {
       status: string;
     }
   ) =>
-    request<PricingPolicy>(`/offers/${offerId}/pricing-policy`, {
+    providerRequest<PricingPolicy>(`/offers/${offerId}/pricing-policy`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   offerPricingSummaryPreview: (offerId: string) =>
-    request<Record<string, unknown>>(`/offers/${offerId}/pricing-summary-preview`, {
+    providerRequest<Record<string, unknown>>(`/offers/${offerId}/pricing-summary-preview`, {
       method: 'POST',
     }),
 };
@@ -311,20 +457,20 @@ export const pricingApi = {
 // ─── Policy ───────────────────────────────────────────────────────────────────
 
 export const policyApi = {
-  getProfile: () => request<ProviderPolicy>('/policy-profile'),
+  getProfile: () => providerRequest<ProviderPolicy>('/policy-profile'),
 
   putProfile: (data: {
     policyScope: string;
     ruleset: ProviderPolicy['ruleset'];
     status: string;
   }) =>
-    request<ProviderPolicy>('/policy-profile', {
+    providerRequest<ProviderPolicy>('/policy-profile', {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   getResourcePolicy: (resourceId: string) =>
-    request<ProviderPolicy>(`/resources/${resourceId}/policy`),
+    providerRequest<ProviderPolicy>(`/resources/${resourceId}/policy`),
 
   putResourcePolicy: (
     resourceId: string,
@@ -334,21 +480,21 @@ export const policyApi = {
       status: string;
     }
   ) =>
-    request<ProviderPolicy>(`/resources/${resourceId}/policy`, {
+    providerRequest<ProviderPolicy>(`/resources/${resourceId}/policy`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   offerPolicySummaryPreview: (offerId: string) =>
-    request<Record<string, unknown>>(`/offers/${offerId}/policy-summary-preview`, {
+    providerRequest<Record<string, unknown>>(`/offers/${offerId}/policy-summary-preview`, {
       method: 'POST',
     }),
 
   getResourceDiagnostics: (resourceId: string) =>
-    request<PolicyDiagnostics>(`/resources/${resourceId}/policy-diagnostics`),
+    providerRequest<PolicyDiagnostics>(`/resources/${resourceId}/policy-diagnostics`),
 
   getOfferPolicy: (offerId: string) =>
-    request<ProviderPolicy>(`/offers/${offerId}/policy`),
+    providerRequest<ProviderPolicy>(`/offers/${offerId}/policy`),
 
   putOfferPolicy: (
     offerId: string,
@@ -358,7 +504,7 @@ export const policyApi = {
       status: string;
     }
   ) =>
-    request<ProviderPolicy>(`/offers/${offerId}/policy`, {
+    providerRequest<ProviderPolicy>(`/offers/${offerId}/policy`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
@@ -367,7 +513,7 @@ export const policyApi = {
 // ─── Offers ───────────────────────────────────────────────────────────────────
 
 export const offersApi = {
-  list: () => request<Offer[]>('/offers'),
+  list: () => providerRequest<Offer[]>('/offers'),
 
   create: (data: {
     primaryResourceId: string;
@@ -380,9 +526,9 @@ export const offersApi = {
     includedItems?: Offer['includedItems'];
     requiredItems?: Offer['requiredItems'];
     mediaRefs?: Offer['mediaRefs'];
-  }) => request<Offer>('/offers', { method: 'POST', body: JSON.stringify(data) }),
+  }) => providerRequest<Offer>('/offers', { method: 'POST', body: JSON.stringify(data) }),
 
-  get: (offerId: string) => request<Offer>(`/offers/${offerId}`),
+  get: (offerId: string) => providerRequest<Offer>(`/offers/${offerId}`),
 
   patch: (
     offerId: string,
@@ -395,38 +541,38 @@ export const offersApi = {
       requiredItems?: Offer['requiredItems'];
       mediaRefs?: Offer['mediaRefs'];
     }
-  ) => request<Offer>(`/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ) => providerRequest<Offer>(`/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   checkPublishability: (offerId: string) =>
-    request<OfferPublishability>(`/offers/${offerId}/check-publishability`, {
+    providerRequest<OfferPublishability>(`/offers/${offerId}/check-publishability`, {
       method: 'POST',
     }),
 
   activate: (offerId: string) =>
-    request<Offer>(`/offers/${offerId}/activate`, { method: 'POST' }),
+    providerRequest<Offer>(`/offers/${offerId}/activate`, { method: 'POST' }),
 
   deactivate: (offerId: string) =>
-    request<Offer>(`/offers/${offerId}/deactivate`, { method: 'POST' }),
+    providerRequest<Offer>(`/offers/${offerId}/deactivate`, { method: 'POST' }),
 
   archive: (offerId: string, reasonCode: string) =>
-    request<Offer>(`/offers/${offerId}/archive`, {
+    providerRequest<Offer>(`/offers/${offerId}/archive`, {
       method: 'POST',
       body: JSON.stringify({ reasonCode }),
     }),
 
   getVariantExposure: (offerId: string) =>
-    request<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`),
+    providerRequest<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`),
 
   putVariantExposure: (offerId: string, data: OfferVariantExposure) =>
-    request<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`, {
+    providerRequest<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   getRoutability: (offerId: string) =>
-    request<OfferRoutability>(`/offers/${offerId}/routability`),
+    providerRequest<OfferRoutability>(`/offers/${offerId}/routability`),
 
-  listRoutability: () => request<OfferRoutability[]>('/offers/routability'),
+  listRoutability: () => providerRequest<OfferRoutability[]>('/offers/routability'),
 };
 
 // ─── Bookings ─────────────────────────────────────────────────────────────────
@@ -441,13 +587,13 @@ export const bookingsApi = {
   }) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && qs.set(k, String(v)));
-    return request<BookingListItem[]>(`/bookings?${qs}`);
+    return providerRequest<BookingListItem[]>(`/bookings?${qs}`);
   },
 
-  get: (bookingId: string) => request<BookingDetail>(`/bookings/${bookingId}`),
+  get: (bookingId: string) => providerRequest<BookingDetail>(`/bookings/${bookingId}`),
 
   getFulfillment: (bookingId: string) =>
-    request<Record<string, unknown>>(`/bookings/${bookingId}/fulfillment`),
+    providerRequest<Record<string, unknown>>(`/bookings/${bookingId}/fulfillment`),
 
   handover: (
     bookingId: string,
@@ -457,7 +603,7 @@ export const bookingsApi = {
       handoverMetadata?: { key: string; value: string }[];
     }
   ) =>
-    request<FulfillmentCommandResult>(`/bookings/${bookingId}/handover`, {
+    providerRequest<FulfillmentCommandResult>(`/bookings/${bookingId}/handover`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -470,7 +616,7 @@ export const bookingsApi = {
       note?: string;
     }
   ) =>
-    request<FulfillmentCommandResult>(`/bookings/${bookingId}/return`, {
+    providerRequest<FulfillmentCommandResult>(`/bookings/${bookingId}/return`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -482,7 +628,7 @@ export const bookingsApi = {
       note?: string;
     }
   ) =>
-    request<FulfillmentCommandResult>(`/bookings/${bookingId}/complete`, {
+    providerRequest<FulfillmentCommandResult>(`/bookings/${bookingId}/complete`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -495,7 +641,7 @@ export const bookingsApi = {
       evidenceRefs?: string[];
     }
   ) =>
-    request<FulfillmentCommandResult>(`/bookings/${bookingId}/report-issue`, {
+    providerRequest<FulfillmentCommandResult>(`/bookings/${bookingId}/report-issue`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -504,38 +650,38 @@ export const bookingsApi = {
 // ─── Fulfillment Queue ────────────────────────────────────────────────────────
 
 export const fulfillmentApi = {
-  getQueue: () => request<Record<string, unknown>[]>('/fulfillment'),
+  getQueue: () => providerRequest<Record<string, unknown>[]>('/fulfillment'),
 };
 
 // ─── Acquiring ────────────────────────────────────────────────────────────────
 
 export const acquiringApi = {
-  list: () => request<AcquiringConnection[]>('/acquiring-connections'),
+  list: () => providerRequest<AcquiringConnection[]>('/acquiring-connections'),
 
   create: (acquiringProvider: string) =>
-    request<AcquiringConnection>('/acquiring-connections', {
+    providerRequest<AcquiringConnection>('/acquiring-connections', {
       method: 'POST',
       body: JSON.stringify({ acquiringProvider }),
     }),
 
   get: (connectionId: string) =>
-    request<AcquiringConnection>(`/acquiring-connections/${connectionId}`),
+    providerRequest<AcquiringConnection>(`/acquiring-connections/${connectionId}`),
 
   getRoutability: (connectionId: string) =>
-    request<Record<string, unknown>>(`/acquiring-connections/${connectionId}/routability`),
+    providerRequest<Record<string, unknown>>(`/acquiring-connections/${connectionId}/routability`),
 
   getRecipientRoutes: (connectionId: string) =>
-    request<Record<string, unknown>[]>(
+    providerRequest<Record<string, unknown>[]>(
       `/acquiring-connections/${connectionId}/recipient-routes`
     ),
 
   getDealBinding: (connectionId: string) =>
-    request<Record<string, unknown>>(
+    providerRequest<Record<string, unknown>>(
       `/acquiring-connections/${connectionId}/deal-binding`
     ),
 
   submitOnboarding: (connectionId: string, data: AcquiringOnboardingPayload) =>
-    request<AcquiringConnection>(
+    providerRequest<AcquiringConnection>(
       `/acquiring-connections/${connectionId}/submit-onboarding`,
       { method: 'POST', body: JSON.stringify(data) }
     ),

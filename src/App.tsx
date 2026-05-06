@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
-import { SignInPage } from './features/auth/SignInPage';
+import {
+  CheckEmailPage,
+  ForgotPasswordPage,
+  RegisterPage,
+  ResetPasswordPage,
+  SignInPage,
+  VerifyEmailPage,
+} from './features/auth/AuthPages';
+import { OnboardingPage } from './features/onboarding/OnboardingPage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { DashboardPage } from './features/dashboard/DashboardPage';
@@ -29,21 +37,27 @@ const pageConfig: Record<string, { title: string; subtitle?: string }> = {
 };
 
 function AppShell() {
-  const { user, loading } = useAuth();
+  const { user, memberships, loading } = useAuth();
   const knownPaths = useMemo(() => new Set(Object.keys(pageConfig)), []);
-  const getPathFromLocation = () => {
-    const pathname = window.location.pathname || '/';
-    return knownPaths.has(pathname) ? pathname : '/';
-  };
-  const [currentPath, setCurrentPath] = useState(getPathFromLocation);
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const params = new URLSearchParams(window.location.search);
 
   useEffect(() => {
-    const handlePopState = () => setCurrentPath(getPathFromLocation());
+    const handlePopState = () => setCurrentPath(window.location.pathname || '/');
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  const navigate = (path: string, replace = false) => {
+    if (replace) {
+      window.history.replaceState(null, '', path);
+    } else {
+      window.history.pushState(null, '', path);
+    }
+    setCurrentPath(window.location.pathname || '/');
+  };
 
   const navigateTo = (nextPath: string) => {
     const safePath = knownPaths.has(nextPath) ? nextPath : '/';
@@ -53,6 +67,12 @@ function AppShell() {
     }
     setCurrentPath(safePath);
   };
+
+  useEffect(() => {
+    if (!loading && user && user.emailVerified !== false && memberships.length === 0 && currentPath !== '/onboarding') {
+      navigate('/onboarding', true);
+    }
+  }, [currentPath, loading, memberships.length, user]);
 
   if (loading) {
     return (
@@ -66,38 +86,52 @@ function AppShell() {
   }
 
   if (!user) {
-    return <SignInPage />;
+    if (currentPath === '/auth/register') return <RegisterPage onNavigate={navigate} />;
+    if (currentPath === '/auth/check-email') return <CheckEmailPage email={params.get('email') ?? ''} onNavigate={navigate} />;
+    if (currentPath === '/auth/verify-email') return <VerifyEmailPage token={params.get('token')} onNavigate={navigate} />;
+    if (currentPath === '/auth/forgot-password') return <ForgotPasswordPage onNavigate={navigate} />;
+    if (currentPath === '/auth/reset-password') return <ResetPasswordPage token={params.get('token')} onNavigate={navigate} />;
+    return <SignInPage onNavigate={navigate} />;
   }
 
-  const page = pageConfig[currentPath] || { title: 'Partner Console' };
+  if (user.emailVerified === false) {
+    return <CheckEmailPage email={user.email} onNavigate={navigate} />;
+  }
+
+  if (memberships.length === 0) {
+    return <OnboardingPage />;
+  }
+
+  const appPath = knownPaths.has(currentPath) ? currentPath : '/';
+  const page = pageConfig[appPath] || { title: 'Partner Console' };
 
   const renderPage = () => {
-    if (currentPath === '/') return <DashboardPage onNavigate={navigateTo} />;
-    if (currentPath === '/bookings') {
+    if (appPath === '/') return <DashboardPage onNavigate={navigateTo} />;
+    if (appPath === '/bookings') {
       return <BookingsPage onHeaderActionsChange={setHeaderActions} />;
     }
-    if (currentPath === '/fulfillment') return <FulfillmentPage />;
-    if (currentPath === '/resources') return <ResourcesPage />;
-    if (currentPath === '/variants') return <VariantsPage />;
-    if (currentPath === '/offers') return <OffersPage />;
-    if (currentPath === '/availability') return <AvailabilityPage />;
-    if (currentPath === '/pricing') return <PricingPage />;
-    if (currentPath === '/policy') return <PolicyPage />;
-    if (currentPath === '/reports') return <ReportsPage />;
+    if (appPath === '/fulfillment') return <FulfillmentPage />;
+    if (appPath === '/resources') return <ResourcesPage />;
+    if (appPath === '/variants') return <VariantsPage />;
+    if (appPath === '/offers') return <OffersPage />;
+    if (appPath === '/availability') return <AvailabilityPage />;
+    if (appPath === '/pricing') return <PricingPage />;
+    if (appPath === '/policy') return <PolicyPage />;
+    if (appPath === '/reports') return <ReportsPage />;
     return <DashboardPage onNavigate={navigateTo} />;
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-transparent">
       <Sidebar
-        currentPath={currentPath}
+        currentPath={appPath}
         onNavigate={navigateTo}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#f3f6fb]">
         <Header title={page.title} subtitle={page.subtitle} actions={headerActions} />
-        <main className={`relative min-h-0 flex-1 ${currentPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <main className={`relative min-h-0 flex-1 ${appPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderPage()}
         </main>
       </div>

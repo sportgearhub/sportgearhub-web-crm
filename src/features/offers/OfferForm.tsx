@@ -4,8 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
-import { mockResources } from '../../lib/mock-data';
-import type { Offer } from '../../types';
+import type { Offer, Resource } from '../../types';
 
 const durationUnitOptions = [
   { value: 'hour', label: 'Hour(s)' },
@@ -21,15 +20,16 @@ interface OfferFormProps {
 }
 
 export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: OfferFormProps) {
+  const resources: Resource[] = [];
   const [title, setTitle] = useState(offer?.title || '');
-  const [resourceId, setResourceId] = useState(offer?.resourceId || initialResourceId || mockResources[0].id);
+  const [resourceId, setResourceId] = useState(offer?.resourceId || initialResourceId || '');
   const [basePrice, setBasePrice] = useState(String(offer?.basePrice || ''));
   const [durationValue, setDurationValue] = useState(String(offer?.durationValue || 1));
   const [durationUnit, setDurationUnit] = useState<Offer['durationUnit']>(offer?.durationUnit || 'day');
   const [description, setDescription] = useState(offer?.description || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const resourceOptions = mockResources.map(r => ({ value: r.id, label: r.title }));
+  const resourceOptions = resources.map(r => ({ value: r.id, label: r.title }));
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -41,7 +41,7 @@ export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: Offe
   const handleSubmit = () => {
     const e = validate();
     if (Object.keys(e).length > 0) { setErrors(e); return; }
-    const resource = mockResources.find(r => r.id === resourceId);
+    const resource = resources.find(r => r.id === resourceId);
     onSubmit({
       title,
       resourceId,
