@@ -77,7 +77,7 @@ export type ProviderOnboardingDraft = {
   contactEmail: string | null;
   contactPhone: string | null;
   city: string | null;
-  addressLine: string | null;
+  address: string | null;
   description: string | null;
 };
 
@@ -86,12 +86,22 @@ export type ProviderOnboarding = {
   providerId: string | null;
   status: OnboardingStatus;
   checklist: {
-    profileContact: OnboardingChecklistValue;
-    providerIdentity: OnboardingChecklistValue;
-    legalIdentity: OnboardingChecklistValue;
+    profile: OnboardingChecklistValue;
+    legal: OnboardingChecklistValue;
   } | null;
   draft: ProviderOnboardingDraft | null;
   updatedAt: string;
+};
+
+export type OnboardingLegalFormOption = {
+  value: string;
+  label: string;
+  requiredLegalIdentityFields: Array<keyof ProviderOnboardingDraft>;
+};
+
+export type ProviderOnboardingOptions = {
+  legalCountries: Array<{ value: string; label: string }>;
+  legalForms: OnboardingLegalFormOption[];
 };
 
 function normalizeUser(user: ApiUser): AuthUser {
@@ -174,6 +184,7 @@ export const authApi = {
 };
 
 export const providerOnboardingApi = {
+  options: () => request<ProviderOnboardingOptions>('/api/v1/provider-onboarding/options'),
   current: () => request<ProviderOnboarding>('/api/v1/provider-onboarding/current'),
   create: () =>
     request<ProviderOnboarding>('/api/v1/provider-onboarding/current', {

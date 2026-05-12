@@ -6,27 +6,30 @@ Use `sportgearhub-web-provider-console-prototype.md` as the product brief. Use t
 
 ## Current API Base Assumptions
 
-- API authority: `http://localhost:5093` in local development.
-- Provider web origin: `http://localhost:5173` in local development.
+- API authority is configured per environment by the web app.
+- Provider web origin is configured per environment by the web app.
 - Provider OIDC client id: `sportgearhub-provider-console`.
-- Provider callback: `http://localhost:5173/auth/callback`.
+- Provider callback route: `/auth/callback`.
 - Provider scopes: `openid profile email offline_access roles provider_api`.
 - Cookie-based API calls must use browser credentials.
 - Bearer-token API calls must use the OIDC access token.
 
-Local API links:
+API routes:
 
-- Swagger: `http://localhost:5093/swagger`
-- Health: `http://localhost:5093/health`
-- Register: `http://localhost:5093/api/v1/auth/register`
-- Login: `http://localhost:5093/api/v1/auth/login`
-- Current user: `http://localhost:5093/api/v1/auth/me`
-- Current provider memberships: `http://localhost:5093/api/v1/auth/provider-memberships`
-- Dev email outbox: `http://localhost:5093/api/v1/development/emails`
-- Current provider onboarding: `http://localhost:5093/api/v1/provider-onboarding/current`
-- OIDC authorize: `http://localhost:5093/connect/authorize`
-- OIDC token: `http://localhost:5093/connect/token`
-- OIDC userinfo: `http://localhost:5093/connect/userinfo`
+- Swagger: `/swagger`
+- Health: `/health`
+- Cities: `/api/v1/catalog/cities`
+- Register: `/api/v1/auth/register`
+- Login: `/api/v1/auth/login`
+- Current user: `/api/v1/auth/me`
+- Current provider memberships: `/api/v1/auth/provider-memberships`
+- Dev email outbox: `/api/v1/development/emails`
+- Provider onboarding options: `/api/v1/provider-onboarding/options`
+- Current provider onboarding: `/api/v1/provider-onboarding/current`
+- Provider locations: `/api/v1/provider/locations`
+- OIDC authorize: `/connect/authorize`
+- OIDC token: `/connect/token`
+- OIDC userinfo: `/connect/userinfo`
 
 Route prefix rule:
 
@@ -48,6 +51,81 @@ The provider console has two user phases:
 Do not grant provider access in frontend state. The API decides access from authenticated user, roles, scopes, and provider membership.
 
 Use `/api/v1/auth/me` for signed-in user identity only. Use `/api/v1/auth/provider-memberships` to decide whether the user can enter a provider workspace or needs provider onboarding.
+
+## Location Model
+
+Location concepts are intentionally split:
+
+- `registeredAddress`: legal registration address for onboarding, acquiring, payout, and compliance
+- `city`: a catalog value used by provider operational locations and future marketplace filtering
+- `provider location`: provider-owned pickup/service place, created after provider access exists
+
+Do not model “Адрес точки выдачи” as onboarding legal identity. A provider can have multiple pickup/service places.
+
+### Cities
+
+```http
+GET /api/v1/catalog/cities
+```
+
+Response:
+
+```json
+[
+  {
+    "cityId": "00000000-0000-0000-0000-000000000100",
+    "countryCode": "RU",
+    "region": "Свердловская область",
+    "name": "Екатеринбург",
+    "slug": "yekaterinburg",
+    "timezone": "Asia/Yekaterinburg"
+  }
+]
+```
+
+### Provider Locations
+
+```http
+GET /api/v1/provider/locations
+POST /api/v1/provider/locations
+PATCH /api/v1/provider/locations/{locationId}
+```
+
+Create request:
+
+```json
+{
+  "cityId": "00000000-0000-0000-0000-000000000100",
+  "name": "Пункт выдачи на Ленина",
+  "address": "ул. Ленина, 1",
+  "type": "pickup",
+  "isDefaultPickup": true,
+  "description": null
+}
+```
+
+Location response:
+
+```json
+{
+  "locationId": "00000000-0000-0000-0000-000000000101",
+  "providerId": "00000000-0000-0000-0000-000000000010",
+  "cityId": "00000000-0000-0000-0000-000000000100",
+  "cityName": "Екатеринбург",
+  "name": "Пункт выдачи на Ленина",
+  "address": "ул. Ленина, 1",
+  "type": "pickup",
+  "status": "active",
+  "isDefaultPickup": true,
+  "description": null,
+  "updatedAt": "2026-05-06T00:00:00Z"
+}
+```
+
+Location `type` values:
+
+- `pickup`
+- `service_area`
 
 ## Step 1: Registration And Email Verification
 
@@ -328,10 +406,70 @@ Start this only after the auth slice is stable.
 
 Initial API calls:
 
+- `GET /api/v1/provider-onboarding/options`
 - `GET /api/v1/provider-onboarding/current`
 - `POST /api/v1/provider-onboarding/current`
 - `PATCH /api/v1/provider-onboarding/current/profile`
 - `POST /api/v1/provider-onboarding/current/submit`
+
+#### Onboarding Options
+
+```http
+GET /api/v1/provider-onboarding/options
+```
+
+Use this response to render legal country and organization/legal form choices. Do not hardcode legal form values in the web app.
+
+Response:
+
+```json
+{
+  "legalCountries": [
+    {
+      "value": "RU",
+      "label": "Россия"
+    }
+  ],
+  "legalForms": [
+    {
+      "value": "self_employed",
+      "label": "Самозанятый",
+      "requiredLegalIdentityFields": [
+        "legalCountryCode",
+        "legalForm",
+        "legalName",
+        "taxNumber",
+        "registeredAddress"
+      ]
+    },
+    {
+      "value": "sole_proprietor",
+      "label": "ИП",
+      "requiredLegalIdentityFields": [
+        "legalCountryCode",
+        "legalForm",
+        "legalName",
+        "taxNumber",
+        "registeredAddress",
+        "registrationNumber"
+      ]
+    },
+    {
+      "value": "company",
+      "label": "Организация",
+      "requiredLegalIdentityFields": [
+        "legalCountryCode",
+        "legalForm",
+        "legalName",
+        "taxNumber",
+        "registeredAddress",
+        "registrationNumber",
+        "branchNumber"
+      ]
+    }
+  ]
+}
+```
 
 #### Current Onboarding
 
@@ -360,9 +498,8 @@ Response after an application exists:
   "providerId": null,
   "status": "draft",
   "checklist": {
-    "profileContact": "missing",
-    "providerIdentity": "ready",
-    "legalIdentity": "missing"
+    "profile": "missing",
+    "legal": "missing"
   },
   "draft": {
     "displayName": "Sportgearhub Rentals",
@@ -376,19 +513,41 @@ Response after an application exists:
     "contactEmail": null,
     "contactPhone": null,
     "city": null,
-    "addressLine": null,
+    "address": null,
     "description": null
   },
   "updatedAt": "2026-05-06T00:00:00Z"
 }
 ```
 
+#### Start Onboarding
+
+```http
+POST /api/v1/provider-onboarding/current
+```
+
+Request:
+
+- send JSON, even when creating an empty draft: `{}`
+- include any known draft fields in the JSON body to prefill the draft
+
+Response:
+
+- `201 Created`
+- same shape as `GET /api/v1/provider-onboarding/current` after an application exists
+
 Checklist contract:
 
 - values: `missing` or `ready`
-- `profileContact`: ready when contact email or contact phone is present
-- `providerIdentity`: ready when display name is present
-- `legalIdentity`: ready when legal country, legal form, tax number, and registered address are present
+- `profile`: ready when display name and contact email or contact phone are present
+- `legal`: ready when all `requiredLegalIdentityFields` for the selected legal form are present
+
+Provider location note:
+
+- `registeredAddress` is the legal registration address and belongs to onboarding/legal identity.
+- `city` and `address` are a simple provider profile location only; do not use them as the long-term source of pickup point truth.
+- Pickup points / addresses of handover should become separate provider locations after provider approval, because one provider can operate multiple places.
+- Future provider locations should reference a city catalog instead of storing free-text city names.
 
 Frontend routing:
 
