@@ -2,6 +2,8 @@
 
 Production is deployed by GitHub Actions when the `production` branch is updated. The workflow builds `dist`, uploads the release to the target host, and starts Docker Compose under `/opt/sportgearhub-web-provider`.
 
+The Docker image uses `ghcr.io/static-web-server/static-web-server:2`, a scratch-based static server image. It serves only `dist` and uses `/public/index.html` as the SPA fallback page.
+
 Required GitHub secrets:
 
 - `DEPLOY_HOST`: target server host or IP

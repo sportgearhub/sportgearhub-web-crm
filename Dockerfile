@@ -1,11 +1,9 @@
-FROM node:20-alpine
+FROM ghcr.io/static-web-server/static-web-server:2
 
-WORKDIR /app
+COPY dist /public
 
-RUN npm install -g serve@14.2.4
+ENV SERVER_ROOT=/public
+ENV SERVER_FALLBACK_PAGE=/public/index.html
+ENV SERVER_LOG_LEVEL=warn
 
-COPY dist ./dist
-
-EXPOSE 3000
-
-CMD ["serve", "-s", "dist", "-l", "3000"]
+EXPOSE 80
