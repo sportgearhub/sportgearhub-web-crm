@@ -1,6 +1,11 @@
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
-COPY dist /usr/share/nginx/html
+WORKDIR /app
 
-EXPOSE 80
+RUN npm install -g serve@14.2.4
+
+COPY dist ./dist
+
+EXPOSE 3000
+
+CMD ["serve", "-s", "dist", "-l", "3000"]

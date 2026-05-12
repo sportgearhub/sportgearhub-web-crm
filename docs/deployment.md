@@ -9,10 +9,10 @@ git checkout production
 git pull --ff-only origin production
 npm ci
 npm run build
-docker compose -f deploy/docker-compose.yml up -d --build
+docker compose up -d --build
 ```
 
-If the host uses legacy Compose, run `docker-compose -f deploy/docker-compose.yml up -d --build` instead.
+If the host uses legacy Compose, run `docker-compose up -d --build` instead.
 
 The Docker service and container name are `sportgearhbu-web-provider`.
 
