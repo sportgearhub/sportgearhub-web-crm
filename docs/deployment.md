@@ -4,16 +4,20 @@ Production is deployed by GitHub Actions when the `production` branch is updated
 
 The Docker image uses `ghcr.io/static-web-server/static-web-server:2`, a scratch-based static server image. It serves only `dist` and uses `/public/index.html` as the SPA fallback page.
 
-Required GitHub secrets:
+Required GitHub variables:
 
 - `DEPLOY_HOST`: target server host or IP
 - `DEPLOY_USER`: SSH user on the target server
-- `DEPLOY_SSH_KEY`: private SSH key for the deploy user
 - `VITE_API_BASE_URL`: public API base URL used at frontend build time
 
-Optional GitHub secrets:
+Required GitHub secret:
+
+- `DEPLOY_SSH_KEY`: private SSH key for the deploy user
+
+Optional GitHub variables:
 
 - `DEPLOY_PORT`: SSH port, defaults to `22`
+- `APP_DIR`: target app directory, defaults to `/opt/sportgearhub-web-provider`
 - `WEB_PROVIDER_HTTP_PORT`: host HTTP port, defaults to `8080`
 
 The deploy user must be able to write to `/opt/sportgearhub-web-provider` and run Docker Compose.

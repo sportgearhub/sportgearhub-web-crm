@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  APP_DIR: /opt/sportgearhub-web-provider
+  APP_DIR: ${{ vars.APP_DIR || '/opt/sportgearhub-web-provider' }}
   RELEASE_ARCHIVE: sportgearhub-web-provider.tar.gz
-  VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
 jobs:
   build-and-deploy:
@@ -23,12 +23,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate deployment secrets
+      - name: Validate deployment configuration
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: |
           set -euo pipefail
           test -n "$DEPLOY_HOST"
@@ -53,8 +53,8 @@ jobs:
 
       - name: Configure SSH
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           set -euo pipefail
@@ -66,19 +66,19 @@ jobs:
 
       - name: Upload release
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
         run: |
           set -euo pipefail
           scp -i ~/.ssh/deploy_key -P "$DEPLOY_PORT" "$RELEASE_ARCHIVE" "$DEPLOY_USER@$DEPLOY_HOST:/tmp/$RELEASE_ARCHIVE"
 
       - name: Deploy on target host
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          WEB_PROVIDER_HTTP_PORT: ${{ secrets.WEB_PROVIDER_HTTP_PORT || '8080' }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          WEB_PROVIDER_HTTP_PORT: ${{ vars.WEB_PROVIDER_HTTP_PORT || '8080' }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
