@@ -482,13 +482,13 @@ export function OnboardingPage() {
             <Card>
               <CardHeader title="Юридические данные" subtitle="Заполните реквизиты для выбранной формы." />
               <div className="grid gap-4 md:grid-cols-2">
-                <Input label={`Юридическое название${isRequiredLegalField('legalName') ? ' *' : ''}`} value={form.legalName} onChange={event => updateField('legalName', event.target.value)} error={fieldErrors.legalName} />
-                <Input label={`Налоговый номер${isRequiredLegalField('taxNumber') ? ' *' : ''}`} value={form.taxNumber} onChange={event => updateField('taxNumber', event.target.value)} error={fieldErrors.taxNumber} />
+                <Input label={`Название юрлица или ИП${isRequiredLegalField('legalName') ? ' *' : ''}`} value={form.legalName} onChange={event => updateField('legalName', event.target.value)} error={fieldErrors.legalName} />
+                <Input label={`ИНН${isRequiredLegalField('taxNumber') ? ' *' : ''}`} value={form.taxNumber} onChange={event => updateField('taxNumber', event.target.value)} error={fieldErrors.taxNumber} />
                 {isRequiredLegalField('registrationNumber') && (
-                  <Input label="Регистрационный номер *" value={form.registrationNumber} onChange={event => updateField('registrationNumber', event.target.value)} error={fieldErrors.registrationNumber} />
+                  <Input label="ОГРН / ОГРНИП *" value={form.registrationNumber} onChange={event => updateField('registrationNumber', event.target.value)} error={fieldErrors.registrationNumber} />
                 )}
                 {isRequiredLegalField('branchNumber') && (
-                  <Input label="Номер филиала *" value={form.branchNumber} onChange={event => updateField('branchNumber', event.target.value)} error={fieldErrors.branchNumber} />
+                  <Input label="КПП *" value={form.branchNumber} onChange={event => updateField('branchNumber', event.target.value)} error={fieldErrors.branchNumber} />
                 )}
                 <Input label={`Юридический адрес${isRequiredLegalField('registeredAddress') ? ' *' : ''}`} value={form.registeredAddress} onChange={event => updateField('registeredAddress', event.target.value)} error={fieldErrors.registeredAddress} className="md:col-span-2" />
               </div>
