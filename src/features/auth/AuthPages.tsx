@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Lock, Mail, Mountain } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../context/useAuth';
 import { ApiError, authApi } from '../../lib/api-client';
 
-type Navigate = (path: string) => void;
+type Navigate = (path: string, replace?: boolean) => void;
 type AuthInputIcon = typeof Mail;
 
 function AuthShell({ title, children }: { title: string; children: React.ReactNode }) {
@@ -55,6 +55,27 @@ function Notice({ kind, children }: { kind: 'error' | 'success'; children: React
 
 function authPath(path: string) {
   return path.startsWith('/auth') ? path : `/auth${path}`;
+}
+
+function useBackToSignIn(onNavigate: Navigate) {
+  const { signOut, user } = useAuth();
+  const [returning, setReturning] = useState(false);
+  const backToSignIn = useCallback(async () => {
+    setReturning(true);
+    try {
+      if (user) {
+        await signOut();
+      }
+      onNavigate('/auth/sign-in', true);
+    } catch {
+      setReturning(false);
+    }
+  }, [onNavigate, signOut, user]);
+
+  return {
+    returning,
+    backToSignIn,
+  };
 }
 
 export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
@@ -127,6 +148,7 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
 }
 
 export function RegisterPage({ onNavigate }: { onNavigate: Navigate }) {
+  const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [form, setForm] = useState({ name: '', surname: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -165,7 +187,7 @@ export function RegisterPage({ onNavigate }: { onNavigate: Navigate }) {
         </Button>
       </form>
 
-      <button onClick={() => onNavigate('/auth/sign-in')} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800">
+      <button onClick={backToSignIn} disabled={returning} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:text-gray-400">
         Вернуться ко входу
       </button>
     </AuthShell>
@@ -173,6 +195,7 @@ export function RegisterPage({ onNavigate }: { onNavigate: Navigate }) {
 }
 
 export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigate: Navigate }) {
+  const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -203,7 +226,7 @@ export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigat
             Открыть dev-почту
           </a>
         )}
-        <Button onClick={() => onNavigate('/auth/sign-in')} variant="ghost" className="w-full justify-center">
+        <Button onClick={backToSignIn} loading={returning} variant="ghost" className="w-full justify-center">
           Вернуться ко входу
         </Button>
       </div>
@@ -212,6 +235,7 @@ export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigat
 }
 
 export function VerifyEmailPage({ token, onNavigate }: { token: string | null; onNavigate: Navigate }) {
+  const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(token ? 'loading' : 'error');
   const [secondsLeft, setSecondsLeft] = useState(5);
 
@@ -235,7 +259,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
     if (status !== 'success') return;
 
     setSecondsLeft(5);
-    const redirectId = window.setTimeout(() => onNavigate('/auth/sign-in'), 5000);
+    const redirectId = window.setTimeout(() => void backToSignIn(), 5000);
     const intervalId = window.setInterval(() => {
       setSecondsLeft(current => Math.max(0, current - 1));
     }, 1000);
@@ -244,7 +268,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
       window.clearTimeout(redirectId);
       window.clearInterval(intervalId);
     };
-  }, [onNavigate, status]);
+  }, [backToSignIn, status]);
 
   return (
     <AuthShell title="Подтверждение почты">
@@ -267,7 +291,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
             Отправить ссылку еще раз
           </Button>
         )}
-        <Button onClick={() => onNavigate('/auth/sign-in')} variant="primary" className="w-full justify-center">
+        <Button onClick={backToSignIn} loading={returning} variant="primary" className="w-full justify-center">
           Войти
         </Button>
       </div>
@@ -276,6 +300,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
 }
 
 export function ForgotPasswordPage({ onNavigate }: { onNavigate: Navigate }) {
+  const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -305,7 +330,7 @@ export function ForgotPasswordPage({ onNavigate }: { onNavigate: Navigate }) {
           Открыть dev-почту
         </a>
       )}
-      <button onClick={() => onNavigate('/auth/sign-in')} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800">
+      <button onClick={backToSignIn} disabled={returning} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:text-gray-400">
         Вернуться ко входу
       </button>
     </AuthShell>
@@ -313,6 +338,7 @@ export function ForgotPasswordPage({ onNavigate }: { onNavigate: Navigate }) {
 }
 
 export function ResetPasswordPage({ token, onNavigate }: { token: string | null; onNavigate: Navigate }) {
+  const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>(token ? 'idle' : 'error');
@@ -348,7 +374,7 @@ export function ResetPasswordPage({ token, onNavigate }: { token: string | null;
         </form>
       )}
 
-      <button onClick={() => onNavigate('/auth/sign-in')} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800">
+      <button onClick={backToSignIn} disabled={returning} className="mt-4 w-full text-center text-xs font-medium text-blue-700 hover:text-blue-800 disabled:cursor-not-allowed disabled:text-gray-400">
         Вернуться ко входу
       </button>
     </AuthShell>

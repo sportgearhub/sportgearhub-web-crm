@@ -68,11 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const loginUser = await authApi.login(email, password);
     const currentUser = await authApi.me().catch(() => loginUser);
-    const currentMemberships = await authApi.providerMemberships();
     const nextUser = {
       ...currentUser,
       emailVerified: loginUser.emailVerified ?? currentUser.emailVerified,
     };
+    const currentMemberships = nextUser.emailVerified === false ? [] : await authApi.providerMemberships();
     setUser(nextUser);
     setMemberships(currentMemberships);
     setSessionExpired(false);
