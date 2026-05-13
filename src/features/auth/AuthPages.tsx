@@ -239,7 +239,7 @@ export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigat
 }
 
 export function VerifyEmailPage({ token, onNavigate }: { token: string | null; onNavigate: Navigate }) {
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(token ? 'loading' : 'error');
   const [secondsLeft, setSecondsLeft] = useState(5);
@@ -265,9 +265,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
 
     const verifyToken = async () => {
       try {
-        if (user) {
-          await signOut();
-        }
+        await signOut();
         await authApi.verifyEmail(token);
         finish('success');
       } catch {
@@ -283,7 +281,7 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
         window.clearTimeout(finishTimeoutId);
       }
     };
-  }, [signOut, token, user]);
+  }, [signOut, token]);
 
   useEffect(() => {
     if (status !== 'success') return;
@@ -372,6 +370,7 @@ export function ForgotPasswordPage({ initialEmail = '', onNavigate }: { initialE
 }
 
 export function ResetPasswordPage({ token, onNavigate }: { token: string | null; onNavigate: Navigate }) {
+  const { signOut } = useAuth();
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -384,6 +383,7 @@ export function ResetPasswordPage({ token, onNavigate }: { token: string | null;
     if (!token || error || !password) return;
     setLoading(true);
     try {
+      await signOut();
       await authApi.resetPassword(token, password);
       setStatus('success');
     } catch {

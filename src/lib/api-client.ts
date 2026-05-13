@@ -158,6 +158,7 @@ export const authApi = {
   verifyEmail: (token: string) =>
     request<void>('/api/v1/auth/email/verify', {
       method: 'POST',
+      credentials: 'omit',
       body: JSON.stringify({ token }),
     }),
   resendVerification: (email: string) =>
@@ -173,6 +174,7 @@ export const authApi = {
   resetPassword: (token: string, newPassword: string) =>
     request<void>('/api/v1/auth/password/reset', {
       method: 'POST',
+      credentials: 'omit',
       body: JSON.stringify({ token, newPassword }),
     }),
   signout: () => request<void>('/api/v1/auth/signout', { method: 'POST' }),

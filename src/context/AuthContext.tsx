@@ -19,6 +19,10 @@ type SessionSnapshot = { user: AuthUser; memberships: ProviderMembership[] };
 
 let sessionLoadPromise: Promise<SessionSnapshot | null> | null = null;
 
+function isPublicAuthEntry() {
+  return window.location.pathname.startsWith('/auth');
+}
+
 async function loadSessionSnapshot() {
   if (!sessionLoadPromise) {
     sessionLoadPromise = authApi.me()
@@ -41,6 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
+    if (isPublicAuthEntry()) {
+      setLoading(false);
+      return;
+    }
+
     void reloadUser();
   }, []);
 
