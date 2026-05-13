@@ -1,8 +1,8 @@
-# Sportgearhub Web Provider Console API Integration
+# Sportgearhub Provider CRM Integration
 
-This file is the working integration plan for `sportgearhub-web-provider-console`.
+This is the single structured API integration file for the provider CRM web app.
 
-Use `sportgearhub-web-provider-console-prototype.md` as the product brief. Use this file for implementation order, endpoint wiring, and current checklist status.
+Use this file for endpoint wiring, app-specific auth payloads, and current checklist status.
 
 ## Current API Base Assumptions
 
