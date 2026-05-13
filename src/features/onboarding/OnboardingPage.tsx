@@ -206,6 +206,7 @@ export function OnboardingPage() {
     const checklist = onboarding?.checklist;
     return Boolean(checklist && Object.values(checklist).every(value => value === 'ready'));
   }, [onboarding]);
+  const isReviewing = onboarding?.status === 'submitted' || onboarding?.status === 'in_review';
 
   const selectedLegalForm = options?.legalForms.find(option => option.value === form.legalForm);
   const requiredLegalFields = selectedLegalForm?.requiredLegalIdentityFields ?? [];
@@ -327,6 +328,7 @@ export function OnboardingPage() {
   };
 
   const submit = async () => {
+    if (isReviewing) return;
     if (!validateStep('legalDetails')) return;
     setError('');
     setSubmitting(true);
@@ -357,16 +359,6 @@ export function OnboardingPage() {
         title="Подключение недоступно"
         text={error || 'Не удалось открыть анкету подключения.'}
         icon={<AlertCircle size={18} />}
-      />
-    );
-  }
-
-  if (onboarding.status === 'submitted' || onboarding.status === 'in_review') {
-    return (
-      <DecisionState
-        title="Заявка на проверке"
-        text="Мы получили данные компании. После проверки доступ к кабинету партнера появится автоматически."
-        icon={<Clock size={18} />}
       />
     );
   }
@@ -446,8 +438,8 @@ export function OnboardingPage() {
               <h2 className="mt-0.5 text-sm font-semibold text-gray-950">{activeStepMeta.title}</h2>
               <p className="mt-0.5 text-xs text-gray-500">{activeStepMeta.description}</p>
             </div>
-            <Badge variant={canSubmit ? 'green' : 'yellow'}>
-              {canSubmit ? 'Готово' : 'Заполняется'}
+            <Badge variant={isReviewing ? 'blue' : canSubmit ? 'green' : 'yellow'}>
+              {isReviewing ? 'На проверке' : canSubmit ? 'Готово' : 'Заполняется'}
             </Badge>
           </div>
           <div className="h-1.5 rounded-full bg-gray-100">
@@ -529,12 +521,25 @@ export function OnboardingPage() {
               </Button>
             )}
             {activeStep === 'legalDetails' && (
-              <Button type="button" variant="primary" loading={submitting} disabled={!canSubmit} onClick={submit} className="min-h-10 w-full justify-center sm:w-52">
-                Отправить на проверку
-              </Button>
+              isReviewing ? (
+                <Button type="button" variant="secondary" disabled className="min-h-10 w-full justify-center sm:w-52">
+                  На проверке
+                </Button>
+              ) : (
+                <Button type="button" variant="primary" loading={submitting} disabled={!canSubmit} onClick={submit} className="min-h-10 w-full justify-center sm:w-52">
+                  Отправить на проверку
+                </Button>
+              )
             )}
           </div>
         </form>
+
+        {isReviewing && (
+          <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+            <Clock size={14} className="mt-0.5 shrink-0 text-blue-700" />
+            <p className="text-xs leading-5 text-blue-800">Заявка на проверке. Вы можете сохранить изменения в анкете, не отправляя ее повторно.</p>
+          </div>
+        )}
 
         {!canSubmit && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
@@ -555,7 +560,7 @@ export function OnboardingPage() {
           </div>
         )}
 
-        {canSubmit && (
+        {canSubmit && !isReviewing && (
           <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
             <FileText size={14} className="mt-0.5 shrink-0 text-emerald-700" />
             <p className="text-xs leading-5 text-emerald-800">Анкета готова к отправке.</p>
