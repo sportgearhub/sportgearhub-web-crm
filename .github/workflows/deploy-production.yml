@@ -98,6 +98,8 @@ jobs:
           WEB_PROVIDER_HTTP_PORT=$WEB_PROVIDER_HTTP_PORT
           ENVEOF
 
+          docker network inspect apps-proxy >/dev/null 2>&1 || docker network create apps-proxy
+
           cd "$APP_DIR"
           if docker compose version >/dev/null 2>&1; then
             docker compose up -d --build

@@ -28,6 +28,15 @@ Create the proxy network once on the target host if it does not exist:
 docker network create apps-proxy
 ```
 
+The Nginx container must also be attached to this network. If it is already running:
+
+```sh
+docker network connect apps-proxy sportgearhub-nginx
+docker restart sportgearhub-nginx
+```
+
+If Nginx is managed by Compose, add the same external `apps-proxy` network to the Nginx compose file instead.
+
 Manual server deployment is still possible:
 
 ```sh

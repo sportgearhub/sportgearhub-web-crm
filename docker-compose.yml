@@ -8,7 +8,9 @@ services:
     ports:
       - "${WEB_PROVIDER_HTTP_PORT:-8080}:80"
     networks:
-      - apps-proxy
+      apps-proxy:
+        aliases:
+          - sportgearhub-web-provider
 
 networks:
   apps-proxy:
