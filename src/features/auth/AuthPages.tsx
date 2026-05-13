@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Lock, Mail, Mountain } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -235,25 +235,51 @@ export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigat
 }
 
 export function VerifyEmailPage({ token, onNavigate }: { token: string | null; onNavigate: Navigate }) {
+  const { signOut, user } = useAuth();
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>(token ? 'loading' : 'error');
   const [secondsLeft, setSecondsLeft] = useState(5);
+  const verificationTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || verificationTokenRef.current === token) return;
+    verificationTokenRef.current = token;
+
     const startedAt = Date.now();
     const minLoaderMs = 900;
+    let cancelled = false;
+    let finishTimeoutId: number | undefined;
 
     const finish = (nextStatus: 'success' | 'error') => {
       const elapsed = Date.now() - startedAt;
-      window.setTimeout(() => setStatus(nextStatus), Math.max(0, minLoaderMs - elapsed));
+      finishTimeoutId = window.setTimeout(() => {
+        if (!cancelled) {
+          setStatus(nextStatus);
+        }
+      }, Math.max(0, minLoaderMs - elapsed));
     };
 
-    authApi.verifyEmail(token).then(
-      () => finish('success'),
-      () => finish('error')
-    );
-  }, [token]);
+    const verifyToken = async () => {
+      try {
+        if (user) {
+          await signOut();
+        }
+        await authApi.verifyEmail(token);
+        finish('success');
+      } catch {
+        finish('error');
+      }
+    };
+
+    void verifyToken();
+
+    return () => {
+      cancelled = true;
+      if (finishTimeoutId) {
+        window.clearTimeout(finishTimeoutId);
+      }
+    };
+  }, [signOut, token, user]);
 
   useEffect(() => {
     if (status !== 'success') return;

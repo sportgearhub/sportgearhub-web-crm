@@ -77,7 +77,7 @@ function AppShell() {
   const renderAuthPage = () => {
     if (currentPath === '/auth/register') return <RegisterPage onNavigate={navigate} />;
     if (currentPath === '/auth/check-email') return <CheckEmailPage email={params.get('email') ?? user?.email ?? ''} onNavigate={navigate} />;
-    if (currentPath === '/auth/verify-email') return <VerifyEmailPage token={params.get('token')} onNavigate={navigate} />;
+    if (currentPath === '/auth/verify-email' || currentPath === '/auth/verify-mail') return <VerifyEmailPage token={params.get('token')} onNavigate={navigate} />;
     if (currentPath === '/auth/forgot-password') return <ForgotPasswordPage onNavigate={navigate} />;
     if (currentPath === '/auth/reset-password') return <ResetPasswordPage token={params.get('token')} onNavigate={navigate} />;
     return <SignInPage onNavigate={navigate} />;
