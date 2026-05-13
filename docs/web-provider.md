@@ -146,7 +146,8 @@ Request:
   "name": "Ivan",
   "surname": "Petrov",
   "email": "ivan@example.com",
-  "password": "strong-password"
+  "password": "strong-password",
+  "app": "crm"
 }
 ```
 
@@ -166,6 +167,7 @@ Frontend behavior:
 
 - show success state after registration
 - tell the user to check email
+- pass `app: "crm"` so verification links return to `crm.sportgearhub.ru`
 - in development, offer a link to the dev email outbox
 - do not auto-mark email verified locally
 
@@ -209,13 +211,15 @@ Request:
 
 ```json
 {
-  "email": "ivan@example.com"
+  "email": "ivan@example.com",
+  "app": "crm"
 }
 ```
 
 Frontend behavior:
 
 - use from verification-error screen and post-registration screen
+- pass `app: "crm"` so verification links return to `crm.sportgearhub.ru`
 - always show generic success copy
 
 ### Checklist
@@ -360,13 +364,15 @@ Request:
 
 ```json
 {
-  "email": "ivan@example.com"
+  "email": "ivan@example.com",
+  "app": "crm"
 }
 ```
 
 Frontend behavior:
 
 - always show generic success copy
+- pass `app: "crm"` so reset links return to `crm.sportgearhub.ru`
 - in development, point to dev email outbox
 
 #### Reset Password
