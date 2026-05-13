@@ -586,7 +586,7 @@ Frontend behavior:
 GET /api/v1/addresses/ru/suggestions?query=Екатеринбург%20Ленина&count=10
 ```
 
-Response:
+Response shape:
 
 ```json
 {
@@ -595,32 +595,18 @@ Response:
     {
       "value": "г Екатеринбург, ул Ленина",
       "unrestrictedValue": "Свердловская обл, г Екатеринбург, ул Ленина",
-      "postalCode": null,
-      "country": "Россия",
-      "countryCode": "RU",
-      "region": "Свердловская обл",
-      "city": "г Екатеринбург",
-      "settlement": null,
-      "street": "ул Ленина",
-      "house": null,
-      "block": null,
-      "flat": null,
       "fiasId": "00000000-0000-0000-0000-000000000000",
-      "kladrId": "6600000100000000000",
-      "geoLat": "56.838011",
-      "geoLon": "60.597465"
+      "kladrId": "6600000100000000000"
     }
   ]
 }
 ```
 
-Frontend behavior:
-
 - use this global helper for `registeredAddress`, the simple provider profile `address`, and future address fields in other apps
 - debounce typing and avoid calls before 3 non-space characters
 - let users type an address manually even when suggestions are empty
 - store the selected/free-typed string through the existing onboarding draft endpoints
-- do not treat `fiasId`, `kladrId`, or coordinates as onboarding truth yet
+- do not treat suggestion metadata such as `fiasId`, `kladrId`, or coordinates as onboarding truth yet
 
 Provider location note:
 
