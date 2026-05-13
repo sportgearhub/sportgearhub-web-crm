@@ -31,6 +31,7 @@ import type {
 } from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const AUTH_APP = 'crm';
 const PROVIDER_BASE_URL = '/v1/provider';
 
 export class ApiError extends Error {
@@ -153,7 +154,7 @@ export const authApi = {
   register: async (data: { name: string; surname: string; email: string; password: string }) =>
     normalizeUser(await request<ApiUser>('/api/v1/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, app: AUTH_APP }),
     })),
   verifyEmail: (token: string) =>
     request<void>('/api/v1/auth/email/verify', {
@@ -164,12 +165,12 @@ export const authApi = {
   resendVerification: (email: string) =>
     request<void>('/api/v1/auth/email/verification', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, app: AUTH_APP }),
     }),
   forgotPassword: (email: string) =>
     request<void>('/api/v1/auth/password/forgot', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, app: AUTH_APP }),
     }),
   resetPassword: (token: string, newPassword: string) =>
     request<void>('/api/v1/auth/password/reset', {
@@ -201,6 +202,7 @@ export const providerOnboardingApi = {
   submit: () =>
     request<ProviderOnboarding>('/api/v1/provider-onboarding/current/submit', {
       method: 'POST',
+      body: JSON.stringify({}),
     }),
 };
 
