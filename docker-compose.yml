@@ -1,6 +1,6 @@
 services:
-  sportgearhbu-web-provider:
-    container_name: sportgearhbu-web-provider
+  sportgearhub-web-provider:
+    container_name: sportgearhub-web-provider
     build:
       context: .
       dockerfile: Dockerfile

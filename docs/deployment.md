@@ -42,8 +42,8 @@ docker compose up -d --build
 
 If the host uses legacy Compose, run `docker-compose up -d --build` instead.
 
-The Docker service and container name are `sportgearhbu-web-provider`.
+The Docker service and container name are `sportgearhub-web-provider`.
 
-From Nginx on the same Docker network, proxy to `http://sportgearhbu-web-provider:80`.
+From Nginx on the same Docker network, proxy to `http://sportgearhub-web-provider:80`.
 
 Set `WEB_PROVIDER_HTTP_PORT` to change the host port. The default is `8080`.

@@ -54,7 +54,7 @@ jobs:
         run: npm run build
 
       - name: Pack release
-        run: tar -czf "$RELEASE_ARCHIVE" Dockerfile compose.yml .dockerignore dist
+        run: tar -czf "$RELEASE_ARCHIVE" Dockerfile docker-compose.yml .dockerignore dist
 
       - name: Configure SSH
         env:
