@@ -105,6 +105,10 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
     }
   };
 
+  const forgotPasswordPath = email.trim()
+    ? `${authPath('/forgot-password')}?email=${encodeURIComponent(email.trim())}`
+    : authPath('/forgot-password');
+
   return (
     <AuthShell title="Вход в аккаунт">
       {error && <Notice kind="error">{error}</Notice>}
@@ -136,7 +140,7 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
       </form>
 
       <div className="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 text-xs sm:flex-row sm:items-center sm:justify-between">
-        <button onClick={() => onNavigate(authPath('/forgot-password'))} className="font-medium text-blue-700 hover:text-blue-800">
+        <button onClick={() => onNavigate(forgotPasswordPath)} className="font-medium text-blue-700 hover:text-blue-800">
           Забыли пароль?
         </button>
         <button onClick={() => onNavigate(authPath('/register'))} className="font-medium text-blue-700 hover:text-blue-800">
@@ -325,11 +329,15 @@ export function VerifyEmailPage({ token, onNavigate }: { token: string | null; o
   );
 }
 
-export function ForgotPasswordPage({ onNavigate }: { onNavigate: Navigate }) {
+export function ForgotPasswordPage({ initialEmail = '', onNavigate }: { initialEmail?: string; onNavigate: Navigate }) {
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setEmail(initialEmail);
+  }, [initialEmail]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
