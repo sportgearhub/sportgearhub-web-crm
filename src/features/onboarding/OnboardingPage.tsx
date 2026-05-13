@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Building2, Check, ChevronDown, Clock, FileText } from 'lucide-react';
+import { AlertCircle, Building2, Check, ChevronDown, Clock, FileText, LogOut } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
@@ -190,7 +190,7 @@ function FancySelect({
 }
 
 export function OnboardingPage() {
-  const { reloadUser } = useAuth();
+  const { reloadUser, signOut } = useAuth();
   const [onboarding, setOnboarding] = useState<ProviderOnboarding | null>(null);
   const [options, setOptions] = useState<ProviderOnboardingOptions | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -408,6 +408,10 @@ export function OnboardingPage() {
             <Button onClick={startOnboarding} variant="primary" loading={starting} className="w-full justify-center">
               Начать подключение
             </Button>
+            <Button onClick={signOut} variant="ghost" className="mt-2 w-full justify-center">
+              <LogOut size={14} />
+              Выйти
+            </Button>
           </Card>
         </div>
       </div>
@@ -417,9 +421,15 @@ export function OnboardingPage() {
   return (
     <div className="min-h-screen bg-[#f3f6fb] px-4 py-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-950">Подключение партнера</h1>
-          <p className="mt-1 text-sm text-gray-600">Заполните данные компании, чтобы отправить заявку на проверку.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-gray-950">Подключение партнера</h1>
+            <p className="mt-1 text-sm text-gray-600">Заполните данные компании, чтобы отправить заявку на проверку.</p>
+          </div>
+          <Button onClick={signOut} variant="ghost" className="w-full justify-center sm:w-auto">
+            <LogOut size={14} />
+            Выйти
+          </Button>
         </div>
 
         {error && (
