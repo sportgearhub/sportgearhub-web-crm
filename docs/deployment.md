@@ -1,8 +1,14 @@
 # Deployment
 
-Production is deployed by GitHub Actions when the `production` branch is updated. The workflow builds `dist`, uploads the release to the target host, and starts Docker Compose under `/opt/sportgearhub-web-provider`.
+Production is deployed by GitHub Actions when the `production` branch is updated. The workflow builds `dist`, builds and pushes a Docker image to GHCR, uploads `docker-compose.yml` to the target host, and starts Docker Compose under `/opt/sportgearhub-web-provider`.
 
 The Docker image uses `ghcr.io/static-web-server/static-web-server:2`, a scratch-based static server image. It serves only `dist` and uses `/public/index.html` as the SPA fallback page.
+
+Published image:
+
+```text
+ghcr.io/sportgearhub/sportgearhub-web-provider:production
+```
 
 Required GitHub variables:
 
@@ -20,7 +26,7 @@ Optional GitHub variables:
 - `APP_DIR`: target app directory, defaults to `/opt/sportgearhub-web-provider`
 - `WEB_PROVIDER_HTTP_PORT`: host HTTP port, defaults to `8080`
 
-The deploy user must be able to write to `/opt/sportgearhub-web-provider` and run Docker Compose. The target host must have an external Docker network named `apps-proxy` so Nginx can proxy to the app container.
+The deploy user must be able to write to `/opt/sportgearhub-web-provider` and run Docker Compose. The target host must have an external Docker network named `apps-proxy` so Nginx can proxy to the app container. The target host must also be able to pull `ghcr.io/sportgearhub/sportgearhub-web-provider:production`.
 
 Create the proxy network once on the target host if it does not exist:
 
@@ -37,19 +43,20 @@ docker restart sportgearhub-nginx
 
 If Nginx is managed by Compose, add the same external `apps-proxy` network to the Nginx compose file instead.
 
-Manual server deployment is still possible:
+Manual server deployment is still possible after the image is available in GHCR:
 
 ```sh
 cd /opt/sportgearhub-web-provider
-git fetch origin
-git checkout production
-git pull --ff-only origin production
-npm ci
-npm run build
-docker compose up -d --build
+docker compose pull
+docker compose up -d --remove-orphans
 ```
 
-If the host uses legacy Compose, run `docker-compose up -d --build` instead.
+If the host uses legacy Compose, run:
+
+```sh
+docker-compose pull
+docker-compose up -d --remove-orphans
+```
 
 The Docker service and container name are `sportgearhub-web-provider`.
 

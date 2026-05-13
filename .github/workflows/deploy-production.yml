@@ -10,9 +10,13 @@ concurrency:
   group: production-deploy
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   APP_DIR: ${{ vars.APP_DIR || '/opt/sportgearhub-web-provider' }}
-  RELEASE_ARCHIVE: sportgearhub-web-provider.tar.gz
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
   VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
 jobs:
@@ -53,8 +57,26 @@ jobs:
       - name: Build dist
         run: npm run build
 
-      - name: Pack release
-        run: tar -czf "$RELEASE_ARCHIVE" Dockerfile docker-compose.yml .dockerignore dist
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build Docker image
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag "$IMAGE_NAME:${GITHUB_SHA}" \
+            --tag "$IMAGE_NAME:production" \
+            .
+
+      - name: Push Docker image
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE_NAME:${GITHUB_SHA}"
+          docker push "$IMAGE_NAME:production"
 
       - name: Configure SSH
         env:
@@ -76,7 +98,7 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/deploy_key -P "$DEPLOY_PORT" "$RELEASE_ARCHIVE" "$DEPLOY_USER@$DEPLOY_HOST:/tmp/$RELEASE_ARCHIVE"
+          scp -i ~/.ssh/deploy_key -P "$DEPLOY_PORT" docker-compose.yml "$DEPLOY_USER@$DEPLOY_HOST:/tmp/docker-compose.yml"
 
       - name: Deploy on target host
         env:
@@ -87,23 +109,26 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "APP_DIR='$APP_DIR' RELEASE_ARCHIVE='$RELEASE_ARCHIVE' WEB_PROVIDER_HTTP_PORT='$WEB_PROVIDER_HTTP_PORT' bash -s" <<'EOF'
+            "APP_DIR='$APP_DIR' WEB_PROVIDER_HTTP_PORT='$WEB_PROVIDER_HTTP_PORT' WEB_PROVIDER_IMAGE='$IMAGE_NAME:production' bash -s" <<'EOF'
           set -euo pipefail
 
           mkdir -p "$APP_DIR"
-          tar -xzf "/tmp/$RELEASE_ARCHIVE" -C "$APP_DIR"
-          rm -f "/tmp/$RELEASE_ARCHIVE"
+          mv /tmp/docker-compose.yml "$APP_DIR/docker-compose.yml"
+          rm -f "$APP_DIR/compose.yml"
 
           cat > "$APP_DIR/.env" <<ENVEOF
           WEB_PROVIDER_HTTP_PORT=$WEB_PROVIDER_HTTP_PORT
+          WEB_PROVIDER_IMAGE=$WEB_PROVIDER_IMAGE
           ENVEOF
 
           docker network inspect apps-proxy >/dev/null 2>&1 || docker network create apps-proxy
 
           cd "$APP_DIR"
           if docker compose version >/dev/null 2>&1; then
-            docker compose up -d --build
+            docker compose pull
+            docker compose up -d --remove-orphans
           else
-            docker-compose up -d --build
+            docker-compose pull
+            docker-compose up -d --remove-orphans
           fi
           EOF

@@ -1,9 +1,7 @@
 services:
   sportgearhub-web-provider:
     container_name: sportgearhub-web-provider
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: "${WEB_PROVIDER_IMAGE:-ghcr.io/sportgearhub/sportgearhub-web-provider:production}"
     restart: unless-stopped
     ports:
       - "${WEB_PROVIDER_HTTP_PORT:-8080}:80"
