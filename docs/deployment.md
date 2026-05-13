@@ -20,7 +20,13 @@ Optional GitHub variables:
 - `APP_DIR`: target app directory, defaults to `/opt/sportgearhub-web-provider`
 - `WEB_PROVIDER_HTTP_PORT`: host HTTP port, defaults to `8080`
 
-The deploy user must be able to write to `/opt/sportgearhub-web-provider` and run Docker Compose.
+The deploy user must be able to write to `/opt/sportgearhub-web-provider` and run Docker Compose. The target host must have an external Docker network named `apps-proxy` so Nginx can proxy to the app container.
+
+Create the proxy network once on the target host if it does not exist:
+
+```sh
+docker network create apps-proxy
+```
 
 Manual server deployment is still possible:
 
@@ -37,5 +43,7 @@ docker compose up -d --build
 If the host uses legacy Compose, run `docker-compose up -d --build` instead.
 
 The Docker service and container name are `sportgearhbu-web-provider`.
+
+From Nginx on the same Docker network, proxy to `http://sportgearhbu-web-provider:80`.
 
 Set `WEB_PROVIDER_HTTP_PORT` to change the host port. The default is `8080`.

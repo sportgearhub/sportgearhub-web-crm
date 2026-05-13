@@ -7,3 +7,9 @@ services:
     restart: unless-stopped
     ports:
       - "${WEB_PROVIDER_HTTP_PORT:-8080}:80"
+    networks:
+      - apps-proxy
+
+networks:
+  apps-proxy:
+    external: true
