@@ -190,7 +190,7 @@ function FancySelect({
 }
 
 export function OnboardingPage() {
-  const { reloadUser, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [onboarding, setOnboarding] = useState<ProviderOnboarding | null>(null);
   const [options, setOptions] = useState<ProviderOnboardingOptions | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -338,7 +338,6 @@ export function OnboardingPage() {
       const next = await providerOnboardingApi.submit();
       setOnboarding(next);
       setForm(formFromDraft(next.draft));
-      await reloadUser();
     } catch {
       setError('Ошибка в работе сервиса.');
     } finally {

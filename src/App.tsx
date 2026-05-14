@@ -106,6 +106,10 @@ function AppShell() {
     return <CheckEmailPage email={user.email} onNavigate={navigate} />;
   }
 
+  if (currentPath === '/onboarding') {
+    return <OnboardingPage />;
+  }
+
   if (memberships.length === 0) {
     return <OnboardingPage />;
   }
