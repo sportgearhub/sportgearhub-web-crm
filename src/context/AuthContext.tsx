@@ -27,7 +27,7 @@ async function loadSessionSnapshot() {
   if (!sessionLoadPromise) {
     sessionLoadPromise = authApi.me()
       .then(async currentUser => {
-        const currentMemberships = await authApi.providerAccessMemberships();
+        const currentMemberships = await authApi.providerMemberships();
         return { user: currentUser, memberships: currentMemberships };
       })
       .finally(() => {
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const nextUser = await authApi.login(email, password);
-    const currentMemberships = nextUser.emailVerified === false ? [] : await authApi.providerAccessMemberships();
+    const currentMemberships = nextUser.emailVerified === false ? [] : await authApi.providerMemberships();
     setUser(nextUser);
     setMemberships(currentMemberships);
     setSessionExpired(false);
