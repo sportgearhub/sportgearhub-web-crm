@@ -12,6 +12,7 @@ Use this file for endpoint wiring, app-specific auth payloads, and current check
 - Provider callback route: `/auth/callback`.
 - Provider scopes: `openid profile email offline_access roles provider_api`.
 - Bearer-token API calls must use the OIDC access token.
+- Backend persistence is organized by PostgreSQL bounded-context schemas (`auth`, `catalog`, `provider`, `inventory`, `booking`, `payments`, `operations`, `equipment`). This is operational structure only and does not change frontend route paths.
 
 API routes:
 
@@ -30,6 +31,10 @@ API routes:
 - RU address suggestions: `/api/v1/addresses/ru/suggestions`
 - Provider locations: `/api/v1/provider/locations`
 - Provider profile: `/api/v1/provider/profile`
+- Equipment categories: `/api/v1/provider/equipment-categories`
+- Equipment category attributes: `/api/v1/provider/equipment-categories/{categorySlug}/attributes`
+- Equipment brand suggestions: `/api/v1/provider/equipment-brands/suggestions`
+- Equipment brand create/request: `/api/v1/provider/equipment-brands`
 - Provider resources: `/api/v1/provider/resources`
 - Provider resource variants: `/api/v1/provider/resources/{resourceId}/variants`
 - Provider inventory units: `/api/v1/provider/resources/{resourceId}/units`
@@ -717,6 +722,155 @@ Domain mapping:
 - `Offer`: commercial package customers can discover/book, for example `Аренда горных лыж на день`
 
 Do not ask the provider to create offers before they have described real stock. Offers should be created after resources, variants, units, availability, pricing, and policies are at least minimally ready.
+
+#### Equipment Schema And Brands
+
+The API is moving inventory setup to platform-controlled category schemas. The provider CRM should render category-specific forms from API schemas instead of hardcoding bicycle/ski/etc. fields.
+
+Current first supported schema slice:
+
+- category: `bicycle`
+- resource type: `equipment`
+- capacity mode: `inventory`
+- localized labels: `ru-RU`, `en-US`
+- brand directory: controlled platform brands plus provider-created `pending_review` brands
+
+Read categories:
+
+```http
+GET /api/v1/provider/equipment-categories?locale=ru-RU
+```
+
+Read bicycle attributes:
+
+```http
+GET /api/v1/provider/equipment-categories/bicycle/attributes?locale=ru-RU
+```
+
+Schema response shape:
+
+```json
+{
+  "category": {
+    "categoryId": "00000000-0000-0000-0000-000000000001",
+    "slug": "bicycle",
+    "label": "Велосипед",
+    "labels": {
+      "ru-RU": "Велосипед",
+      "en-US": "Bicycle"
+    },
+    "resourceType": "equipment",
+    "capacityMode": "inventory",
+    "status": "active",
+    "sortOrder": 10
+  },
+  "attributes": [
+    {
+      "attributeId": "00000000-0000-0000-0000-000000000101",
+      "key": "brand",
+      "label": "Бренд",
+      "valueType": "reference",
+      "referenceType": "equipment_brand",
+      "requiredOn": ["variant"],
+      "appliesTo": ["variant"],
+      "visibleWhen": [],
+      "filterable": true,
+      "comparable": true,
+      "searchable": true,
+      "sortOrder": 10,
+      "allowedValues": []
+    }
+  ]
+}
+```
+
+Use schema fields as follows:
+
+- `key` is the stable machine field name.
+- `label` is the localized display label for the requested locale.
+- `labels` contains known translations.
+- `valueType` controls the input type: `string`, `enum`, `decimal`, `integer`, `boolean`, `datetime`, `reference`.
+- `referenceType: "equipment_brand"` means use the brand suggestion/create endpoints.
+- `requiredOn` tells whether the field is required for `variant` or `unit`.
+- `appliesTo` tells where the field should be displayed.
+- `visibleWhen` is a typed conditional display rule. If empty, show the field for its scope. If present, show the field only when the controlling attribute matches one of the listed values.
+- `filterable`, `comparable`, and `searchable` are frontend hints for later marketplace/search UX.
+- `allowedValues` supplies enum options with localized labels.
+
+Conditional field example:
+
+```json
+{
+  "key": "suspension_travel_front_mm",
+  "label": "Ход передней подвески",
+  "valueType": "integer",
+  "unit": "mm",
+  "appliesTo": ["variant"],
+  "visibleWhen": [
+    {
+      "attributeKey": "bike_type",
+      "allowedValueKeys": ["mountain", "e_bike"]
+    }
+  ]
+}
+```
+
+Frontend behavior for conditional fields:
+
+- Render `bike_type` first according to `sortOrder`.
+- Recompute visible fields when `bike_type` changes.
+- Do not submit hidden empty optional fields.
+- If a previously visible field becomes hidden, clear its local dirty value unless the user confirms keeping it.
+- Treat frontend visibility as UX only; API validation remains authoritative.
+
+Brand suggestions:
+
+```http
+GET /api/v1/provider/equipment-brands/suggestions?query=trek&category=bicycle
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "brandId": "00000000-0000-0000-0000-000000000201",
+      "canonicalName": "Trek",
+      "status": "approved",
+      "confidence": 1.0,
+      "matchKind": "brand_exact"
+    }
+  ]
+}
+```
+
+Create/request missing brand:
+
+```http
+POST /api/v1/provider/equipment-brands
+```
+
+Request:
+
+```json
+{
+  "name": "NorthPeak",
+  "category": "bicycle",
+  "website": null,
+  "countryCode": "RU"
+}
+```
+
+If the API finds an existing brand or alias, it returns `status: "matched"`. If not, it creates a usable brand with `status: "pending_review"` and returns `status: "created_pending_review"`.
+
+Frontend behavior:
+
+- Search brand before allowing free text.
+- Show suggestions for aliases such as `Trek Bicycle`.
+- If no suggestion fits, call create/request and store the returned brand id in form state.
+- Do not create local-only brand strings; the API must own duplicate checking and canonicalization.
+- The current resource/variant create endpoints still use their existing contracts. The target roadmap is to replace `variantType` and `normalizedAttributes` with schema-driven `attributes` object contracts after backend Phase 4 lands.
 
 #### Create Equipment Resource
 
