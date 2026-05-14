@@ -8,14 +8,15 @@ Use this file for endpoint wiring, app-specific auth payloads, and current check
 
 - API authority is configured per environment by the web app.
 - Provider web origin is configured per environment by the web app.
-- Provider OIDC client id: `sportgearhub-provider-console`.
+- Provider OIDC client id: `sportgearhub-provider`.
 - Provider callback route: `/auth/callback`.
 - Provider scopes: `openid profile email offline_access roles provider_api`.
 - Bearer-token API calls must use the OIDC access token.
 
 API routes:
 
-- Swagger: `/swagger`
+- Swagger document: `/swagger/provider/swagger.json`
+- Swagger UI: `/swagger`
 - Health: `/health`
 - Cities: `/api/v1/catalog/cities`
 - Register: `/api/v1/auth/register`
@@ -66,7 +67,7 @@ Form body:
 
 ```text
 grant_type=password
-client_id=sportgearhub-provider-console
+client_id=sportgearhub-provider
 username=<provider-user-email>
 password=<provider-user-password>
 scope=openid profile email offline_access roles provider_api
@@ -289,7 +290,7 @@ Form body:
 
 ```text
 grant_type=password
-client_id=sportgearhub-provider-console
+client_id=sportgearhub-provider
 username=ivan@example.com
 password=strong-password
 scope=openid profile email offline_access roles provider_api
@@ -375,7 +376,7 @@ Response:
 If the provider web app uses bearer tokens instead of cookie-only calls:
 
 1. Ensure the user has a local API session.
-2. Start `/connect/authorize` for `sportgearhub-provider-console`.
+2. Start `/connect/authorize` for `sportgearhub-provider`.
 3. Exchange authorization code at `/connect/token`.
 4. Store token in the app's normal auth layer.
 5. Use `GET /connect/userinfo` to validate `provider_api` and provider claims.
