@@ -29,6 +29,12 @@ API routes:
 - Provider onboarding RU legal identity lookup: `/api/v1/provider-onboarding/legal-identity/ru/lookup`
 - RU address suggestions: `/api/v1/addresses/ru/suggestions`
 - Provider locations: `/api/v1/provider/locations`
+- Provider profile: `/api/v1/provider/profile`
+- Provider resources: `/api/v1/provider/resources`
+- Provider resource variants: `/api/v1/provider/resources/{resourceId}/variants`
+- Provider inventory units: `/api/v1/provider/resources/{resourceId}/units`
+- Provider inventory summary: `/api/v1/provider/resources/{resourceId}/inventory-summary`
+- Provider offers: `/api/v1/provider/offers`
 - OIDC authorize: `/connect/authorize`
 - OIDC token: `/connect/token`
 - OIDC userinfo: `/connect/userinfo`
@@ -673,6 +679,172 @@ Checklist:
 - [ ] profile form
 - [ ] submit for review
 - [ ] review/requested-changes state
+
+## Step 5: Post-Approval Provider Workspace
+
+After internal approval, the API creates:
+
+- `Provider`
+- owner `ProviderMembership`
+- user `Provider` role
+
+Newly approved providers do not receive seeded resources, inventory units, or offers. Demo seed data exists only for the built-in development provider. The provider CRM must guide real providers through setup before they can sell rental inventory.
+
+Entry behavior:
+
+1. Call `GET /api/v1/auth/provider-memberships`.
+2. If memberships exist, select a provider workspace.
+3. Call `GET /api/v1/provider/profile`.
+4. If the profile has no resources/offers, route to inventory setup instead of marketplace publishing.
+
+Provider profile:
+
+```http
+GET /api/v1/provider/profile
+```
+
+The profile response includes `providerId`, legal/profile fields, `operatingState`, and summary diagnostics such as `active_resources`, `total_resources`, `active_offers`, and `total_offers`.
+
+### Rental Inventory Setup Flow
+
+For current rental equipment services, treat inventory setup as the first provider task after approval.
+
+Domain mapping:
+
+- `ProviderResource`: operational thing the provider owns or manages, for example `Горные лыжи`
+- `ResourceVariant`: classification of that resource, for example `170cm / adult`
+- `ProviderResourceUnit`: physical rentable item, for example `SKI-001`
+- `Offer`: commercial package customers can discover/book, for example `Аренда горных лыж на день`
+
+Do not ask the provider to create offers before they have described real stock. Offers should be created after resources, variants, units, availability, pricing, and policies are at least minimally ready.
+
+#### Create Equipment Resource
+
+```http
+POST /api/v1/provider/resources
+```
+
+Request:
+
+```json
+{
+  "resourceType": "equipment",
+  "capacityMode": "inventory",
+  "title": "Горные лыжи",
+  "baseCapacity": 10
+}
+```
+
+Use `resourceType: "equipment"` and `capacityMode: "inventory"` for rental equipment. `baseCapacity` is a summary/default capacity; physical stock truth comes from units.
+
+#### Create Resource Variant
+
+```http
+POST /api/v1/provider/resources/{resourceId}/variants
+```
+
+Request:
+
+```json
+{
+  "variantKey": "ski-170-adult",
+  "variantType": "size",
+  "label": "170 см / взрослые",
+  "normalizedAttributes": [
+    { "key": "length_cm", "value": "170" },
+    { "key": "audience", "value": "adult" }
+  ],
+  "sortOrder": 10,
+  "status": "active"
+}
+```
+
+Variants are optional only for very simple resources. For most rental inventory, variants make unit assignment and booking selection clearer.
+
+#### Add Physical Inventory Units
+
+```http
+POST /api/v1/provider/resources/{resourceId}/units
+```
+
+Request:
+
+```json
+{
+  "resourceVariantId": "00000000-0000-0000-0000-000000000020",
+  "inventoryCode": "SKI-001",
+  "displayName": "Atomic 170 #001",
+  "status": "active",
+  "conditionStatus": "ready",
+  "externalReferenceCode": null
+}
+```
+
+Inventory rules:
+
+- `unitId` is platform identity.
+- `providerId + inventoryCode` is provider-scoped physical/human identity.
+- If `inventoryCode` is omitted, the API can generate one.
+- Use `status: "active"` and `conditionStatus: "ready"` for rentable units.
+- Use maintenance/damaged/inactive/retired statuses to keep stock visible but unavailable.
+
+Useful reads:
+
+```http
+GET /api/v1/provider/resources/{resourceId}/units
+GET /api/v1/provider/resources/{resourceId}/inventory-summary
+PATCH /api/v1/provider/resources/{resourceId}/units/{unitId}
+POST /api/v1/provider/resources/{resourceId}/units/{unitId}/archive
+```
+
+#### Configure Availability, Pricing, And Policies
+
+Use the resource configuration endpoints before creating or activating public offers:
+
+- availability profile/calendar for when inventory can be booked
+- pricing policy for rental prices
+- policy profile/overrides for cancellation, deposits, handover, and return rules
+
+The provider CRM should show readiness panels from the API where available and prevent “publish” UI from pretending an offer is bookable when required configuration is missing.
+
+#### Create Commercial Offer
+
+```http
+POST /api/v1/provider/offers
+```
+
+Request:
+
+```json
+{
+  "primaryResourceId": "00000000-0000-0000-0000-000000000010",
+  "offerType": "rental",
+  "bookingFlowType": "direct_checkout",
+  "variantExposureMode": "all_active_variants",
+  "title": "Аренда горных лыж",
+  "description": "Посуточная аренда горных лыж",
+  "locationRef": null
+}
+```
+
+Offer notes:
+
+- `Offer` is the commercial/discovery unit, not inventory truth.
+- Inventory truth remains in `ProviderResourceUnit`.
+- Booking execution should allocate/track actual units later in the booking/fulfillment flow.
+- For now, use `offerType: "rental"` for equipment rental services.
+
+Post-approval checklist:
+
+- [ ] provider workspace shell after membership exists
+- [ ] provider profile dashboard with resource/offer counters
+- [ ] empty-state route to inventory setup
+- [ ] create resource form for equipment inventory
+- [ ] variant list/create/edit flow
+- [ ] inventory unit list/create/edit/archive flow
+- [ ] inventory summary panel
+- [ ] availability/pricing/policy setup entry points
+- [ ] offer create flow after resource inventory exists
 
 ## Shared Frontend Implementation Checklist
 

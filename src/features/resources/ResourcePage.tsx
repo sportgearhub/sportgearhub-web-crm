@@ -1,23 +1,19 @@
-import { useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Archive,
   ChevronLeft,
-  Copy,
   Plus,
   Search,
   ChevronDown,
   AlertTriangle,
   ImageOff,
 } from 'lucide-react';
-import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Select } from '../../components/ui/Select';
-import { Input } from '../../components/ui/Input';
 import { ResourceDetail } from './ResourceDetail';
-import { ResourceForm } from './ResourceForm';
+import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { resourceCategoryOptions } from './resource-options';
-import { mockBookings, mockOffers, mockResources, mockVariants } from '../../lib/mock-data';
+import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
+import { ApiError, resourcesApi } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
@@ -57,62 +53,50 @@ const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'y
   archived: { label: 'Archived', variant: 'gray' },
 };
 
-const statusOptions = [
-  { value: '', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'inactive', label: 'Inactive' },
-];
-
-const categoryOptions = [
-  { value: '', label: 'All categories' },
-  ...resourceCategoryOptions,
-];
-
-const availabilityOptions = [
-  { value: '', label: 'All availability' },
-  { value: 'available', label: 'Available' },
-  { value: 'partially_booked', label: 'Partially booked' },
-  { value: 'fully_booked', label: 'Fully booked' },
-  { value: 'no_stock', label: 'No stock' },
-];
-
-const healthOptions = [
-  { value: '', label: 'All health' },
-  { value: 'needs_attention', label: 'Needs attention' },
-  { value: 'ready', label: 'Ready' },
-];
-
-const quickTabs = [
-  { id: 'all', label: 'All' },
-  { id: 'active', label: 'Active' },
-  { id: 'draft', label: 'Draft' },
-  { id: 'needs_attention', label: 'Needs attention' },
-  { id: 'out_of_stock', label: 'Out of stock' },
-] as const;
-
 export function ResourcesPage() {
-  const [resources, setResources] = useState<Resource[]>(mockResources);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState('');
   const [healthFilter, setHealthFilter] = useState('');
-  const [quickTab, setQuickTab] = useState<QuickTab>('all');
+  const [quickTab] = useState<QuickTab>('all');
   const [view, setView] = useState<View>('list');
   const [selected, setSelected] = useState<Resource | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [flyoutState, setFlyoutState] = useState<ColumnFlyoutState>({ column: null, position: null });
-  const flyoutRef = useRef<HTMLDivElement>(null);
+
+  const loadResources = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const nextResources = await resourcesApi.list();
+      setResources(nextResources);
+    } catch (err) {
+      setError(err instanceof ApiError && err.status === 403
+        ? 'Provider access is not available for this account.'
+        : 'Could not load resources from the API.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadResources();
+  }, []);
 
   const rows = useMemo<ResourceTableRow[]>(() => {
     return resources.map(resource => {
       const variants = mockVariants.filter(variant => variant.resourceId === resource.id);
       const offers = mockOffers.filter(offer => offer.resourceId === resource.id);
       const bookings = mockBookings.filter(booking => booking.selection.resourceId === resource.id);
-      const totalStock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
+      const variantStock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
+      const totalStock = variantStock || resource.baseCapacity || 0;
       const activeBookings = bookings.filter(
         booking => booking.status === 'confirmed' || booking.status === 'pending'
       ).length;
@@ -124,7 +108,6 @@ export function ResourcesPage() {
       const basePrice = offers.length > 0 ? Math.min(...offers.map(offer => offer.basePrice)) : null;
       const healthIssues: string[] = [];
 
-      if (!resource.imageUrl) healthIssues.push('Missing images');
       if (!basePrice) healthIssues.push('Missing pricing');
       if (variants.length === 0) healthIssues.push('Missing variants');
       if (resource.status === 'draft') healthIssues.push('Draft');
@@ -168,12 +151,13 @@ export function ResourcesPage() {
 
   const filtered = rows.filter(row => {
     const { resource } = row;
+    const categoryName = resource.categoryName ?? resource.resourceType;
     const matchesSearch =
       !search ||
       resource.title.toLowerCase().includes(search.toLowerCase()) ||
-      resource.categoryName.toLowerCase().includes(search.toLowerCase());
+      categoryName.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = !statusFilter || resource.status === statusFilter;
-    const matchesCategory = !categoryFilter || resource.categoryName === categoryFilter;
+    const matchesCategory = !categoryFilter || categoryName === categoryFilter;
     const matchesAvailability = !availabilityFilter || row.availabilityState === availabilityFilter;
     const matchesHealth = !healthFilter || row.healthState === healthFilter;
 
@@ -195,211 +179,8 @@ export function ResourcesPage() {
     );
   });
 
-  const handleCreate = (data: Partial<Resource>) => {
-    const title = data.title || 'New Resource';
-    const categoryName = data.categoryName || 'Uncategorized';
-    const newResource: Resource = {
-      id: `res-${Date.now()}`,
-      title,
-      slug: title.toLowerCase().replace(/\s+/g, '-'),
-      status: data.status || 'draft',
-      categoryId: `cat-${Date.now()}`,
-      categoryName,
-      description: data.description,
-      imageUrl: data.imageUrl,
-      variantCount: data.variantCount || 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    setResources(prev => [newResource, ...prev]);
-    setView('list');
-  };
-
-  const handleUpdate = (data: Partial<Resource>) => {
-    if (!selected) return;
-    setResources(prev =>
-      prev.map(resource =>
-        resource.id === selected.id
-          ? { ...resource, ...data, updatedAt: new Date().toISOString() }
-          : resource
-      )
-    );
-    setView('list');
-    setSelected(null);
-  };
-
-  const handleArchive = (resource: Resource) => {
-    setResources(prev =>
-      prev.map(item => (item.id === resource.id ? { ...item, status: 'archived' } : item))
-    );
-  };
-
-  const handleDuplicate = (resource: Resource) => {
-    const duplicate: Resource = {
-      ...resource,
-      id: `res-${Date.now()}`,
-      title: `${resource.title} Copy`,
-      slug: `${resource.slug}-copy`,
-      status: 'draft',
-      updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-    setResources(prev => [duplicate, ...prev]);
-  };
-
-  const handleBulkStatus = (status: ResourceStatus) => {
-    setResources(prev =>
-      prev.map(resource =>
-        selectedIds.includes(resource.id) ? { ...resource, status, updatedAt: new Date().toISOString() } : resource
-      )
-    );
-    setSelectedIds([]);
-  };
-
-  const handleBulkArchive = () => {
-    setResources(prev =>
-      prev.map(resource =>
-        selectedIds.includes(resource.id)
-          ? { ...resource, status: 'archived', updatedAt: new Date().toISOString() }
-          : resource
-      )
-    );
-    setSelectedIds([]);
-  };
-
-  const handleBulkCategory = (categoryName: string) => {
-    setResources(prev =>
-      prev.map(resource =>
-        selectedIds.includes(resource.id)
-          ? { ...resource, categoryName, updatedAt: new Date().toISOString() }
-          : resource
-      )
-    );
-  };
-
-  const handleBulkDuplicate = () => {
-    const duplicates = resources
-      .filter(resource => selectedIds.includes(resource.id))
-      .map(resource => ({
-        ...resource,
-        id: `res-${Date.now()}-${resource.id}`,
-        title: `${resource.title} Copy`,
-        slug: `${resource.slug}-copy`,
-        status: 'draft' as ResourceStatus,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-
-    setResources(prev => [...duplicates, ...prev]);
-    setSelectedIds([]);
-  };
-
-  const toggleSelection = (id: string) => {
-    setSelectedIds(prev =>
-      prev.includes(id)
-        ? prev.filter(selectedId => selectedId !== id)
-        : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    const allFilteredIds = filtered.map(row => row.resource.id);
-    const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.includes(id));
-    setSelectedIds(allSelected ? [] : allFilteredIds);
-  };
-
-  // Detail view
-  if (view === 'detail' && selected) {
-    return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => {
-              setView('list');
-              setSelected(null);
-            }}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            <ResourceDetail
-              resource={selected}
-              onEdit={() => setView('edit')}
-              onArchive={() => {
-                handleArchive(selected);
-                setView('list');
-                setSelected(null);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Create view
-  if (view === 'create') {
-    return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => setView('list')}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            <ResourceForm onSubmit={handleCreate} onCancel={() => setView('list')} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Edit view
-  if (view === 'edit' && selected) {
-    return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => {
-              setView('list');
-              setSelected(null);
-            }}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            <ResourceForm
-              resource={selected}
-              onSubmit={handleUpdate}
-              onCancel={() => {
-                setView('list');
-                setSelected(null);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Main list view
-  const allFilteredIds = filtered.map(row => row.resource.id);
-  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.includes(id));
-
-  // Apply sorting
   const sorted = useMemo(() => {
-    let result = [...filtered];
+    const result = [...filtered];
     if (sortColumn) {
       result.sort((a, b) => {
         let aVal: number | string = 0;
@@ -441,6 +222,191 @@ export function ResourcesPage() {
     return result;
   }, [filtered, sortColumn, sortOrder]);
 
+  const allFilteredIds = filtered.map(row => row.resource.id);
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.includes(id));
+
+  const handleCreate = async (data: ResourceFormData) => {
+    setError('');
+    setSaving(true);
+    try {
+      const newResource = await resourcesApi.create({
+        resourceType: 'equipment',
+        capacityMode: 'inventory',
+        title: data.title,
+        baseCapacity: data.baseCapacity,
+      });
+      setResources(prev => [newResource, ...prev]);
+      setView('list');
+    } catch {
+      setError('Could not create the resource in the API.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdate = async (data: ResourceFormData) => {
+    if (!selected) return;
+    setError('');
+    setSaving(true);
+    try {
+      const nextResource = await resourcesApi.patch(selected.resourceId, {
+        title: data.title,
+        baseCapacity: data.baseCapacity,
+      });
+      setResources(prev =>
+        prev.map(resource => (resource.id === selected.id ? nextResource : resource))
+      );
+      setView('list');
+      setSelected(null);
+    } catch {
+      setError('Could not update the resource in the API.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleArchive = async (resource: Resource) => {
+    setError('');
+    try {
+      const nextResource = await resourcesApi.archive(resource.resourceId, 'provider_requested');
+      setResources(prev =>
+        prev.map(item => (item.id === resource.id ? nextResource : item))
+      );
+    } catch {
+      setError('Could not archive the resource in the API.');
+    }
+  };
+
+  const handleBulkStatus = async (status: ResourceStatus) => {
+    setError('');
+    setSaving(true);
+    try {
+      const selectedResources = resources.filter(resource => selectedIds.includes(resource.id));
+      const updatedResources = await Promise.all(
+        selectedResources.map(resource => resourcesApi.patch(resource.resourceId, { status }))
+      );
+      const updatedById = new Map(updatedResources.map(resource => [resource.id, resource]));
+      setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
+      setSelectedIds([]);
+    } catch {
+      setError('Could not update selected resources in the API.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    setError('');
+    setSaving(true);
+    try {
+      const selectedResources = resources.filter(resource => selectedIds.includes(resource.id));
+      const updatedResources = await Promise.all(
+        selectedResources.map(resource => resourcesApi.archive(resource.resourceId, 'provider_requested'))
+      );
+      const updatedById = new Map(updatedResources.map(resource => [resource.id, resource]));
+      setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
+      setSelectedIds([]);
+    } catch {
+      setError('Could not archive selected resources in the API.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id)
+        ? prev.filter(selectedId => selectedId !== id)
+        : [...prev, id]
+    );
+  };
+
+  // Detail view
+  if (view === 'detail' && selected) {
+    return (
+      <div className="flex h-screen flex-col bg-gray-50">
+        <div className="border-b border-gray-200 bg-white px-6 py-4">
+          <button
+            onClick={() => {
+              setView('list');
+              setSelected(null);
+            }}
+            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
+          >
+            <ChevronLeft size={16} /> Back to Resources
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <div className="p-6">
+            <ResourceDetail
+              resource={selected}
+              onEdit={() => setView('edit')}
+              onArchive={() => {
+                void handleArchive(selected);
+                setView('list');
+                setSelected(null);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Create view
+  if (view === 'create') {
+    return (
+      <div className="flex h-screen flex-col bg-gray-50">
+        <div className="border-b border-gray-200 bg-white px-6 py-4">
+          <button
+            onClick={() => setView('list')}
+            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
+          >
+            <ChevronLeft size={16} /> Back to Resources
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <div className="p-6">
+            {error && <ResourceError message={error} />}
+            <ResourceForm onSubmit={handleCreate} onCancel={() => setView('list')} submitting={saving} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Edit view
+  if (view === 'edit' && selected) {
+    return (
+      <div className="flex h-screen flex-col bg-gray-50">
+        <div className="border-b border-gray-200 bg-white px-6 py-4">
+          <button
+            onClick={() => {
+              setView('list');
+              setSelected(null);
+            }}
+            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
+          >
+            <ChevronLeft size={16} /> Back to Resources
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <div className="p-6">
+            <ResourceForm
+              resource={selected}
+              onSubmit={handleUpdate}
+              onCancel={() => {
+                setView('list');
+                setSelected(null);
+              }}
+              submitting={saving}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleColumnHover = (e: React.MouseEvent, column: string) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setFlyoutState({
@@ -472,7 +438,7 @@ export function ResourcesPage() {
           <div>
             <h1 className="text-sm font-semibold text-gray-900">Resources</h1>
             <p className="text-xs text-gray-500">
-              {filtered.length} of {resources.length} · {stats.needsAttention} issues
+              {loading ? 'Loading live resources...' : `${filtered.length} of ${resources.length} · ${stats.needsAttention} issues`}
             </p>
           </div>
 
@@ -506,12 +472,11 @@ export function ResourcesPage() {
           <div className="border-t border-gray-100 px-6 py-2 flex items-center gap-2 flex-wrap text-sm">
             {selectedIds.length > 0 && (
               <>
-                <Button size="xs" variant="secondary" onClick={() => handleBulkStatus('active')}>Activate</Button>
-                <Button size="xs" variant="secondary" onClick={() => handleBulkStatus('inactive')}>Deactivate</Button>
-                <Button size="xs" variant="secondary" onClick={handleBulkArchive}>Archive</Button>
-                <Button size="xs" variant="secondary" onClick={handleBulkDuplicate}><Copy size={12} /></Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('active')}>Activate</Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('inactive')}>Deactivate</Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkArchive()}>Archive</Button>
                 <div className="ml-auto">
-                  <Button size="xs" variant="ghost" onClick={() => setSelectedIds([])}>Clear</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Clear</Button>
                 </div>
               </>
             )}
@@ -521,7 +486,13 @@ export function ResourcesPage() {
 
       {/* Table Area */}
       <div className="flex-1 overflow-auto relative bg-white">
-        {sorted.length === 0 ? (
+        {error && <ResourceError message={error} />}
+        {loading ? (
+          <div className="flex h-full flex-col items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            <p className="mt-3 text-sm font-medium text-gray-900">Loading resources...</p>
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <AlertTriangle size={40} className="text-gray-300" />
             <p className="mt-3 text-sm font-medium text-gray-900">No resources</p>
@@ -558,7 +529,6 @@ export function ResourcesPage() {
                           { label: 'Sort Z→A', value: 'desc' },
                         ]}
                         onSort={() => handleSort('title')}
-                        onFilter={() => {}}
                         hasActiveSort={sortColumn === 'title'}
                         onMouseEnter={() => {}}
                         onMouseLeave={handleColumnLeave}
@@ -819,10 +789,13 @@ export function ResourcesPage() {
   );
 }
 
-function availabilityLabel(row: ResourceTableRow) {
-  if (row.availabilityState === 'no_stock') return 'No stock';
-  if (row.availabilityState === 'fully_booked') return 'Fully booked';
-  return `${row.availableStock} / ${row.totalStock} available`;
+function ResourceError({ message }: { message: string }) {
+  return (
+    <div className="m-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+      <AlertTriangle size={14} className="shrink-0 text-red-600" />
+      <p className="text-xs text-red-700">{message}</p>
+    </div>
+  );
 }
 
 // Improved Flyout components
@@ -831,7 +804,6 @@ function ColumnFlyout({
   position,
   options,
   onSort,
-  onFilter,
   hasActiveSort,
   onMouseEnter,
   onMouseLeave,
@@ -840,7 +812,6 @@ function ColumnFlyout({
   position: { top: number; left: number } | null;
   options: { label: string; value: string }[];
   onSort: () => void;
-  onFilter: () => void;
   hasActiveSort: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;

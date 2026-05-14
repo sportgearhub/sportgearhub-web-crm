@@ -9,10 +9,21 @@ import { resourceCategoryOptions } from './resource-options';
 
 type CreateMode = 'quick' | 'guided';
 
+export type ResourceFormData = {
+  title: string;
+  baseCapacity: number;
+  categoryName?: string;
+  description?: string;
+  imageUrl?: string;
+  status?: Resource['status'];
+  variantCount?: number;
+};
+
 interface ResourceFormProps {
   resource?: Resource;
-  onSubmit: (data: Partial<Resource>) => void;
+  onSubmit: (data: ResourceFormData) => void | Promise<void>;
   onCancel: () => void;
+  submitting?: boolean;
 }
 
 const guidedSteps = [
@@ -23,12 +34,13 @@ const guidedSteps = [
   { id: 'media', label: 'Media' },
 ] as const;
 
-export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps) {
+export function ResourceForm({ resource, onSubmit, onCancel, submitting = false }: ResourceFormProps) {
   const isEdit = Boolean(resource);
   const [mode, setMode] = useState<CreateMode>('quick');
   const [stepIndex, setStepIndex] = useState(0);
   const [title, setTitle] = useState(resource?.title || '');
   const [category, setCategory] = useState(resource?.categoryName || 'Mountain Bikes');
+  const [baseCapacity, setBaseCapacity] = useState(String(resource?.baseCapacity || 1));
   const [description, setDescription] = useState(resource?.description || '');
   const [variantPlan, setVariantPlan] = useState(resource?.variantCount ? String(resource.variantCount) : '1');
   const [basePrice, setBasePrice] = useState('');
@@ -45,6 +57,10 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
     const nextErrors: Record<string, string> = {};
     if (!title.trim()) nextErrors.title = 'Title is required.';
     if (!category.trim()) nextErrors.category = 'Category is required.';
+    const capacity = Number(baseCapacity);
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      nextErrors.baseCapacity = 'Base capacity must be a whole number greater than zero.';
+    }
     return nextErrors;
   };
 
@@ -65,15 +81,16 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
     return nextErrors;
   };
 
-  const handleQuickCreate = () => {
+  const handleQuickCreate = async () => {
     const nextErrors = validateBasics();
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
     }
 
-    onSubmit({
+    await onSubmit({
       title,
+      baseCapacity: Number(baseCapacity),
       categoryName: category,
       description,
       imageUrl: imageUrl || undefined,
@@ -81,7 +98,7 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
     });
   };
 
-  const handleGuidedNext = () => {
+  const handleGuidedNext = async () => {
     const nextErrors = validateCurrentStep();
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -91,8 +108,9 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
     setErrors({});
 
     if (stepIndex === guidedSteps.length - 1) {
-      onSubmit({
+      await onSubmit({
         title,
+        baseCapacity: Number(baseCapacity),
         categoryName: category,
         description,
         imageUrl: imageUrl || undefined,
@@ -183,6 +201,15 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
               onChange={event => setCategory(event.target.value)}
               error={errors.category}
             />
+            <Input
+              label="Base capacity"
+              type="number"
+              min={1}
+              value={baseCapacity}
+              onChange={event => setBaseCapacity(event.target.value)}
+              error={errors.baseCapacity}
+              placeholder="10"
+            />
           </div>
           <div className="mt-4">
             <Textarea
@@ -222,6 +249,15 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
                   value={category}
                   onChange={event => setCategory(event.target.value)}
                   error={errors.category}
+                />
+                <Input
+                  label="Base capacity"
+                  type="number"
+                  min={1}
+                  value={baseCapacity}
+                  onChange={event => setBaseCapacity(event.target.value)}
+                  error={errors.baseCapacity}
+                  placeholder="10"
                 />
               </div>
               <Textarea
@@ -296,12 +332,12 @@ export function ResourceForm({ resource, onSubmit, onCancel }: ResourceFormProps
 
       <div className="flex gap-2">
         {isEdit || mode === 'quick' ? (
-          <Button variant="primary" onClick={handleQuickCreate}>
+          <Button variant="primary" onClick={handleQuickCreate} loading={submitting}>
             {isEdit ? 'Save Changes' : 'Create Draft'}
           </Button>
         ) : (
           <>
-            <Button variant="primary" onClick={handleGuidedNext}>
+            <Button variant="primary" onClick={handleGuidedNext} loading={submitting}>
               {stepIndex === guidedSteps.length - 1 ? 'Finish Setup' : 'Next Step'}
             </Button>
             <Button

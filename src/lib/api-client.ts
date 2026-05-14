@@ -59,6 +59,20 @@ type ApiUser = {
   emailVerified?: boolean;
 };
 
+type ApiResource = {
+  resourceId?: string;
+  providerId?: string;
+  resourceType?: string;
+  status?: string;
+  capacityMode?: string;
+  title?: string | null;
+  baseCapacity?: number | null;
+  readiness?: unknown;
+  publishabilityImpact?: unknown;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type OidcTokenResponse = {
   access_token: string;
   token_type: string;
@@ -135,6 +149,44 @@ function normalizeUser(user: ApiUser): AuthUser {
     role: roles[0] ?? 'User',
     roles,
     emailVerified: user.emailVerified,
+  };
+}
+
+function normalizeResource(resource: ApiResource): Resource {
+  const resourceId = resource.resourceId ?? '';
+  const title = resource.title ?? 'Untitled resource';
+  const status = ['active', 'inactive', 'archived', 'draft'].includes(resource.status ?? '')
+    ? resource.status as ResourceStatus
+    : 'draft';
+  const updatedAt = resource.updatedAt ?? new Date().toISOString();
+  const resourceType = resource.resourceType ?? 'equipment';
+
+  return {
+    resourceId,
+    providerId: resource.providerId,
+    resourceType,
+    status,
+    title,
+    baseCapacity: resource.baseCapacity ?? 0,
+    readiness: (resource.readiness ?? {
+      capabilityValid: false,
+      availabilityReady: false,
+      pricingReady: false,
+      policyReady: false,
+      variantReady: false,
+      offerAuthoringReady: false,
+      errors: [],
+    }) as Resource['readiness'],
+    publishabilityImpact: (resource.publishabilityImpact ?? {
+      publishable: false,
+      reasonCodes: [],
+    }) as Resource['publishabilityImpact'],
+    createdAt: resource.createdAt,
+    updatedAt,
+    id: resourceId,
+    slug: resourceId,
+    categoryName: resourceType === 'equipment' ? 'Equipment' : resourceType,
+    variantCount: 0,
   };
 }
 
@@ -401,31 +453,31 @@ export const profileApi = {
 // ─── Resources ────────────────────────────────────────────────────────────────
 
 export const resourcesApi = {
-  list: () => providerRequest<Resource[]>('/resources'),
+  list: async () => (await providerRequest<ApiResource[]>('/resources')).map(normalizeResource),
 
   create: (data: {
     resourceType: string;
     capacityMode: string;
     title: string;
     baseCapacity: number;
-  }) => providerRequest<Resource>('/resources', { method: 'POST', body: JSON.stringify(data) }),
+  }) => providerRequest<ApiResource>('/resources', { method: 'POST', body: JSON.stringify(data) }).then(normalizeResource),
 
-  get: (resourceId: string) => providerRequest<Resource>(`/resources/${resourceId}`),
+  get: (resourceId: string) => providerRequest<ApiResource>(`/resources/${resourceId}`).then(normalizeResource),
 
   patch: (
     resourceId: string,
     data: { status?: ResourceStatus; title?: string; baseCapacity?: number }
   ) =>
-    providerRequest<Resource>(`/resources/${resourceId}`, {
+    providerRequest<ApiResource>(`/resources/${resourceId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
-    }),
+    }).then(normalizeResource),
 
   archive: (resourceId: string, reasonCode: string) =>
-    providerRequest<Resource>(`/resources/${resourceId}/archive`, {
+    providerRequest<ApiResource>(`/resources/${resourceId}/archive`, {
       method: 'POST',
       body: JSON.stringify({ reasonCode }),
-    }),
+    }).then(normalizeResource),
 
   getRoutabilityImpact: (resourceId: string) =>
     providerRequest<{
