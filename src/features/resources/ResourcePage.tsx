@@ -11,9 +11,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
-import { resourceCategoryOptions } from './resource-options';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import { ApiError, resourcesApi } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, type EquipmentCategory } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
@@ -55,9 +54,12 @@ const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'y
 
 export function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([]);
+  const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [categoriesError, setCategoriesError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -86,8 +88,29 @@ export function ResourcesPage() {
     }
   };
 
+  const loadCategories = async () => {
+    setCategoriesError('');
+    setCategoriesLoading(true);
+    try {
+      const nextCategories = await equipmentApi.categories();
+      setCategories(
+        nextCategories
+          .filter(category => category.status === 'active')
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+      );
+    } catch (err) {
+      setCategories([]);
+      setCategoriesError(err instanceof ApiError
+        ? `Could not load equipment categories from the API: ${err.message}`
+        : 'Could not load equipment categories from the API.');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadResources();
+    void loadCategories();
   }, []);
 
   const rows = useMemo<ResourceTableRow[]>(() => {
@@ -148,6 +171,11 @@ export function ResourcesPage() {
     const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
     return { activeCount, needsAttention, totalRevenue };
   }, [rows]);
+
+  const categoryFilterOptions = useMemo(
+    () => categories.map(category => ({ value: category.label, label: category.label })),
+    [categories]
+  );
 
   const filtered = rows.filter(row => {
     const { resource } = row;
@@ -230,15 +258,17 @@ export function ResourcesPage() {
     setSaving(true);
     try {
       const newResource = await resourcesApi.create({
-        resourceType: 'equipment',
-        capacityMode: 'inventory',
+        resourceType: data.resourceType,
+        capacityMode: data.capacityMode,
         title: data.title,
         baseCapacity: data.baseCapacity,
       });
-      setResources(prev => [newResource, ...prev]);
+      setResources(prev => [{ ...newResource, categoryName: data.categoryName }, ...prev]);
       setView('list');
-    } catch {
-      setError('Could not create the resource in the API.');
+    } catch (err) {
+      setError(err instanceof ApiError
+        ? `Could not create the resource in the API: ${err.message}`
+        : 'Could not create the resource in the API.');
     } finally {
       setSaving(false);
     }
@@ -368,7 +398,14 @@ export function ResourcesPage() {
         <div className="flex-1 overflow-auto">
           <div className="p-6">
             {error && <ResourceError message={error} />}
-            <ResourceForm onSubmit={handleCreate} onCancel={() => setView('list')} submitting={saving} />
+            {categoriesError && <ResourceError message={categoriesError} />}
+            <ResourceForm
+              categories={categories}
+              loadingCategories={categoriesLoading}
+              onSubmit={handleCreate}
+              onCancel={() => setView('list')}
+              submitting={saving}
+            />
           </div>
         </div>
       </div>
@@ -392,8 +429,11 @@ export function ResourcesPage() {
         </div>
         <div className="flex-1 overflow-auto">
           <div className="p-6">
+            {categoriesError && <ResourceError message={categoriesError} />}
             <ResourceForm
               resource={selected}
+              categories={categories}
+              loadingCategories={categoriesLoading}
               onSubmit={handleUpdate}
               onCancel={() => {
                 setView('list');
@@ -487,6 +527,7 @@ export function ResourcesPage() {
       {/* Table Area */}
       <div className="flex-1 overflow-auto relative bg-white">
         {error && <ResourceError message={error} />}
+        {categoriesError && <ResourceError message={categoriesError} />}
         {loading ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
@@ -553,7 +594,7 @@ export function ResourcesPage() {
                         setCategoryFilter(val);
                         setFlyoutState({ column: null, position: null });
                       }}
-                      options={resourceCategoryOptions}
+                      options={categoryFilterOptions}
                       onMouseEnter={() => {}}
                       onMouseLeave={handleColumnLeave}
                     />

@@ -1,17 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
 import type { Resource } from '../../types';
-import { resourceCategoryOptions } from './resource-options';
+import { ApiError, equipmentApi, type EquipmentAttributeSchema, type EquipmentCategory } from '../../lib/api-client';
 
 type CreateMode = 'quick' | 'guided';
 
 export type ResourceFormData = {
   title: string;
   baseCapacity: number;
+  categorySlug: string;
+  resourceType: string;
+  capacityMode: string;
   categoryName?: string;
   description?: string;
   imageUrl?: string;
@@ -21,9 +24,11 @@ export type ResourceFormData = {
 
 interface ResourceFormProps {
   resource?: Resource;
+  categories: EquipmentCategory[];
   onSubmit: (data: ResourceFormData) => void | Promise<void>;
   onCancel: () => void;
   submitting?: boolean;
+  loadingCategories?: boolean;
 }
 
 const guidedSteps = [
@@ -34,12 +39,22 @@ const guidedSteps = [
   { id: 'media', label: 'Media' },
 ] as const;
 
-export function ResourceForm({ resource, onSubmit, onCancel, submitting = false }: ResourceFormProps) {
+export function ResourceForm({
+  resource,
+  categories,
+  onSubmit,
+  onCancel,
+  submitting = false,
+  loadingCategories = false,
+}: ResourceFormProps) {
   const isEdit = Boolean(resource);
   const [mode, setMode] = useState<CreateMode>('quick');
   const [stepIndex, setStepIndex] = useState(0);
   const [title, setTitle] = useState(resource?.title || '');
-  const [category, setCategory] = useState(resource?.categoryName || 'Mountain Bikes');
+  const [categorySlug, setCategorySlug] = useState('');
+  const [schema, setSchema] = useState<EquipmentAttributeSchema | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState('');
   const [baseCapacity, setBaseCapacity] = useState(String(resource?.baseCapacity || 1));
   const [description, setDescription] = useState(resource?.description || '');
   const [variantPlan, setVariantPlan] = useState(resource?.variantCount ? String(resource.variantCount) : '1');
@@ -52,11 +67,60 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
     () => Math.round(((stepIndex + 1) / guidedSteps.length) * 100),
     [stepIndex]
   );
+  const selectedCategory = categories.find(category => category.slug === categorySlug);
+  const categoryOptions = categories.map(category => ({ value: category.slug, label: category.label }));
+  const variantAttributes = schema?.attributes
+    .filter(attribute => attribute.appliesTo.includes('variant'))
+    .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
+
+  useEffect(() => {
+    if (categorySlug || categories.length === 0) return;
+
+    const matchingCategory = resource
+      ? categories.find(category =>
+          category.resourceType === resource.resourceType &&
+          category.capacityMode === resource.capacityMode
+        )
+      : undefined;
+
+    setCategorySlug((matchingCategory ?? categories[0]).slug);
+  }, [categories, categorySlug, resource]);
+
+  useEffect(() => {
+    if (!categorySlug) {
+      setSchema(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSchemaLoading(true);
+    setSchemaError('');
+
+    equipmentApi.categoryAttributes(categorySlug)
+      .then(nextSchema => {
+        if (!cancelled) setSchema(nextSchema);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setSchema(null);
+          setSchemaError(err instanceof ApiError
+            ? `Could not load category schema: ${err.message}`
+            : 'Could not load category schema.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSchemaLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categorySlug]);
 
   const validateBasics = () => {
     const nextErrors: Record<string, string> = {};
     if (!title.trim()) nextErrors.title = 'Title is required.';
-    if (!category.trim()) nextErrors.category = 'Category is required.';
+    if (!selectedCategory) nextErrors.category = 'Choose an equipment category.';
     const capacity = Number(baseCapacity);
     if (!Number.isInteger(capacity) || capacity < 1) {
       nextErrors.baseCapacity = 'Base capacity must be a whole number greater than zero.';
@@ -87,11 +151,15 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
       setErrors(nextErrors);
       return;
     }
+    if (!selectedCategory) return;
 
     await onSubmit({
       title,
       baseCapacity: Number(baseCapacity),
-      categoryName: category,
+      categorySlug: selectedCategory.slug,
+      resourceType: selectedCategory.resourceType,
+      capacityMode: selectedCategory.capacityMode,
+      categoryName: selectedCategory.label,
       description,
       imageUrl: imageUrl || undefined,
       status: 'draft',
@@ -108,10 +176,15 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
     setErrors({});
 
     if (stepIndex === guidedSteps.length - 1) {
+      if (!selectedCategory) return;
+
       await onSubmit({
         title,
         baseCapacity: Number(baseCapacity),
-        categoryName: category,
+        categorySlug: selectedCategory.slug,
+        resourceType: selectedCategory.resourceType,
+        capacityMode: selectedCategory.capacityMode,
+        categoryName: selectedCategory.label,
         description,
         imageUrl: imageUrl || undefined,
         variantCount: Number(variantPlan) || 0,
@@ -196,10 +269,11 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
             />
             <Select
               label="Category"
-              options={resourceCategoryOptions}
-              value={category}
-              onChange={event => setCategory(event.target.value)}
+              options={categoryOptions}
+              value={categorySlug}
+              onChange={event => setCategorySlug(event.target.value)}
               error={errors.category}
+              disabled={loadingCategories || categories.length === 0}
             />
             <Input
               label="Base capacity"
@@ -211,6 +285,12 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
               placeholder="10"
             />
           </div>
+          <CategorySchemaPanel
+            loading={schemaLoading}
+            error={schemaError}
+            category={selectedCategory}
+            variantAttributes={variantAttributes}
+          />
           <div className="mt-4">
             <Textarea
               label="Description"
@@ -245,10 +325,11 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
                 />
                 <Select
                   label="Category"
-                  options={resourceCategoryOptions}
-                  value={category}
-                  onChange={event => setCategory(event.target.value)}
+                  options={categoryOptions}
+                  value={categorySlug}
+                  onChange={event => setCategorySlug(event.target.value)}
                   error={errors.category}
+                  disabled={loadingCategories || categories.length === 0}
                 />
                 <Input
                   label="Base capacity"
@@ -260,6 +341,12 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
                   placeholder="10"
                 />
               </div>
+              <CategorySchemaPanel
+                loading={schemaLoading}
+                error={schemaError}
+                category={selectedCategory}
+                variantAttributes={variantAttributes}
+              />
               <Textarea
                 label="Description"
                 value={description}
@@ -351,6 +438,43 @@ export function ResourceForm({ resource, onSubmit, onCancel, submitting = false 
         )}
         <Button variant="secondary" onClick={onCancel}>Cancel</Button>
       </div>
+    </div>
+  );
+}
+
+function CategorySchemaPanel({
+  loading,
+  error,
+  category,
+  variantAttributes,
+}: {
+  loading: boolean;
+  error: string;
+  category?: EquipmentCategory;
+  variantAttributes: EquipmentAttributeSchema['attributes'];
+}) {
+  if (!category) {
+    return (
+      <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+        <p className="text-xs font-medium text-amber-900">No live equipment categories loaded.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5">
+      <p className="text-xs font-medium text-blue-900">
+        {category.label} · {category.resourceType} / {category.capacityMode}
+      </p>
+      {loading && <p className="mt-1 text-xs text-blue-800">Loading category schema...</p>}
+      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+      {!loading && !error && (
+        <p className="mt-1 text-xs leading-5 text-blue-800">
+          {variantAttributes.length > 0
+            ? `Variant setup will use ${variantAttributes.length} schema field${variantAttributes.length === 1 ? '' : 's'}: ${variantAttributes.slice(0, 4).map(attribute => attribute.label).join(', ')}${variantAttributes.length > 4 ? '...' : ''}.`
+            : 'This category does not expose variant schema fields yet.'}
+        </p>
+      )}
     </div>
   );
 }

@@ -723,17 +723,32 @@ Domain mapping:
 
 Do not ask the provider to create offers before they have described real stock. Offers should be created after resources, variants, units, availability, pricing, and policies are at least minimally ready.
 
-#### Equipment Schema And Brands
+#### Equipment Schema, Brands, And Inventory Intake
 
-The API is moving inventory setup to platform-controlled category schemas. The provider CRM should render category-specific forms from API schemas instead of hardcoding bicycle/ski/etc. fields.
+Inventory intake is schema-driven. The frontend should not hardcode bicycle-specific fields except as presentation components for known attribute keys. The API owns categories, localized labels, enum values, visibility rules, and brand canonicalization.
 
-Current first supported schema slice:
+Current implementation matrix:
 
-- category: `bicycle`
-- resource type: `equipment`
-- capacity mode: `inventory`
-- localized labels: `ru-RU`, `en-US`
-- brand directory: controlled platform brands plus provider-created `pending_review` brands
+| Area | Status | Frontend behavior |
+| --- | --- | --- |
+| category list | ready | use for category picker |
+| category attributes | ready | use to render variant/unit forms |
+| brand suggestions/create | ready | use for `brand` reference fields |
+| resource create/update | existing contract | create the operational root; category is selected in UI but not persisted on the resource contract yet |
+| variant create/update | bridge contract | send schema field values through `normalizedAttributes` until typed `attributes` lands |
+| unit create/update | existing contract | create physical stock; typed unit attributes are next API slice |
+| offer create | existing contract | create only after resource, variants, units, availability, pricing, and policies are minimally configured |
+
+Provider inventory flow:
+
+1. Load categories and let the provider choose what they rent.
+2. Load the selected category schema.
+3. Resolve or create referenced brands through the API.
+4. Create the `ProviderResource` operational root.
+5. Create one or more `ResourceVariant` records from schema fields that apply to `variant`.
+6. Add physical `ProviderResourceUnit` records and assign them to variants where useful.
+7. Configure availability, pricing, and policies.
+8. Create the commercial `Offer`.
 
 Read categories:
 
@@ -741,17 +756,11 @@ Read categories:
 GET /api/v1/provider/equipment-categories?locale=ru-RU
 ```
 
-Read bicycle attributes:
-
-```http
-GET /api/v1/provider/equipment-categories/bicycle/attributes?locale=ru-RU
-```
-
-Schema response shape:
+Response:
 
 ```json
-{
-  "category": {
+[
+  {
     "categoryId": "00000000-0000-0000-0000-000000000001",
     "slug": "bicycle",
     "label": "Велосипед",
@@ -763,13 +772,43 @@ Schema response shape:
     "capacityMode": "inventory",
     "status": "active",
     "sortOrder": 10
+  }
+]
+```
+
+Use `resourceType` and `capacityMode` from the selected category when creating the resource.
+
+Read category attributes:
+
+```http
+GET /api/v1/provider/equipment-categories/bicycle/attributes?locale=ru-RU
+```
+
+Response shape:
+
+```json
+{
+  "category": {
+    "categoryId": "00000000-0000-0000-0000-000000000001",
+    "slug": "bicycle",
+    "label": "Велосипед",
+    "resourceType": "equipment",
+    "capacityMode": "inventory",
+    "status": "active",
+    "sortOrder": 10
   },
   "attributes": [
     {
       "attributeId": "00000000-0000-0000-0000-000000000101",
       "key": "brand",
       "label": "Бренд",
+      "labels": {
+        "ru-RU": "Бренд",
+        "en-US": "Brand"
+      },
       "valueType": "reference",
+      "unit": null,
+      "unitLabel": null,
       "referenceType": "equipment_brand",
       "requiredOn": ["variant"],
       "appliesTo": ["variant"],
@@ -784,32 +823,32 @@ Schema response shape:
 }
 ```
 
-Use schema fields as follows:
+Schema field handling:
 
-- `key` is the stable machine field name.
-- `label` is the localized display label for the requested locale.
-- `labels` contains known translations.
-- `valueType` controls the input type: `string`, `enum`, `decimal`, `integer`, `boolean`, `datetime`, `reference`.
-- `referenceType: "equipment_brand"` means use the brand suggestion/create endpoints.
-- `requiredOn` tells whether the field is required for `variant` or `unit`.
-- `appliesTo` tells where the field should be displayed.
-- `visibleWhen` is a typed conditional display rule. If empty, show the field for its scope. If present, show the field only when the controlling attribute matches one of the listed values.
-- `filterable`, `comparable`, and `searchable` are frontend hints for later marketplace/search UX.
-- `allowedValues` supplies enum options with localized labels.
+- `key`: stable machine name to store in form state.
+- `label` and `labels`: localized display text.
+- `valueType`: input type, one of `string`, `enum`, `decimal`, `integer`, `boolean`, `datetime`, `reference`.
+- `referenceType: "equipment_brand"`: render brand lookup/create UX.
+- `requiredOn`: scopes where the field is required, for example `variant` or `unit`.
+- `appliesTo`: scopes where the field belongs.
+- `visibleWhen`: conditional visibility rule.
+- `filterable`, `comparable`, `searchable`: future marketplace/search hints; keep them in the typed client.
+- `allowedValues`: enum values with localized labels. Submit the stable `valueKey`, not display text.
 
 Conditional field example:
 
 ```json
 {
-  "key": "suspension_travel_front_mm",
-  "label": "Ход передней подвески",
+  "key": "motor_power_w",
+  "label": "Мощность мотора",
   "valueType": "integer",
-  "unit": "mm",
+  "unit": "W",
+  "unitLabel": "Вт",
   "appliesTo": ["variant"],
   "visibleWhen": [
     {
       "attributeKey": "bike_type",
-      "allowedValueKeys": ["mountain", "e_bike"]
+      "allowedValueKeys": ["e_bike"]
     }
   ]
 }
@@ -817,11 +856,21 @@ Conditional field example:
 
 Frontend behavior for conditional fields:
 
-- Render `bike_type` first according to `sortOrder`.
-- Recompute visible fields when `bike_type` changes.
-- Do not submit hidden empty optional fields.
-- If a previously visible field becomes hidden, clear its local dirty value unless the user confirms keeping it.
-- Treat frontend visibility as UX only; API validation remains authoritative.
+- Render fields by `sortOrder`.
+- Recompute visibility when the controlling attribute changes.
+- Do not submit hidden optional values.
+- If a field becomes hidden, clear its dirty value or ask the user before preserving it.
+- Treat frontend visibility as UX; API validation remains authoritative.
+
+For the seeded `bicycle` schema, expect variant-level fields such as:
+
+- `brand`: reference to equipment brand
+- `model`: model name, for example `Marlin 6`
+- `bike_type`: enum such as `mountain`, `road`, `city`, `gravel`, `kids`, `e_bike`
+- `frame_size`: frame size, for example `M`, `L`, `17`
+- `wheel_size`: wheel size, for example `26`, `27.5`, `29`
+- `brake_type`, `drivetrain_type`, `suspension_type`
+- conditional electric/suspension fields such as `motor_power_w` or `suspension_travel_front_mm`
 
 Brand suggestions:
 
@@ -862,15 +911,45 @@ Request:
 }
 ```
 
-If the API finds an existing brand or alias, it returns `status: "matched"`. If not, it creates a usable brand with `status: "pending_review"` and returns `status: "created_pending_review"`.
+Response when matched:
 
-Frontend behavior:
+```json
+{
+  "status": "matched",
+  "brand": {
+    "brandId": "00000000-0000-0000-0000-000000000201",
+    "canonicalName": "Trek",
+    "status": "approved",
+    "website": null,
+    "countryCode": null
+  },
+  "matches": []
+}
+```
 
-- Search brand before allowing free text.
-- Show suggestions for aliases such as `Trek Bicycle`.
-- If no suggestion fits, call create/request and store the returned brand id in form state.
-- Do not create local-only brand strings; the API must own duplicate checking and canonicalization.
-- The current resource/variant create endpoints still use their existing contracts. The target roadmap is to replace `variantType` and `normalizedAttributes` with schema-driven `attributes` object contracts after backend Phase 4 lands.
+Response when newly requested:
+
+```json
+{
+  "status": "created_pending_review",
+  "brand": {
+    "brandId": "00000000-0000-0000-0000-000000000301",
+    "canonicalName": "NorthPeak",
+    "status": "pending_review",
+    "website": null,
+    "countryCode": "RU"
+  },
+  "matches": []
+}
+```
+
+Brand frontend behavior:
+
+- Search before allowing free text creation.
+- Show alias matches such as `Trek Bicycle`.
+- If no suggestion fits, call create/request and keep the returned `brandId`.
+- `pending_review` brands are usable immediately in provider inventory flows.
+- Do not create local-only brand strings; the API owns duplicate checking and canonicalization.
 
 #### Create Equipment Resource
 
@@ -884,12 +963,17 @@ Request:
 {
   "resourceType": "equipment",
   "capacityMode": "inventory",
-  "title": "Горные лыжи",
-  "baseCapacity": 10
+  "title": "Велосипеды",
+  "baseCapacity": 12
 }
 ```
 
-Use `resourceType: "equipment"` and `capacityMode: "inventory"` for rental equipment. `baseCapacity` is a summary/default capacity; physical stock truth comes from units.
+Current contract notes:
+
+- Use the selected category's `resourceType` and `capacityMode`.
+- Use a provider-facing group title such as `Велосипеды`, `Горные лыжи`, or `SUP-доски`.
+- `baseCapacity` is a summary/default capacity only. Physical stock truth comes from units.
+- The current resource contract does not persist `categorySlug` yet. Keep the selected category in wizard state to drive the next variant/unit screens.
 
 #### Create Resource Variant
 
@@ -901,19 +985,51 @@ Request:
 
 ```json
 {
-  "variantKey": "ski-170-adult",
-  "variantType": "size",
-  "label": "170 см / взрослые",
+  "variantKey": "TREK-MARLIN-6-M-29",
+  "variantType": "equipment_configuration",
+  "label": "Trek Marlin 6 / M / 29\"",
   "normalizedAttributes": [
-    { "key": "length_cm", "value": "170" },
-    { "key": "audience", "value": "adult" }
+    { "key": "brand", "value": "00000000-0000-0000-0000-000000000201" },
+    { "key": "brand_name", "value": "Trek" },
+    { "key": "model", "value": "Marlin 6" },
+    { "key": "bike_type", "value": "mountain" },
+    { "key": "frame_size", "value": "M" },
+    { "key": "wheel_size", "value": "29" },
+    { "key": "brake_type", "value": "disc_hydraulic" }
   ],
   "sortOrder": 10,
   "status": "active"
 }
 ```
 
-Variants are optional only for very simple resources. For most rental inventory, variants make unit assignment and booking selection clearer.
+Current bridge behavior:
+
+- Build `normalizedAttributes` from schema attributes where `appliesTo` contains `variant`.
+- Store enum values by stable `valueKey`.
+- Store reference values as ids when available; include a display helper such as `brand_name` while the typed `attributes` contract is still pending.
+- Use `variantType: "equipment_configuration"` for schema-based equipment variants. Do not use `size` as the generic new value; frame size, wheel size, and other size-like fields are just attributes.
+- Generate `variantKey` deterministically from key distinguishing fields. For bicycles, a good key is brand/model/frame/wheel, normalized to uppercase ASCII-like segments.
+
+Target contract after the backend typed-attributes slice:
+
+```json
+{
+  "variantKey": "TREK-MARLIN-6-M-29",
+  "label": "Trek Marlin 6 / M / 29\"",
+  "attributes": {
+    "brand": "00000000-0000-0000-0000-000000000201",
+    "model": "Marlin 6",
+    "bike_type": "mountain",
+    "frame_size": "M",
+    "wheel_size": "29",
+    "brake_type": "disc_hydraulic"
+  },
+  "sortOrder": 10,
+  "status": "active"
+}
+```
+
+Variants are the provider's stock grouping for booking and selection. For most rental inventory, create variants before adding units.
 
 #### Add Physical Inventory Units
 
@@ -926,8 +1042,8 @@ Request:
 ```json
 {
   "resourceVariantId": "00000000-0000-0000-0000-000000000020",
-  "inventoryCode": "SKI-001",
-  "displayName": "Atomic 170 #001",
+  "inventoryCode": "BIKE-001",
+  "displayName": "Trek Marlin 6 M #001",
   "status": "active",
   "conditionStatus": "ready",
   "externalReferenceCode": null
@@ -941,6 +1057,9 @@ Inventory rules:
 - If `inventoryCode` is omitted, the API can generate one.
 - Use `status: "active"` and `conditionStatus: "ready"` for rentable units.
 - Use maintenance/damaged/inactive/retired statuses to keep stock visible but unavailable.
+- Put stable reusable specs on the variant, not on every unit.
+- Use units for serial/inventory identity, condition, operational status, and later per-unit inspection facts.
+- Unit-level schema attributes are planned, but the current endpoint accepts only the fields shown above. Do not treat frontend-only unit attributes as backend truth.
 
 Useful reads:
 

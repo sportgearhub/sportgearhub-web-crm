@@ -73,6 +73,80 @@ type ApiResource = {
   updatedAt?: string;
 };
 
+export type EquipmentCategory = {
+  categoryId: string;
+  slug: string;
+  label: string;
+  labels: Record<string, string>;
+  resourceType: string;
+  capacityMode: string;
+  status: string;
+  sortOrder: number;
+};
+
+export type EquipmentAttributeAllowedValue = {
+  allowedValueId: string;
+  valueKey: string;
+  valueString?: string | null;
+  valueDecimal?: number | null;
+  valueInt?: number | null;
+  valueBool?: boolean | null;
+  label: string;
+  labels: Record<string, string>;
+  sortOrder: number;
+};
+
+export type EquipmentAttributeVisibilityCondition = {
+  attributeKey: string;
+  allowedValueKeys: string[];
+};
+
+export type EquipmentAttribute = {
+  attributeId: string;
+  key: string;
+  label: string;
+  labels: Record<string, string>;
+  valueType: string;
+  unit?: string | null;
+  unitLabel?: string | null;
+  referenceType?: string | null;
+  requiredOn: string[];
+  appliesTo: string[];
+  visibleWhen: EquipmentAttributeVisibilityCondition[];
+  filterable: boolean;
+  comparable: boolean;
+  searchable: boolean;
+  sortOrder: number;
+  allowedValues: EquipmentAttributeAllowedValue[];
+};
+
+export type EquipmentAttributeSchema = {
+  category: EquipmentCategory;
+  attributes: EquipmentAttribute[];
+};
+
+export type EquipmentBrandSuggestion = {
+  brandId: string;
+  canonicalName: string;
+  status: string;
+  confidence: number;
+  matchKind: string;
+};
+
+export type EquipmentBrand = {
+  brandId: string;
+  canonicalName: string;
+  status: string;
+  website?: string | null;
+  countryCode?: string | null;
+};
+
+export type CreateEquipmentBrandResponse = {
+  status: string;
+  brand: EquipmentBrand;
+  matches: EquipmentBrandSuggestion[];
+};
+
 type OidcTokenResponse = {
   access_token: string;
   token_type: string;
@@ -488,6 +562,28 @@ export const resourcesApi = {
       warnings: string[];
       issues: string[];
     }>(`/resources/${resourceId}/routability-impact`),
+};
+
+export const equipmentApi = {
+  categories: (locale = 'ru-RU') =>
+    providerRequest<EquipmentCategory[]>(`/equipment-categories?locale=${encodeURIComponent(locale)}`),
+
+  categoryAttributes: (categorySlug: string, locale = 'ru-RU') =>
+    providerRequest<EquipmentAttributeSchema>(
+      `/equipment-categories/${encodeURIComponent(categorySlug)}/attributes?locale=${encodeURIComponent(locale)}`
+    ),
+
+  brandSuggestions: (query: string, category?: string) => {
+    const params = new URLSearchParams({ query });
+    if (category) params.set('category', category);
+    return providerRequest<{ items: EquipmentBrandSuggestion[] }>(`/equipment-brands/suggestions?${params}`);
+  },
+
+  createBrand: (data: { name: string; category?: string | null; website?: string | null; countryCode?: string | null }) =>
+    providerRequest<CreateEquipmentBrandResponse>('/equipment-brands', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // ─── Availability ─────────────────────────────────────────────────────────────
