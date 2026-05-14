@@ -73,6 +73,13 @@ type StoredOidcToken = OidcTokenResponse & {
   scope: string;
 };
 
+type ProviderAccessProfile = {
+  providerId?: string | null;
+  displayName?: string | null;
+  legalName?: string | null;
+  operatingState?: string | { overallStatus?: string; lifecycleState?: string } | null;
+};
+
 export type OnboardingChecklistValue = 'missing' | 'ready';
 export type OnboardingStatus =
   | 'not_started'
@@ -292,6 +299,20 @@ function providerRequest<T>(path: string, options: RequestInit = {}) {
   return request<T>(`${PROVIDER_BASE_URL}${path}`, options);
 }
 
+function membershipFromProviderProfile(profile: ProviderAccessProfile): ProviderMembership | null {
+  if (!profile.providerId) return null;
+  const operatingState = typeof profile.operatingState === 'string'
+    ? profile.operatingState
+    : profile.operatingState?.overallStatus ?? profile.operatingState?.lifecycleState ?? 'active';
+
+  return {
+    providerId: profile.providerId,
+    displayName: profile.displayName ?? profile.legalName ?? 'Provider access',
+    role: 'owner',
+    operatingState,
+  };
+}
+
 export const authApi = {
   login: async (email: string, password: string) => {
     try {
@@ -343,6 +364,14 @@ export const authApi = {
   },
   providerMemberships: async () =>
     (await request<{ memberships: ProviderMembership[] }>('/api/v1/auth/provider-memberships')).memberships,
+  providerAccessMemberships: async () => {
+    const memberships = (await request<{ memberships: ProviderMembership[] }>('/api/v1/auth/provider-memberships')).memberships;
+    if (memberships.length > 0) return memberships;
+
+    const profile = await providerRequest<ProviderAccessProfile>('/profile').catch(() => null);
+    const fallbackMembership = profile ? membershipFromProviderProfile(profile) : null;
+    return fallbackMembership ? [fallbackMembership] : [];
+  },
   googleStart: () => `${API_BASE_URL}/api/v1/auth/oauth/google/start`,
   yandexStart: () => `${API_BASE_URL}/api/v1/auth/oauth/yandex/start`,
   devEmails: () => `${API_BASE_URL}/api/v1/development/emails`,
