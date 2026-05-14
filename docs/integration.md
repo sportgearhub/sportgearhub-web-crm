@@ -833,7 +833,7 @@ Schema field handling:
 - `appliesTo`: scopes where the field belongs.
 - `visibleWhen`: conditional visibility rule.
 - `filterable`, `comparable`, `searchable`: future marketplace/search hints; keep them in the typed client.
-- `allowedValues`: enum values with localized labels. Submit the stable `valueKey`, not display text.
+- `allowedValues`: predefined values with localized labels. For `enum`, submit the stable `valueKey`. For numeric fields such as `decimal` and `integer`, treat these as suggested values/chips and still allow manual numeric input unless a later schema flag says otherwise.
 
 Conditional field example:
 
@@ -868,7 +868,7 @@ For the seeded `bicycle` schema, expect variant-level fields such as:
 - `model`: model name, for example `Marlin 6`
 - `bike_type`: enum such as `mountain`, `road`, `city`, `gravel`, `kids`, `e_bike`
 - `frame_size`: frame size, for example `M`, `L`, `17`
-- `wheel_size`: wheel size, for example `26`, `27.5`, `29`
+- `wheel_size_in`: wheel size in inches, for example `26`, `27.5`, `29`; render suggested values from `allowedValues`, but allow manual decimal input when the value is not listed
 - `brake_type`, `drivetrain_type`, `suspension_type`
 - conditional electric/suspension fields such as `motor_power_w` or `suspension_travel_front_mm`
 
@@ -994,7 +994,7 @@ Request:
     { "key": "model", "value": "Marlin 6" },
     { "key": "bike_type", "value": "mountain" },
     { "key": "frame_size", "value": "M" },
-    { "key": "wheel_size", "value": "29" },
+    { "key": "wheel_size_in", "value": "29" },
     { "key": "brake_type", "value": "disc_hydraulic" }
   ],
   "sortOrder": 10,
@@ -1021,7 +1021,7 @@ Target contract after the backend typed-attributes slice:
     "model": "Marlin 6",
     "bike_type": "mountain",
     "frame_size": "M",
-    "wheel_size": "29",
+    "wheel_size_in": 29,
     "brake_type": "disc_hydraulic"
   },
   "sortOrder": 10,

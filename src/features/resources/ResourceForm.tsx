@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
-import { Select } from '../../components/ui/Select';
 import type { Resource } from '../../types';
 import {
   ApiError,
@@ -14,6 +14,7 @@ import {
 } from '../../lib/api-client';
 
 type FieldValues = Record<string, string>;
+type CreateStep = 'category' | 'details';
 
 export type ResourceFormData = {
   title: string;
@@ -32,12 +33,6 @@ export type ResourceFormData = {
     normalizedAttributes: Array<{ key: string; value: string }>;
     status: string;
   };
-  unit?: {
-    inventoryCode: string;
-    displayName: string;
-    status: string;
-    conditionStatus: string;
-  };
 };
 
 interface ResourceFormProps {
@@ -49,18 +44,7 @@ interface ResourceFormProps {
   loadingCategories?: boolean;
 }
 
-const unitStatusOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
-
-const conditionStatusOptions = [
-  { value: 'ready', label: 'Ready' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'damaged', label: 'Damaged' },
-];
-
-function isRequired(field: EquipmentAttribute, scope: 'variant' | 'unit') {
+function isRequired(field: EquipmentAttribute, scope: 'variant') {
   return field.requiredOn.includes(scope);
 }
 
@@ -73,13 +57,9 @@ function isVisible(field: EquipmentAttribute, values: FieldValues) {
   });
 }
 
-function fieldsForScope(
-  attributes: EquipmentAttribute[],
-  scope: 'variant' | 'unit',
-  values: FieldValues
-) {
+function fieldsForScope(attributes: EquipmentAttribute[], values: FieldValues) {
   return attributes
-    .filter(attribute => attribute.appliesTo.includes(scope))
+    .filter(attribute => attribute.appliesTo.includes('variant'))
     .filter(attribute => isVisible(attribute, values))
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
@@ -115,6 +95,7 @@ export function ResourceForm({
   loadingCategories = false,
 }: ResourceFormProps) {
   const isEdit = Boolean(resource);
+  const [createStep, setCreateStep] = useState<CreateStep>(isEdit ? 'details' : 'category');
   const [title, setTitle] = useState(resource?.title || '');
   const [categorySlug, setCategorySlug] = useState('');
   const [schema, setSchema] = useState<EquipmentAttributeSchema | null>(null);
@@ -128,32 +109,22 @@ export function ResourceForm({
   const [variantLabel, setVariantLabel] = useState('');
   const [variantStatus, setVariantStatus] = useState('active');
   const [variantValues, setVariantValues] = useState<FieldValues>({});
-  const [inventoryCode, setInventoryCode] = useState('');
-  const [unitDisplayName, setUnitDisplayName] = useState('');
-  const [unitStatus, setUnitStatus] = useState('active');
-  const [conditionStatus, setConditionStatus] = useState('ready');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedCategory = categories.find(category => category.slug === categorySlug);
   const categoryOptions = categories.map(category => ({ value: category.slug, label: category.label }));
   const variantFields = useMemo(
-    () => fieldsForScope(schema?.attributes ?? [], 'variant', variantValues),
+    () => fieldsForScope(schema?.attributes ?? [], variantValues),
     [schema, variantValues]
-  );
-  const unitFields = useMemo(
-    () => fieldsForScope(schema?.attributes ?? [], 'unit', {}),
-    [schema]
   );
 
   useEffect(() => {
-    if (categorySlug || categories.length === 0) return;
+    if (!resource || categorySlug || categories.length === 0) return;
 
-    const matchingCategory = resource
-      ? categories.find(category =>
-          category.resourceType === resource.resourceType &&
-          category.capacityMode === resource.capacityMode
-        )
-      : undefined;
+    const matchingCategory = categories.find(category =>
+      category.resourceType === resource.resourceType &&
+      category.capacityMode === resource.capacityMode
+    );
 
     setCategorySlug((matchingCategory ?? categories[0]).slug);
   }, [categories, categorySlug, resource]);
@@ -203,16 +174,6 @@ export function ResourceForm({
     if (nextLabel) setVariantLabel(nextLabel);
   }, [isEdit, variantLabel, variantValues]);
 
-  useEffect(() => {
-    if (unitDisplayName || !variantLabel) return;
-    setUnitDisplayName(`${variantLabel} #001`);
-  }, [unitDisplayName, variantLabel]);
-
-  useEffect(() => {
-    if (inventoryCode || !variantKey) return;
-    setInventoryCode(`${variantKey}-001`);
-  }, [inventoryCode, variantKey]);
-
   const updateVariantValue = (key: string, value: string) => {
     setVariantValues(current => ({ ...current, [key]: value }));
     setErrors(current => {
@@ -220,6 +181,23 @@ export function ResourceForm({
       delete next[`variant.${key}`];
       return next;
     });
+  };
+
+  const chooseCategory = (slug: string) => {
+    setCategorySlug(slug);
+    setErrors(current => {
+      const next = { ...current };
+      delete next.category;
+      return next;
+    });
+  };
+
+  const continueFromCategory = () => {
+    if (!selectedCategory) {
+      setErrors(current => ({ ...current, category: 'Choose an equipment category.' }));
+      return;
+    }
+    setCreateStep('details');
   };
 
   const validate = () => {
@@ -243,8 +221,6 @@ export function ResourceForm({
           nextErrors[`variant.${field.key}`] = 'Required.';
         }
       });
-      if (!inventoryCode.trim()) nextErrors.inventoryCode = 'Inventory code is required.';
-      if (!unitDisplayName.trim()) nextErrors.unitDisplayName = 'Display name is required.';
     }
 
     return nextErrors;
@@ -279,12 +255,6 @@ export function ResourceForm({
         normalizedAttributes,
         status: variantStatus,
       },
-      unit: isEdit ? undefined : {
-        inventoryCode: inventoryCode.trim(),
-        displayName: unitDisplayName.trim(),
-        status: unitStatus,
-        conditionStatus,
-      },
     });
   };
 
@@ -293,11 +263,92 @@ export function ResourceForm({
       <div>
         <h2 className="text-sm font-semibold text-gray-900">{isEdit ? 'Edit Resource' : 'Create Resource'}</h2>
         <p className="mt-0.5 text-xs text-gray-500">
-          {isEdit ? 'Update catalog basics.' : 'Create the resource, one variant, and the first physical unit.'}
+          {isEdit ? 'Update catalog basics.' : createStep === 'category' ? 'Choose the resource category first.' : 'Create the resource and its first catalog variant.'}
         </p>
       </div>
 
-      <Card>
+      {!isEdit && createStep === 'category' && (
+        <>
+          <Card>
+            <CardHeader title="Choose Category" subtitle="The selected category determines which variant fields are shown next." />
+            <div className="mb-4 max-w-md">
+              <FancySelect
+                label="Category"
+                options={categoryOptions}
+                value={categorySlug}
+                onChange={chooseCategory}
+                error={errors.category}
+                disabled={loadingCategories || categories.length === 0}
+              />
+            </div>
+
+            {loadingCategories ? (
+              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5">
+                <p className="text-xs font-medium text-blue-800">Loading live categories...</p>
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <p className="text-xs font-medium text-amber-900">No equipment categories returned by the API.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {categories.map(category => {
+                  const selected = category.slug === categorySlug;
+
+                  return (
+                    <button
+                      key={category.categoryId}
+                      type="button"
+                      onClick={() => chooseCategory(category.slug)}
+                      className={`rounded-lg border p-4 text-left transition-colors ${
+                        selected
+                          ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100'
+                          : 'border-gray-200 bg-white hover:border-blue-200 hover:bg-blue-50/40'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-950">{category.label}</p>
+                          <p className="mt-1 text-xs text-gray-500">{category.resourceType} / {category.capacityMode}</p>
+                        </div>
+                        {selected && (
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <Check size={13} />
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          <div className="flex gap-2">
+            <Button variant="primary" onClick={continueFromCategory} disabled={loadingCategories || categories.length === 0}>
+              Continue
+            </Button>
+            <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+          </div>
+        </>
+      )}
+
+      {(isEdit || createStep === 'details') && (
+      <>
+        {!isEdit && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-blue-900">
+                Category: {selectedCategory?.label ?? 'Not selected'}
+              </p>
+              <Button size="sm" variant="ghost" onClick={() => setCreateStep('category')}>
+                Change
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <Card>
         <CardHeader title="Resource" subtitle="Category defines which variant schema is loaded." />
         <div className="grid gap-4 md:grid-cols-2">
           <Input
@@ -307,13 +358,13 @@ export function ResourceForm({
             error={errors.title}
             placeholder="Велосипеды"
           />
-          <Select
+          <FancySelect
             label="Category"
             options={categoryOptions}
             value={categorySlug}
-            onChange={event => setCategorySlug(event.target.value)}
+            onChange={chooseCategory}
             error={errors.category}
-            disabled={loadingCategories || categories.length === 0}
+            disabled={!isEdit || loadingCategories || categories.length === 0}
           />
           <Input
             label="Base capacity"
@@ -330,7 +381,6 @@ export function ResourceForm({
           error={errors.schema || schemaError}
           category={selectedCategory}
           variantCount={variantFields.length}
-          unitCount={unitFields.length}
         />
         <div className="mt-4">
           <Textarea
@@ -349,9 +399,9 @@ export function ResourceForm({
             placeholder="https://..."
           />
         </div>
-      </Card>
+        </Card>
 
-      {!isEdit && (
+        {!isEdit && (
         <>
           <Card>
             <CardHeader title="Variant" subtitle="Fields come from the selected category schema." />
@@ -377,10 +427,10 @@ export function ResourceForm({
                 error={errors.variantLabel}
                 placeholder="Trek Marlin 6 / M / 29&quot;"
               />
-              <Select
+              <FancySelect
                 label="Status"
                 value={variantStatus}
-                onChange={event => setVariantStatus(event.target.value)}
+                onChange={setVariantStatus}
                 options={[
                   { value: 'active', label: 'Active' },
                   { value: 'inactive', label: 'Inactive' },
@@ -390,7 +440,6 @@ export function ResourceForm({
                 <SchemaField
                   key={field.attributeId}
                   field={field}
-                  scope="variant"
                   value={variantValues[field.key] ?? ''}
                   error={errors[`variant.${field.key}`]}
                   onChange={value => updateVariantValue(field.key, value)}
@@ -398,72 +447,40 @@ export function ResourceForm({
               ))}
             </div>
           </Card>
-
-          <Card>
-            <CardHeader title="Physical Unit" subtitle="Create the first inventory unit for this variant." />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input
-                label="Inventory code"
-                value={inventoryCode}
-                onChange={event => setInventoryCode(event.target.value)}
-                error={errors.inventoryCode}
-                placeholder="BIKE-001"
-              />
-              <Input
-                label="Display name"
-                value={unitDisplayName}
-                onChange={event => setUnitDisplayName(event.target.value)}
-                error={errors.unitDisplayName}
-                placeholder="Trek Marlin 6 M #001"
-              />
-              <Select
-                label="Status"
-                value={unitStatus}
-                onChange={event => setUnitStatus(event.target.value)}
-                options={unitStatusOptions}
-              />
-              <Select
-                label="Condition"
-                value={conditionStatus}
-                onChange={event => setConditionStatus(event.target.value)}
-                options={conditionStatusOptions}
-              />
-            </div>
-          </Card>
         </>
-      )}
+        )}
 
-      <div className="flex gap-2">
-        <Button variant="primary" onClick={handleSubmit} loading={submitting}>
-          {isEdit ? 'Save Changes' : 'Create Resource'}
-        </Button>
-        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-      </div>
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={handleSubmit} loading={submitting}>
+            {isEdit ? 'Save Changes' : 'Create Resource'}
+          </Button>
+          <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+        </div>
+      </>
+      )}
     </div>
   );
 }
 
 function SchemaField({
   field,
-  scope,
   value,
   error,
   onChange,
 }: {
   field: EquipmentAttribute;
-  scope: 'variant' | 'unit';
   value: string;
   error?: string;
   onChange: (value: string) => void;
 }) {
-  const label = `${field.label}${isRequired(field, scope) ? ' *' : ''}`;
+  const label = `${field.label}${isRequired(field, 'variant') ? ' *' : ''}`;
 
   if (field.allowedValues.length > 0) {
     return (
-      <Select
+      <FancySelect
         label={label}
         value={value}
-        onChange={event => onChange(event.target.value)}
+        onChange={onChange}
         error={error}
         options={[
           { value: '', label: 'Choose value' },
@@ -478,10 +495,10 @@ function SchemaField({
 
   if (field.valueType === 'boolean') {
     return (
-      <Select
+      <FancySelect
         label={label}
         value={value}
-        onChange={event => onChange(event.target.value)}
+        onChange={onChange}
         error={error}
         options={[
           { value: '', label: 'Choose value' },
@@ -504,6 +521,100 @@ function SchemaField({
   );
 }
 
+function FancySelect({
+  label,
+  value,
+  options,
+  error,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  error?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const selected = options.find(option => option.value === value);
+  const filtered = options.filter(option => option.label.toLowerCase().includes(search.toLowerCase()));
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        setSearch('');
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(current => !current)}
+        className={`flex w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#9ec5fe] disabled:bg-[#f8fafc] disabled:text-[#94a3b8] ${
+          error ? 'border-[#dc3545]' : open ? 'border-[#86b7fe]' : 'border-[#cbd5e1]'
+        } ${selected?.value ? 'text-[#1f2d3d]' : 'text-[#8a97a8]'}`}
+      >
+        <span className="truncate">{selected?.label ?? 'Choose value'}</span>
+        <ChevronDown size={15} className={`ml-2 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && !disabled && (
+        <div className="absolute z-30 mt-1 max-h-64 w-full overflow-hidden rounded-md border border-[#d7e0ea] bg-white shadow-lg">
+          {options.length > 7 && (
+            <div className="border-b border-gray-100 p-2">
+              <input
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                autoFocus
+                placeholder="Search..."
+                className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+              />
+            </div>
+          )}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.map(option => {
+              const isSelected = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                    isSelected ? 'bg-blue-50 text-blue-800' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {isSelected && <Check size={14} className="shrink-0 text-blue-700" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 function CategorySchemaPanel({
   loading,
   error,
@@ -514,7 +625,6 @@ function CategorySchemaPanel({
   error: string;
   category?: EquipmentCategory;
   variantCount: number;
-  unitCount: number;
 }) {
   if (!category) {
     return (

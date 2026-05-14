@@ -12,7 +12,7 @@ import { Button } from '../../components/ui/Button';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import { ApiError, equipmentApi, resourcesApi, unitsApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
@@ -300,23 +300,11 @@ export function ResourcesPage() {
         baseCapacity: data.baseCapacity,
       });
 
-      let variantId: string | null = null;
       if (data.variant) {
-        const variant = await variantsApi.create(newResource.resourceId, {
+        await variantsApi.create(newResource.resourceId, {
           ...data.variant,
           normalizedAttributes: await resolveVariantAttributes(data),
           sortOrder: 1,
-        });
-        variantId = variant.variantId;
-      }
-
-      if (data.unit) {
-        await unitsApi.create(newResource.resourceId, {
-          resourceVariantId: variantId,
-          inventoryCode: data.unit.inventoryCode,
-          displayName: data.unit.displayName,
-          status: data.unit.status,
-          conditionStatus: data.unit.conditionStatus,
         });
       }
 

@@ -147,19 +147,6 @@ export type CreateEquipmentBrandResponse = {
   matches: EquipmentBrandSuggestion[];
 };
 
-export type ProviderResourceUnit = {
-  unitId: string;
-  resourceId: string;
-  resourceVariantId?: string | null;
-  inventoryCode: string;
-  displayName?: string | null;
-  status: string;
-  conditionStatus?: string | null;
-  externalReferenceCode?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
 type OidcTokenResponse = {
   access_token: string;
   token_type: string;
@@ -729,43 +716,6 @@ export const variantsApi = {
     providerRequest<Record<string, unknown>>(
       `/resources/${resourceId}/variants/${variantId}/diagnostics`
     ),
-};
-
-export const unitsApi = {
-  list: (resourceId: string) =>
-    providerRequest<ProviderResourceUnit[]>(`/resources/${resourceId}/units`),
-
-  create: (
-    resourceId: string,
-    data: {
-      resourceVariantId?: string | null;
-      inventoryCode?: string | null;
-      displayName?: string | null;
-      status?: string | null;
-      conditionStatus?: string | null;
-      externalReferenceCode?: string | null;
-    }
-  ) =>
-    providerRequest<ProviderResourceUnit>(`/resources/${resourceId}/units`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  patch: (
-    resourceId: string,
-    unitId: string,
-    data: Partial<Pick<ProviderResourceUnit, 'resourceVariantId' | 'inventoryCode' | 'displayName' | 'status' | 'conditionStatus' | 'externalReferenceCode'>>
-  ) =>
-    providerRequest<ProviderResourceUnit>(`/resources/${resourceId}/units/${unitId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-
-  archive: (resourceId: string, unitId: string, reasonCode: string) =>
-    providerRequest<ProviderResourceUnit>(`/resources/${resourceId}/units/${unitId}/archive`, {
-      method: 'POST',
-      body: JSON.stringify({ reasonCode }),
-    }),
 };
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
