@@ -11,7 +11,6 @@ Use this file for endpoint wiring, app-specific auth payloads, and current check
 - Provider OIDC client id: `sportgearhub-provider-console`.
 - Provider callback route: `/auth/callback`.
 - Provider scopes: `openid profile email offline_access roles provider_api`.
-- Cookie-based API calls must use browser credentials.
 - Bearer-token API calls must use the OIDC access token.
 
 API routes:
@@ -53,6 +52,45 @@ The provider console has two user phases:
 Do not grant provider access in frontend state. The API decides access from authenticated user, roles, scopes, and provider membership.
 
 Use `/api/v1/auth/me` for signed-in user identity only. Use `/api/v1/auth/provider-memberships` to decide whether the user can enter a provider workspace or needs provider onboarding.
+
+### Sign In And Tokens
+
+Provider CRM sign-in uses the OIDC password grant through the login alias:
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/x-www-form-urlencoded
+```
+
+Form body:
+
+```text
+grant_type=password
+client_id=sportgearhub-provider-console
+username=<provider-user-email>
+password=<provider-user-password>
+scope=openid profile email offline_access roles provider_api
+```
+
+The response is the OpenIddict token envelope:
+
+```json
+{
+  "access_token": "...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "...",
+  "id_token": "..."
+}
+```
+
+Store the token response in provider auth state. Call authenticated APIs with:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+Before provider approval, the user may sign in with `public_api` scope to continue onboarding. After approval, refresh/sign in with `provider_api` scope for `/api/v1/provider/*`.
 
 ## Location Model
 
@@ -244,32 +282,35 @@ Goal: a verified or existing user can sign in and the app can load current user 
 
 ```http
 POST /api/v1/auth/login
+Content-Type: application/x-www-form-urlencoded
 ```
 
-Request:
+Form body:
 
-```json
-{
-  "email": "ivan@example.com",
-  "password": "strong-password"
-}
+```text
+grant_type=password
+client_id=sportgearhub-provider-console
+username=ivan@example.com
+password=strong-password
+scope=openid profile email offline_access roles provider_api
 ```
 
 Response:
 
 ```json
 {
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "emailVerified": true
+  "access_token": "...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "...",
+  "id_token": "..."
 }
 ```
 
 Frontend behavior:
 
-- call with credentials enabled
+- store the token response in auth state
+- call authenticated APIs with `Authorization: Bearer <access_token>`
 - after success, call `GET /api/v1/auth/me`
 - if `emailVerified` is false, route to check-email/resend screen
 - call `GET /api/v1/auth/provider-memberships`
