@@ -136,6 +136,7 @@ export interface PublishabilityImpact {
 export interface Resource {
   resourceId: string;
   resourceType: string;
+  capacityMode?: string;
   status: ResourceStatus;
   title: string;
   baseCapacity: number;

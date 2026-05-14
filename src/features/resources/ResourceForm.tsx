@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card } from '../../components/ui/Card';
+import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
 import type { Resource } from '../../types';
-import { ApiError, equipmentApi, type EquipmentAttributeSchema, type EquipmentCategory } from '../../lib/api-client';
+import {
+  ApiError,
+  equipmentApi,
+  type EquipmentAttribute,
+  type EquipmentAttributeSchema,
+  type EquipmentCategory,
+} from '../../lib/api-client';
 
-type CreateMode = 'quick' | 'guided';
+type FieldValues = Record<string, string>;
 
 export type ResourceFormData = {
   title: string;
@@ -19,7 +25,19 @@ export type ResourceFormData = {
   description?: string;
   imageUrl?: string;
   status?: Resource['status'];
-  variantCount?: number;
+  variant?: {
+    variantKey: string;
+    variantType: string;
+    label: string;
+    normalizedAttributes: Array<{ key: string; value: string }>;
+    status: string;
+  };
+  unit?: {
+    inventoryCode: string;
+    displayName: string;
+    status: string;
+    conditionStatus: string;
+  };
 };
 
 interface ResourceFormProps {
@@ -31,13 +49,62 @@ interface ResourceFormProps {
   loadingCategories?: boolean;
 }
 
-const guidedSteps = [
-  { id: 'basics', label: 'Basics' },
-  { id: 'variants', label: 'Variants' },
-  { id: 'pricing', label: 'Pricing' },
-  { id: 'availability', label: 'Availability' },
-  { id: 'media', label: 'Media' },
-] as const;
+const unitStatusOptions = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
+const conditionStatusOptions = [
+  { value: 'ready', label: 'Ready' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'damaged', label: 'Damaged' },
+];
+
+function isRequired(field: EquipmentAttribute, scope: 'variant' | 'unit') {
+  return field.requiredOn.includes(scope);
+}
+
+function isVisible(field: EquipmentAttribute, values: FieldValues) {
+  if (field.visibleWhen.length === 0) return true;
+
+  return field.visibleWhen.every(condition => {
+    const value = values[condition.attributeKey];
+    return Boolean(value && condition.allowedValueKeys.includes(value));
+  });
+}
+
+function fieldsForScope(
+  attributes: EquipmentAttribute[],
+  scope: 'variant' | 'unit',
+  values: FieldValues
+) {
+  return attributes
+    .filter(attribute => attribute.appliesTo.includes(scope))
+    .filter(attribute => isVisible(attribute, values))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function makeVariantKey(values: FieldValues) {
+  return ['brand_name', 'brand', 'model', 'frame_size', 'wheel_size_in']
+    .map(key => values[key])
+    .filter(Boolean)
+    .join('-')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toUpperCase();
+}
+
+function makeVariantLabel(values: FieldValues) {
+  return ['brand_name', 'brand', 'model', 'frame_size', 'wheel_size_in']
+    .map(key => values[key])
+    .filter(Boolean)
+    .join(' / ');
+}
+
+function inputTypeFor(field: EquipmentAttribute) {
+  if (field.valueType === 'integer' || field.valueType === 'decimal') return 'number';
+  return 'text';
+}
 
 export function ResourceForm({
   resource,
@@ -48,8 +115,6 @@ export function ResourceForm({
   loadingCategories = false,
 }: ResourceFormProps) {
   const isEdit = Boolean(resource);
-  const [mode, setMode] = useState<CreateMode>('quick');
-  const [stepIndex, setStepIndex] = useState(0);
   const [title, setTitle] = useState(resource?.title || '');
   const [categorySlug, setCategorySlug] = useState('');
   const [schema, setSchema] = useState<EquipmentAttributeSchema | null>(null);
@@ -57,21 +122,28 @@ export function ResourceForm({
   const [schemaError, setSchemaError] = useState('');
   const [baseCapacity, setBaseCapacity] = useState(String(resource?.baseCapacity || 1));
   const [description, setDescription] = useState(resource?.description || '');
-  const [variantPlan, setVariantPlan] = useState(resource?.variantCount ? String(resource.variantCount) : '1');
-  const [basePrice, setBasePrice] = useState('');
-  const [availabilityNotes, setAvailabilityNotes] = useState('');
   const [imageUrl, setImageUrl] = useState(resource?.imageUrl || '');
+  const [variantKey, setVariantKey] = useState('');
+  const [variantType, setVariantType] = useState('equipment_configuration');
+  const [variantLabel, setVariantLabel] = useState('');
+  const [variantStatus, setVariantStatus] = useState('active');
+  const [variantValues, setVariantValues] = useState<FieldValues>({});
+  const [inventoryCode, setInventoryCode] = useState('');
+  const [unitDisplayName, setUnitDisplayName] = useState('');
+  const [unitStatus, setUnitStatus] = useState('active');
+  const [conditionStatus, setConditionStatus] = useState('ready');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const progress = useMemo(
-    () => Math.round(((stepIndex + 1) / guidedSteps.length) * 100),
-    [stepIndex]
-  );
   const selectedCategory = categories.find(category => category.slug === categorySlug);
   const categoryOptions = categories.map(category => ({ value: category.slug, label: category.label }));
-  const variantAttributes = schema?.attributes
-    .filter(attribute => attribute.appliesTo.includes('variant'))
-    .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
+  const variantFields = useMemo(
+    () => fieldsForScope(schema?.attributes ?? [], 'variant', variantValues),
+    [schema, variantValues]
+  );
+  const unitFields = useMemo(
+    () => fieldsForScope(schema?.attributes ?? [], 'unit', {}),
+    [schema]
+  );
 
   useEffect(() => {
     if (categorySlug || categories.length === 0) return;
@@ -89,12 +161,15 @@ export function ResourceForm({
   useEffect(() => {
     if (!categorySlug) {
       setSchema(null);
+      setVariantValues({});
       return;
     }
 
     let cancelled = false;
     setSchemaLoading(true);
     setSchemaError('');
+    setSchema(null);
+    setVariantValues({});
 
     equipmentApi.categoryAttributes(categorySlug)
       .then(nextSchema => {
@@ -102,7 +177,6 @@ export function ResourceForm({
       })
       .catch((err) => {
         if (!cancelled) {
-          setSchema(null);
           setSchemaError(err instanceof ApiError
             ? `Could not load category schema: ${err.message}`
             : 'Could not load category schema.');
@@ -117,7 +191,38 @@ export function ResourceForm({
     };
   }, [categorySlug]);
 
-  const validateBasics = () => {
+  useEffect(() => {
+    if (variantKey || isEdit) return;
+    const nextKey = makeVariantKey(variantValues);
+    if (nextKey) setVariantKey(nextKey);
+  }, [isEdit, variantKey, variantValues]);
+
+  useEffect(() => {
+    if (variantLabel || isEdit) return;
+    const nextLabel = makeVariantLabel(variantValues);
+    if (nextLabel) setVariantLabel(nextLabel);
+  }, [isEdit, variantLabel, variantValues]);
+
+  useEffect(() => {
+    if (unitDisplayName || !variantLabel) return;
+    setUnitDisplayName(`${variantLabel} #001`);
+  }, [unitDisplayName, variantLabel]);
+
+  useEffect(() => {
+    if (inventoryCode || !variantKey) return;
+    setInventoryCode(`${variantKey}-001`);
+  }, [inventoryCode, variantKey]);
+
+  const updateVariantValue = (key: string, value: string) => {
+    setVariantValues(current => ({ ...current, [key]: value }));
+    setErrors(current => {
+      const next = { ...current };
+      delete next[`variant.${key}`];
+      return next;
+    });
+  };
+
+  const validate = () => {
     const nextErrors: Record<string, string> = {};
     if (!title.trim()) nextErrors.title = 'Title is required.';
     if (!selectedCategory) nextErrors.category = 'Choose an equipment category.';
@@ -125,33 +230,37 @@ export function ResourceForm({
     if (!Number.isInteger(capacity) || capacity < 1) {
       nextErrors.baseCapacity = 'Base capacity must be a whole number greater than zero.';
     }
+
+    if (!isEdit) {
+      if (schemaLoading) nextErrors.schema = 'Wait for category schema to load.';
+      if (schemaError) nextErrors.schema = schemaError;
+      if (!schema && !schemaLoading) nextErrors.schema = 'Category schema is required.';
+      if (!variantKey.trim()) nextErrors.variantKey = 'Variant key is required.';
+      if (!variantType.trim()) nextErrors.variantType = 'Variant type is required.';
+      if (!variantLabel.trim()) nextErrors.variantLabel = 'Variant label is required.';
+      variantFields.forEach(field => {
+        if (isRequired(field, 'variant') && !variantValues[field.key]?.trim()) {
+          nextErrors[`variant.${field.key}`] = 'Required.';
+        }
+      });
+      if (!inventoryCode.trim()) nextErrors.inventoryCode = 'Inventory code is required.';
+      if (!unitDisplayName.trim()) nextErrors.unitDisplayName = 'Display name is required.';
+    }
+
     return nextErrors;
   };
 
-  const validateCurrentStep = () => {
-    const step = guidedSteps[stepIndex]?.id;
-    const nextErrors: Record<string, string> = {};
-
-    if (step === 'basics') {
-      Object.assign(nextErrors, validateBasics());
-    }
-    if (step === 'pricing' && !basePrice.trim()) {
-      nextErrors.basePrice = 'Add a starting price.';
-    }
-    if (step === 'media' && !imageUrl.trim()) {
-      nextErrors.imageUrl = 'Add a preview image URL or use quick create instead.';
-    }
-
-    return nextErrors;
-  };
-
-  const handleQuickCreate = async () => {
-    const nextErrors = validateBasics();
+  const handleSubmit = async () => {
+    const nextErrors = validate();
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
     }
     if (!selectedCategory) return;
+
+    const normalizedAttributes = variantFields
+      .map(field => ({ key: field.key, value: variantValues[field.key]?.trim() ?? '' }))
+      .filter(attribute => attribute.value);
 
     await onSubmit({
       title,
@@ -163,282 +272,235 @@ export function ResourceForm({
       description,
       imageUrl: imageUrl || undefined,
       status: 'draft',
+      variant: isEdit ? undefined : {
+        variantKey: variantKey.trim(),
+        variantType: variantType.trim(),
+        label: variantLabel.trim(),
+        normalizedAttributes,
+        status: variantStatus,
+      },
+      unit: isEdit ? undefined : {
+        inventoryCode: inventoryCode.trim(),
+        displayName: unitDisplayName.trim(),
+        status: unitStatus,
+        conditionStatus,
+      },
     });
   };
 
-  const handleGuidedNext = async () => {
-    const nextErrors = validateCurrentStep();
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      return;
-    }
-
-    setErrors({});
-
-    if (stepIndex === guidedSteps.length - 1) {
-      if (!selectedCategory) return;
-
-      await onSubmit({
-        title,
-        baseCapacity: Number(baseCapacity),
-        categorySlug: selectedCategory.slug,
-        resourceType: selectedCategory.resourceType,
-        capacityMode: selectedCategory.capacityMode,
-        categoryName: selectedCategory.label,
-        description,
-        imageUrl: imageUrl || undefined,
-        variantCount: Number(variantPlan) || 0,
-        status: 'draft',
-      });
-      return;
-    }
-
-    setStepIndex(prev => prev + 1);
-  };
-
-  const currentStep = guidedSteps[stepIndex]?.id;
-
   return (
     <div className="max-w-5xl space-y-5">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900">{isEdit ? 'Edit Resource' : 'Create Resource'}</h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {isEdit ? 'Update catalog details, readiness, and selling inputs.' : 'Choose a fast draft flow or complete guided listing setup.'}
-          </p>
-        </div>
-
-        {!isEdit && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMode('quick')}
-              className={`border px-3 py-2 text-xs font-medium transition ${
-                mode === 'quick' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'
-              }`}
-            >
-              Quick Create
-            </button>
-            <button
-              onClick={() => setMode('guided')}
-              className={`border px-3 py-2 text-xs font-medium transition ${
-                mode === 'guided' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-600'
-              }`}
-            >
-              Guided Setup
-            </button>
-          </div>
-        )}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900">{isEdit ? 'Edit Resource' : 'Create Resource'}</h2>
+        <p className="mt-0.5 text-xs text-gray-500">
+          {isEdit ? 'Update catalog basics.' : 'Create the resource, one variant, and the first physical unit.'}
+        </p>
       </div>
 
-      {!isEdit && mode === 'guided' && (
-        <Card>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium text-gray-900">Setup progress</p>
-              <p className="text-[11px] text-gray-500">{progress}% complete</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {guidedSteps.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={`border px-2.5 py-1 text-[11px] ${
-                    index === stepIndex
-                      ? 'border-blue-200 bg-blue-50 text-blue-700'
-                      : index < stepIndex
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-gray-200 bg-white text-gray-500'
-                  }`}
-                >
-                  {step.label}
-                </span>
+      <Card>
+        <CardHeader title="Resource" subtitle="Category defines which variant schema is loaded." />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            label="Title"
+            value={title}
+            onChange={event => setTitle(event.target.value)}
+            error={errors.title}
+            placeholder="Велосипеды"
+          />
+          <Select
+            label="Category"
+            options={categoryOptions}
+            value={categorySlug}
+            onChange={event => setCategorySlug(event.target.value)}
+            error={errors.category}
+            disabled={loadingCategories || categories.length === 0}
+          />
+          <Input
+            label="Base capacity"
+            type="number"
+            min={1}
+            value={baseCapacity}
+            onChange={event => setBaseCapacity(event.target.value)}
+            error={errors.baseCapacity}
+            placeholder="10"
+          />
+        </div>
+        <CategorySchemaPanel
+          loading={schemaLoading}
+          error={errors.schema || schemaError}
+          category={selectedCategory}
+          variantCount={variantFields.length}
+          unitCount={unitFields.length}
+        />
+        <div className="mt-4">
+          <Textarea
+            label="Description"
+            value={description}
+            onChange={event => setDescription(event.target.value)}
+            rows={3}
+            placeholder="Describe the resource..."
+          />
+        </div>
+        <div className="mt-4">
+          <Input
+            label="Image URL"
+            value={imageUrl}
+            onChange={event => setImageUrl(event.target.value)}
+            placeholder="https://..."
+          />
+        </div>
+      </Card>
+
+      {!isEdit && (
+        <>
+          <Card>
+            <CardHeader title="Variant" subtitle="Fields come from the selected category schema." />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Variant key"
+                value={variantKey}
+                onChange={event => setVariantKey(event.target.value)}
+                error={errors.variantKey}
+                placeholder="TREK-MARLIN-6-M-29"
+              />
+              <Input
+                label="Variant type"
+                value={variantType}
+                onChange={event => setVariantType(event.target.value)}
+                error={errors.variantType}
+                placeholder="equipment_configuration"
+              />
+              <Input
+                label="Label"
+                value={variantLabel}
+                onChange={event => setVariantLabel(event.target.value)}
+                error={errors.variantLabel}
+                placeholder="Trek Marlin 6 / M / 29&quot;"
+              />
+              <Select
+                label="Status"
+                value={variantStatus}
+                onChange={event => setVariantStatus(event.target.value)}
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
+              {variantFields.map(field => (
+                <SchemaField
+                  key={field.attributeId}
+                  field={field}
+                  scope="variant"
+                  value={variantValues[field.key] ?? ''}
+                  error={errors[`variant.${field.key}`]}
+                  onChange={value => updateVariantValue(field.key, value)}
+                />
               ))}
             </div>
-          </div>
-        </Card>
-      )}
+          </Card>
 
-      {(isEdit || mode === 'quick') && (
-        <Card>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              label="Title"
-              value={title}
-              onChange={event => setTitle(event.target.value)}
-              error={errors.title}
-              placeholder="e.g. Trek X-Caliber 8"
-            />
-            <Select
-              label="Category"
-              options={categoryOptions}
-              value={categorySlug}
-              onChange={event => setCategorySlug(event.target.value)}
-              error={errors.category}
-              disabled={loadingCategories || categories.length === 0}
-            />
-            <Input
-              label="Base capacity"
-              type="number"
-              min={1}
-              value={baseCapacity}
-              onChange={event => setBaseCapacity(event.target.value)}
-              error={errors.baseCapacity}
-              placeholder="10"
-            />
-          </div>
-          <CategorySchemaPanel
-            loading={schemaLoading}
-            error={schemaError}
-            category={selectedCategory}
-            variantAttributes={variantAttributes}
-          />
-          <div className="mt-4">
-            <Textarea
-              label="Description"
-              value={description}
-              onChange={event => setDescription(event.target.value)}
-              rows={4}
-              placeholder="Describe the resource, intended use, and key selling points..."
-            />
-          </div>
-          <div className="mt-4">
-            <Input
-              label="Image URL"
-              value={imageUrl}
-              onChange={event => setImageUrl(event.target.value)}
-              placeholder="https://..."
-            />
-          </div>
-        </Card>
-      )}
-
-      {!isEdit && mode === 'guided' && (
-        <Card>
-          {currentStep === 'basics' && (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Input
-                  label="Title"
-                  value={title}
-                  onChange={event => setTitle(event.target.value)}
-                  error={errors.title}
-                  placeholder="e.g. Trek X-Caliber 8"
-                />
-                <Select
-                  label="Category"
-                  options={categoryOptions}
-                  value={categorySlug}
-                  onChange={event => setCategorySlug(event.target.value)}
-                  error={errors.category}
-                  disabled={loadingCategories || categories.length === 0}
-                />
-                <Input
-                  label="Base capacity"
-                  type="number"
-                  min={1}
-                  value={baseCapacity}
-                  onChange={event => setBaseCapacity(event.target.value)}
-                  error={errors.baseCapacity}
-                  placeholder="10"
-                />
-              </div>
-              <CategorySchemaPanel
-                loading={schemaLoading}
-                error={schemaError}
-                category={selectedCategory}
-                variantAttributes={variantAttributes}
-              />
-              <Textarea
-                label="Description"
-                value={description}
-                onChange={event => setDescription(event.target.value)}
-                rows={4}
-                placeholder="Explain how providers should present this listing to renters."
-              />
-            </div>
-          )}
-
-          {currentStep === 'variants' && (
-            <div className="space-y-4">
+          <Card>
+            <CardHeader title="Physical Unit" subtitle="Create the first inventory unit for this variant." />
+            <div className="grid gap-4 md:grid-cols-2">
               <Input
-                label="Planned variant count"
-                type="number"
-                value={variantPlan}
-                onChange={event => setVariantPlan(event.target.value)}
-                placeholder="e.g. 3"
+                label="Inventory code"
+                value={inventoryCode}
+                onChange={event => setInventoryCode(event.target.value)}
+                error={errors.inventoryCode}
+                placeholder="BIKE-001"
               />
-              <p className="text-xs text-gray-500">
-                This creates a draft planning baseline for sizes, bundles, or equipment conditions.
-              </p>
-            </div>
-          )}
-
-          {currentStep === 'pricing' && (
-            <div className="space-y-4">
               <Input
-                label="Starting price"
-                type="number"
-                value={basePrice}
-                onChange={event => setBasePrice(event.target.value)}
-                error={errors.basePrice}
-                placeholder="e.g. 3200"
+                label="Display name"
+                value={unitDisplayName}
+                onChange={event => setUnitDisplayName(event.target.value)}
+                error={errors.unitDisplayName}
+                placeholder="Trek Marlin 6 M #001"
               />
-              <p className="text-xs text-gray-500">
-                Guided setup uses a starter price placeholder so the listing is commercially ready faster.
-              </p>
-            </div>
-          )}
-
-          {currentStep === 'availability' && (
-            <div className="space-y-4">
-              <Textarea
-                label="Availability notes"
-                value={availabilityNotes}
-                onChange={event => setAvailabilityNotes(event.target.value)}
-                rows={4}
-                placeholder="Example: 10 units total, weekends blocked for service, same-day pickup disabled."
+              <Select
+                label="Status"
+                value={unitStatus}
+                onChange={event => setUnitStatus(event.target.value)}
+                options={unitStatusOptions}
+              />
+              <Select
+                label="Condition"
+                value={conditionStatus}
+                onChange={event => setConditionStatus(event.target.value)}
+                options={conditionStatusOptions}
               />
             </div>
-          )}
-
-          {currentStep === 'media' && (
-            <div className="space-y-4">
-              <Input
-                label="Primary image URL"
-                value={imageUrl}
-                onChange={event => setImageUrl(event.target.value)}
-                error={errors.imageUrl}
-                placeholder="https://..."
-              />
-              <p className="text-xs text-gray-500">
-                Listings with strong imagery convert better and avoid “missing images” health issues.
-              </p>
-            </div>
-          )}
-        </Card>
+          </Card>
+        </>
       )}
 
       <div className="flex gap-2">
-        {isEdit || mode === 'quick' ? (
-          <Button variant="primary" onClick={handleQuickCreate} loading={submitting}>
-            {isEdit ? 'Save Changes' : 'Create Draft'}
-          </Button>
-        ) : (
-          <>
-            <Button variant="primary" onClick={handleGuidedNext} loading={submitting}>
-              {stepIndex === guidedSteps.length - 1 ? 'Finish Setup' : 'Next Step'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setStepIndex(prev => Math.max(0, prev - 1))}
-              disabled={stepIndex === 0}
-            >
-              Previous
-            </Button>
-          </>
-        )}
+        <Button variant="primary" onClick={handleSubmit} loading={submitting}>
+          {isEdit ? 'Save Changes' : 'Create Resource'}
+        </Button>
         <Button variant="secondary" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
+  );
+}
+
+function SchemaField({
+  field,
+  scope,
+  value,
+  error,
+  onChange,
+}: {
+  field: EquipmentAttribute;
+  scope: 'variant' | 'unit';
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const label = `${field.label}${isRequired(field, scope) ? ' *' : ''}`;
+
+  if (field.allowedValues.length > 0) {
+    return (
+      <Select
+        label={label}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        error={error}
+        options={[
+          { value: '', label: 'Choose value' },
+          ...field.allowedValues
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map(option => ({ value: option.valueKey, label: option.label })),
+        ]}
+      />
+    );
+  }
+
+  if (field.valueType === 'boolean') {
+    return (
+      <Select
+        label={label}
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        error={error}
+        options={[
+          { value: '', label: 'Choose value' },
+          { value: 'true', label: 'Yes' },
+          { value: 'false', label: 'No' },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Input
+      label={label}
+      type={inputTypeFor(field)}
+      value={value}
+      onChange={event => onChange(event.target.value)}
+      error={error}
+      placeholder={field.unitLabel ?? field.unit ?? undefined}
+    />
   );
 }
 
@@ -446,12 +508,13 @@ function CategorySchemaPanel({
   loading,
   error,
   category,
-  variantAttributes,
+  variantCount,
 }: {
   loading: boolean;
   error: string;
   category?: EquipmentCategory;
-  variantAttributes: EquipmentAttributeSchema['attributes'];
+  variantCount: number;
+  unitCount: number;
 }) {
   if (!category) {
     return (
@@ -470,9 +533,9 @@ function CategorySchemaPanel({
       {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
       {!loading && !error && (
         <p className="mt-1 text-xs leading-5 text-blue-800">
-          {variantAttributes.length > 0
-            ? `Variant setup will use ${variantAttributes.length} schema field${variantAttributes.length === 1 ? '' : 's'}: ${variantAttributes.slice(0, 4).map(attribute => attribute.label).join(', ')}${variantAttributes.length > 4 ? '...' : ''}.`
-            : 'This category does not expose variant schema fields yet.'}
+          {variantCount > 0
+            ? `${variantCount} variant field${variantCount === 1 ? '' : 's'} available for this category.`
+            : 'This category does not expose variant fields yet.'}
         </p>
       )}
     </div>

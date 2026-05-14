@@ -12,7 +12,7 @@ import { Button } from '../../components/ui/Button';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import { ApiError, equipmentApi, resourcesApi, type EquipmentCategory } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, unitsApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
@@ -51,6 +51,39 @@ const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'y
   inactive: { label: 'Inactive', variant: 'gray' },
   archived: { label: 'Archived', variant: 'gray' },
 };
+
+function isGuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function resolveVariantAttributes(data: ResourceFormData) {
+  if (!data.variant) return [];
+
+  const normalizedAttributes: Array<{ key: string; value: string }> = [];
+
+  for (const attribute of data.variant.normalizedAttributes) {
+    if (attribute.key !== 'brand') {
+      normalizedAttributes.push(attribute);
+      continue;
+    }
+
+    if (isGuid(attribute.value)) {
+      normalizedAttributes.push(attribute);
+      continue;
+    }
+
+    const suggestions = await equipmentApi.brandSuggestions(attribute.value, data.categorySlug);
+    const brand = suggestions.items[0];
+    if (!brand) {
+      throw new Error(`Could not resolve brand "${attribute.value}" from the API.`);
+    }
+
+    normalizedAttributes.push({ key: 'brand', value: brand.brandId });
+    normalizedAttributes.push({ key: 'brand_name', value: brand.canonicalName });
+  }
+
+  return normalizedAttributes;
+}
 
 export function ResourcesPage() {
   const [resources, setResources] = useState<Resource[]>([]);
@@ -128,7 +161,10 @@ export function ResourcesPage() {
       const revenue = bookings
         .filter(booking => booking.status === 'confirmed' || booking.status === 'completed')
         .reduce((sum, booking) => sum + booking.totalAmount, 0);
-      const basePrice = offers.length > 0 ? Math.min(...offers.map(offer => offer.basePrice)) : null;
+      const offerPrices = offers
+        .map(offer => offer.basePrice)
+        .filter((price): price is number => typeof price === 'number');
+      const basePrice = offerPrices.length > 0 ? Math.min(...offerPrices) : null;
       const healthIssues: string[] = [];
 
       if (!basePrice) healthIssues.push('Missing pricing');
@@ -263,12 +299,35 @@ export function ResourcesPage() {
         title: data.title,
         baseCapacity: data.baseCapacity,
       });
-      setResources(prev => [{ ...newResource, categoryName: data.categoryName }, ...prev]);
+
+      let variantId: string | null = null;
+      if (data.variant) {
+        const variant = await variantsApi.create(newResource.resourceId, {
+          ...data.variant,
+          normalizedAttributes: await resolveVariantAttributes(data),
+          sortOrder: 1,
+        });
+        variantId = variant.variantId;
+      }
+
+      if (data.unit) {
+        await unitsApi.create(newResource.resourceId, {
+          resourceVariantId: variantId,
+          inventoryCode: data.unit.inventoryCode,
+          displayName: data.unit.displayName,
+          status: data.unit.status,
+          conditionStatus: data.unit.conditionStatus,
+        });
+      }
+
+      setResources(prev => [{ ...newResource, categoryName: data.categoryName, variantCount: data.variant ? 1 : 0 }, ...prev]);
       setView('list');
     } catch (err) {
       setError(err instanceof ApiError
         ? `Could not create the resource in the API: ${err.message}`
-        : 'Could not create the resource in the API.');
+        : err instanceof Error
+          ? err.message
+          : 'Could not create the resource in the API.');
     } finally {
       setSaving(false);
     }

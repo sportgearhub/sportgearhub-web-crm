@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Building2, Check, ChevronDown, Clock, FileText, LogOut } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -92,39 +92,54 @@ async function loadOnboardingOptions() {
   return onboardingOptionsPromise;
 }
 
-function LoadingState() {
+function OnboardingFrame({ children, contentClassName = 'mx-auto max-w-4xl space-y-5' }: { children: ReactNode; contentClassName?: string }) {
+  const { signOut, user } = useAuth();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />
-        <p className="text-xs font-medium text-blue-800">Загружаем подключение...</p>
+    <div className="min-h-screen bg-[#f3f6fb] px-4 py-6">
+      <div className="mx-auto mb-5 flex max-w-4xl items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-gray-500">Sportgearhub</p>
+          <p className="truncate text-sm font-semibold text-gray-950">{user?.email ?? 'Партнерский кабинет'}</p>
+        </div>
+        <Button onClick={signOut} variant="secondary" size="sm" className="shrink-0">
+          <LogOut size={14} />
+          Выйти
+        </Button>
+      </div>
+      <div className={contentClassName}>
+        {children}
       </div>
     </div>
   );
 }
 
-function DecisionState({ title, text, icon }: { title: string; text: string; icon: React.ReactNode }) {
-  const { signOut } = useAuth();
-
+function LoadingState() {
   return (
-    <div className="min-h-screen bg-[#f3f6fb] px-4 py-8">
-      <div className="mx-auto max-w-xl">
-        <Card>
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700">
-              {icon}
-            </div>
-            <div>
-              <h1 className="text-base font-semibold text-gray-950">{title}</h1>
-              <p className="mt-1 text-xs leading-5 text-gray-600">{text}</p>
-            </div>
-          </div>
-          <Button onClick={signOut} variant="ghost" className="w-full justify-center">
-            Выйти
-          </Button>
-        </Card>
+    <OnboardingFrame contentClassName="flex min-h-[calc(100vh-120px)] items-center justify-center">
+      <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700" />
+        <p className="text-xs font-medium text-blue-800">Загружаем подключение...</p>
       </div>
-    </div>
+    </OnboardingFrame>
+  );
+}
+
+function DecisionState({ title, text, icon }: { title: string; text: string; icon: ReactNode }) {
+  return (
+    <OnboardingFrame contentClassName="mx-auto max-w-xl">
+      <Card>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700">
+            {icon}
+          </div>
+          <div>
+            <h1 className="text-base font-semibold text-gray-950">{title}</h1>
+            <p className="mt-1 text-xs leading-5 text-gray-600">{text}</p>
+          </div>
+        </div>
+      </Card>
+    </OnboardingFrame>
   );
 }
 
@@ -190,7 +205,6 @@ function FancySelect({
 }
 
 export function OnboardingPage() {
-  const { signOut } = useAuth();
   const [onboarding, setOnboarding] = useState<ProviderOnboarding | null>(null);
   const [options, setOptions] = useState<ProviderOnboardingOptions | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -374,53 +388,42 @@ export function OnboardingPage() {
 
   if (onboarding.status === 'not_started') {
     return (
-      <div className="min-h-screen bg-[#f3f6fb] px-4 py-8">
-        <div className="mx-auto max-w-xl">
-          <Card>
-            <div className="mb-5 flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700">
-                <Building2 size={18} />
-              </div>
-              <div>
-                <h1 className="text-base font-semibold text-gray-950">Подключение партнера</h1>
-                <p className="mt-1 text-xs leading-5 text-gray-600">
-                  Создадим черновик заявки без предзаполненных данных. Затем вы сможете заполнить профиль партнера и юридическую информацию.
-                </p>
-              </div>
+      <OnboardingFrame contentClassName="mx-auto max-w-xl">
+        <Card>
+          <div className="mb-5 flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-blue-200 bg-blue-50 text-blue-700">
+              <Building2 size={18} />
             </div>
+            <div>
+              <h1 className="text-base font-semibold text-gray-950">Подключение партнера</h1>
+              <p className="mt-1 text-xs leading-5 text-gray-600">
+                Создадим черновик заявки без предзаполненных данных. Затем вы сможете заполнить профиль партнера и юридическую информацию.
+              </p>
+            </div>
+          </div>
 
-            {error && (
-              <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-                <AlertCircle size={14} className="shrink-0 text-red-600" />
-                <p className="text-xs text-red-700">{error}</p>
-              </div>
-            )}
+          {error && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+              <AlertCircle size={14} className="shrink-0 text-red-600" />
+              <p className="text-xs text-red-700">{error}</p>
+            </div>
+          )}
 
-            <Button onClick={startOnboarding} variant="primary" loading={starting} className="w-full justify-center">
-              Начать подключение
-            </Button>
-            <Button onClick={signOut} variant="ghost" className="mt-2 w-full justify-center">
-              <LogOut size={14} />
-              Выйти
-            </Button>
-          </Card>
-        </div>
-      </div>
+          <Button onClick={startOnboarding} variant="primary" loading={starting} className="w-full justify-center">
+            Начать подключение
+          </Button>
+        </Card>
+      </OnboardingFrame>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f6fb] px-4 py-6">
-      <div className="mx-auto max-w-4xl space-y-5">
+    <OnboardingFrame>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-950">Подключение партнера</h1>
             <p className="mt-1 text-sm text-gray-600">Заполните данные компании, чтобы отправить заявку на проверку.</p>
           </div>
-          <Button onClick={signOut} variant="ghost" className="w-full justify-center sm:w-auto">
-            <LogOut size={14} />
-            Выйти
-          </Button>
         </div>
 
         {error && (
@@ -565,7 +568,6 @@ export function OnboardingPage() {
             <p className="text-xs leading-5 text-emerald-800">Анкета готова к отправке.</p>
           </div>
         )}
-      </div>
-    </div>
+    </OnboardingFrame>
   );
 }

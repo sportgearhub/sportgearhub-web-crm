@@ -24,7 +24,10 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
   const bookings: Booking[] = [];
 
   const totalStock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
-  const basePrice = offers.length > 0 ? Math.min(...offers.map(offer => offer.basePrice)) : null;
+  const offerPrices = offers
+    .map(offer => offer.basePrice)
+    .filter((price): price is number => typeof price === 'number');
+  const basePrice = offerPrices.length > 0 ? Math.min(...offerPrices) : null;
   const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
 
   return (
@@ -63,8 +66,8 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
             <h3 className="text-sm font-semibold text-gray-900">Resource overview</h3>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Row label="Category" value={resource.categoryName} />
-            <Row label="Created" value={new Date(resource.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} />
+            <Row label="Category" value={resource.categoryName ?? resource.resourceType} />
+            <Row label="Created" value={resource.createdAt ? new Date(resource.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'} />
             <Row label="Updated" value={new Date(resource.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} />
             <Row label="Offers" value={String(offers.length)} />
           </div>
