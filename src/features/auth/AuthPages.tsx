@@ -97,7 +97,7 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
       await signIn(email, password);
       onNavigate('/');
     } catch (err) {
-      setError(err instanceof ApiError && err.status === 401
+      setError(err instanceof ApiError && (err.status === 400 || err.status === 401)
         ? 'Неверная почта или пароль.'
         : 'Ошибка в работе сервиса.');
     } finally {

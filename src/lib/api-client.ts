@@ -32,7 +32,11 @@ import type {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const AUTH_APP = 'crm';
-const PROVIDER_BASE_URL = '/v1/provider';
+const AUTH_CLIENT_ID = 'sportgearhub-provider';
+const PROVIDER_AUTH_SCOPE = 'openid profile email offline_access roles provider_api';
+const PUBLIC_AUTH_SCOPE = 'openid profile email offline_access roles public_api';
+const TOKEN_STORAGE_KEY = 'sportgearhub.provider.oidc';
+const PROVIDER_BASE_URL = '/api/v1/provider';
 
 export class ApiError extends Error {
   status: number;
@@ -47,12 +51,26 @@ export class ApiError extends Error {
 type ApiUser = {
   id?: string;
   userId?: string;
-  email: string;
-  name?: string;
-  surname?: string;
+  email?: string | null;
+  name?: string | null;
+  surname?: string | null;
   roles?: string[];
   role?: string;
   emailVerified?: boolean;
+};
+
+type OidcTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string;
+  id_token?: string;
+};
+
+type StoredOidcToken = OidcTokenResponse & {
+  obtained_at: number;
+  expires_at: number;
+  scope: string;
 };
 
 export type OnboardingChecklistValue = 'missing' | 'ready';
@@ -107,11 +125,12 @@ export type ProviderOnboardingOptions = {
 
 function normalizeUser(user: ApiUser): AuthUser {
   const roles = user.roles ?? (user.role ? [user.role] : ['User']);
-  const name = user.name && user.surname ? `${user.name} ${user.surname}` : user.name ?? user.email;
+  const email = user.email ?? '';
+  const name = user.name && user.surname ? `${user.name} ${user.surname}` : user.name ?? email;
 
   return {
-    id: user.userId ?? user.id ?? user.email,
-    email: user.email,
+    id: user.userId ?? user.id ?? email,
+    email,
     name,
     role: roles[0] ?? 'User',
     roles,
@@ -119,17 +138,146 @@ function normalizeUser(user: ApiUser): AuthUser {
   };
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
+function loadStoredToken(): StoredOidcToken | null {
+  try {
+    const rawToken = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!rawToken) return null;
+
+    const token = JSON.parse(rawToken) as Partial<StoredOidcToken>;
+    if (!token.access_token || !token.expires_at) return null;
+
+    return token as StoredOidcToken;
+  } catch {
+    return null;
+  }
+}
+
+let authToken: StoredOidcToken | null = typeof window === 'undefined' ? null : loadStoredToken();
+
+function storeToken(token: OidcTokenResponse, scope: string) {
+  const obtainedAt = Date.now();
+  authToken = {
+    ...token,
+    obtained_at: obtainedAt,
+    expires_at: obtainedAt + token.expires_in * 1000,
+    scope,
+  };
+
+  try {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(authToken));
+  } catch {
+    // In private or restricted storage contexts, keep the token for this tab only.
+  }
+}
+
+function clearStoredToken() {
+  authToken = null;
+  try {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable; in-memory token state is already cleared.
+  }
+}
+
+async function oidcTokenRequest(body: URLSearchParams, scope: string) {
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    credentials: 'omit',
     headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    ...options,
+    body,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new ApiError(
+      res.status,
+      err.error_description || err.error || err.message || err.title || `API error ${res.status}`
+    );
+  }
+
+  const token = await res.json() as OidcTokenResponse;
+  storeToken(token, scope);
+  return token;
+}
+
+async function passwordGrant(email: string, password: string, scope: string) {
+  return oidcTokenRequest(new URLSearchParams({
+    grant_type: 'password',
+    client_id: AUTH_CLIENT_ID,
+    username: email,
+    password,
+    scope,
+  }), scope);
+}
+
+async function refreshGrant(token: StoredOidcToken) {
+  if (!token.refresh_token) {
+    clearStoredToken();
+    return null;
+  }
+
+  try {
+    return await oidcTokenRequest(new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: AUTH_CLIENT_ID,
+      refresh_token: token.refresh_token,
+      scope: token.scope || PROVIDER_AUTH_SCOPE,
+    }), token.scope || PROVIDER_AUTH_SCOPE);
+  } catch {
+    clearStoredToken();
+    return null;
+  }
+}
+
+async function getAccessToken() {
+  if (!authToken) return null;
+
+  const refreshSkewMs = 30_000;
+  if (authToken.expires_at - refreshSkewMs > Date.now()) {
+    return authToken.access_token;
+  }
+
+  const refreshed = await refreshGrant(authToken);
+  return refreshed?.access_token ?? null;
+}
+
+function shouldRetryWithPublicScope(error: unknown) {
+  if (!(error instanceof ApiError)) return false;
+
+  const message = error.message.toLowerCase();
+  return error.status === 400 && (
+    message.includes('scope') ||
+    message.includes('provider_api') ||
+    message.includes('insufficient')
+  );
+}
+
+type ApiRequestInit = RequestInit & { auth?: boolean };
+
+async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
+  const { auth = true, ...fetchOptions } = options;
+  const headers = new Headers(fetchOptions.headers);
+  const accessToken = auth ? await getAccessToken() : null;
+
+  if (fetchOptions.body && !headers.has('Content-Type') && !(fetchOptions.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'omit',
+    ...fetchOptions,
+    headers,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
+    if (auth && res.status === 401) {
+      clearStoredToken();
+    }
     throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`);
   }
 
@@ -145,40 +293,54 @@ function providerRequest<T>(path: string, options: RequestInit = {}) {
 }
 
 export const authApi = {
-  login: async (email: string, password: string) =>
-    normalizeUser(await request<ApiUser>('/api/v1/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    })),
+  login: async (email: string, password: string) => {
+    try {
+      await passwordGrant(email, password, PROVIDER_AUTH_SCOPE);
+    } catch (error) {
+      if (!shouldRetryWithPublicScope(error)) throw error;
+      await passwordGrant(email, password, PUBLIC_AUTH_SCOPE);
+    }
+
+    return normalizeUser(await request<ApiUser>('/api/v1/auth/me'));
+  },
   me: async () => normalizeUser(await request<ApiUser>('/api/v1/auth/me')),
   register: async (data: { name: string; surname: string; email: string; password: string }) =>
     normalizeUser(await request<ApiUser>('/api/v1/auth/register', {
       method: 'POST',
+      auth: false,
       body: JSON.stringify({ ...data, app: AUTH_APP }),
     })),
   verifyEmail: (token: string) =>
     request<void>('/api/v1/auth/email/verify', {
       method: 'POST',
-      credentials: 'omit',
+      auth: false,
       body: JSON.stringify({ token }),
     }),
   resendVerification: (email: string) =>
     request<void>('/api/v1/auth/email/verification', {
       method: 'POST',
+      auth: false,
       body: JSON.stringify({ email, app: AUTH_APP }),
     }),
   forgotPassword: (email: string) =>
     request<void>('/api/v1/auth/password/forgot', {
       method: 'POST',
+      auth: false,
       body: JSON.stringify({ email, app: AUTH_APP }),
     }),
   resetPassword: (token: string, newPassword: string) =>
     request<void>('/api/v1/auth/password/reset', {
       method: 'POST',
-      credentials: 'omit',
+      auth: false,
       body: JSON.stringify({ token, newPassword }),
     }),
-  signout: () => request<void>('/api/v1/auth/signout', { method: 'POST' }),
+  signout: async () => {
+    try {
+      await request<void>('/api/v1/auth/signout', { method: 'POST' });
+    } finally {
+      clearStoredToken();
+    }
+  },
   providerMemberships: async () =>
     (await request<{ memberships: ProviderMembership[] }>('/api/v1/auth/provider-memberships')).memberships,
   googleStart: () => `${API_BASE_URL}/api/v1/auth/oauth/google/start`,
