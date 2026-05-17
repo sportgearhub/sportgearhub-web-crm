@@ -40,11 +40,13 @@ const PROVIDER_BASE_URL = '/api/v1/provider';
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -320,7 +322,8 @@ async function oidcTokenRequest(body: URLSearchParams, scope: string) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new ApiError(
       res.status,
-      err.error_description || err.error || err.message || err.title || `API error ${res.status}`
+      err.error_description || err.error || err.message || err.title || `API error ${res.status}`,
+      err.code
     );
   }
 
@@ -405,7 +408,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
     if (auth && res.status === 401) {
       clearStoredToken();
     }
-    throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`);
+    throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`, err.code);
   }
 
   if (res.status === 204) {

@@ -8,7 +8,7 @@
   },
   "servers": [
     {
-      "url": "https://api.sportgearhub.ru"
+      "url": "http://localhost:5093"
     }
   ],
   "paths": {

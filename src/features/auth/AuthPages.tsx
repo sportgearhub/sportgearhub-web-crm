@@ -154,22 +154,41 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
 export function RegisterPage({ onNavigate }: { onNavigate: Navigate }) {
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [form, setForm] = useState({ name: '', surname: '', email: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const password = form.password.trim();
     if (!form.name || !form.surname || !form.email || !form.password) {
+      setFieldErrors({});
       setError('Заполните все поля.');
       return;
     }
+    if (password.length < 8) {
+      setFieldErrors({ password: 'Пароль должен содержать не менее 8 символов.' });
+      setError('');
+      return;
+    }
+    setFieldErrors({});
     setError('');
     setLoading(true);
     try {
       await authApi.register(form);
       onNavigate(`/auth/check-email?email=${encodeURIComponent(form.email)}`);
-    } catch {
-      setError('Не удалось зарегистрироваться. Проверьте данные и попробуйте еще раз.');
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'auth.password_too_short') {
+        setFieldErrors({ password: err.message });
+        return;
+      }
+      if (err instanceof ApiError && (err.code === 'auth.email_required' || err.code === 'auth.email_already_exists')) {
+        setFieldErrors({ email: err.message });
+        return;
+      }
+      setError(err instanceof ApiError
+        ? err.message
+        : 'Не удалось зарегистрироваться. Проверьте данные и попробуйте еще раз.');
     } finally {
       setLoading(false);
     }
@@ -184,8 +203,8 @@ export function RegisterPage({ onNavigate }: { onNavigate: Navigate }) {
           <Input label="Имя" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} autoComplete="given-name" />
           <Input label="Фамилия" value={form.surname} onChange={e => setForm({ ...form, surname: e.target.value })} autoComplete="family-name" />
         </div>
-        <Input label="Почта" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} autoComplete="email" />
-        <Input label="Пароль" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="new-password" hint="Используйте надежный пароль." />
+        <Input label="Почта" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} autoComplete="email" error={fieldErrors.email} />
+        <Input label="Пароль" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} autoComplete="new-password" hint="Минимум 8 символов." error={fieldErrors.password} />
         <Button type="submit" variant="primary" loading={loading} className="w-full justify-center">
           Создать аккаунт
         </Button>
