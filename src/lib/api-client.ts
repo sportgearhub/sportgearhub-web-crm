@@ -34,7 +34,6 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, ''
 const AUTH_APP = 'crm';
 const AUTH_CLIENT_ID = 'sportgearhub-provider';
 const PROVIDER_AUTH_SCOPE = 'openid profile email offline_access roles provider_api';
-const PUBLIC_AUTH_SCOPE = 'openid profile email offline_access roles public_api';
 const TOKEN_STORAGE_KEY = 'sportgearhub.provider.oidc';
 const PROVIDER_BASE_URL = '/api/v1/provider';
 
@@ -59,6 +58,11 @@ type ApiUser = {
   roles?: string[];
   role?: string;
   emailVerified?: boolean;
+};
+
+type RegistrationInvitationContext = {
+  email: string;
+  expiresAt: string;
 };
 
 type ApiResource = {
@@ -332,16 +336,6 @@ async function oidcTokenRequest(body: URLSearchParams, scope: string) {
   return token;
 }
 
-async function passwordGrant(email: string, password: string, scope: string) {
-  return oidcTokenRequest(new URLSearchParams({
-    grant_type: 'password',
-    client_id: AUTH_CLIENT_ID,
-    username: email,
-    password,
-    scope,
-  }), scope);
-}
-
 async function refreshGrant(token: StoredOidcToken) {
   if (!token.refresh_token) {
     clearStoredToken();
@@ -373,17 +367,6 @@ async function getAccessToken() {
   return refreshed?.access_token ?? null;
 }
 
-function shouldRetryWithPublicScope(error: unknown) {
-  if (!(error instanceof ApiError)) return false;
-
-  const message = error.message.toLowerCase();
-  return error.status === 400 && (
-    message.includes('scope') ||
-    message.includes('provider_api') ||
-    message.includes('insufficient')
-  );
-}
-
 type ApiRequestInit = RequestInit & { auth?: boolean };
 
 async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
@@ -399,7 +382,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'omit',
+    credentials: 'include',
     ...fetchOptions,
     headers,
   });
@@ -423,18 +406,30 @@ function providerRequest<T>(path: string, options: RequestInit = {}) {
 }
 
 export const authApi = {
-  login: async (email: string, password: string) => {
-    try {
-      await passwordGrant(email, password, PROVIDER_AUTH_SCOPE);
-    } catch (error) {
-      if (!shouldRetryWithPublicScope(error)) throw error;
-      await passwordGrant(email, password, PUBLIC_AUTH_SCOPE);
-    }
-
-    return normalizeUser(await request<ApiUser>('/api/v1/auth/me'));
-  },
+  startEmailFlow: (email: string) =>
+    request<void>('/api/v1/auth/email/start', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ email, app: AUTH_APP }),
+    }),
+  registrationInvitation: (token: string) =>
+    request<RegistrationInvitationContext>(`/api/v1/auth/registration-invitations/${encodeURIComponent(token)}`, {
+      auth: false,
+    }),
+  magicSignIn: async (token: string) =>
+    normalizeUser(await request<ApiUser>('/api/v1/auth/magic-sign-in', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ token }),
+    })),
+  login: async (email: string, password: string) =>
+    normalizeUser(await request<ApiUser>('/api/v1/auth/session-login', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ email, password }),
+    })),
   me: async () => normalizeUser(await request<ApiUser>('/api/v1/auth/me')),
-  register: async (data: { name: string; surname: string; email: string; password: string }) =>
+  register: async (data: { token?: string; name: string; surname: string; email?: string; password?: string }) =>
     normalizeUser(await request<ApiUser>('/api/v1/auth/register', {
       method: 'POST',
       auth: false,

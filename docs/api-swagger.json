@@ -492,6 +492,66 @@
         }
       }
     },
+    "/api/v1/auth/registration-invitations/{token}": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalGetRegistrationInvitationEndpoint1",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalRegistrationInvitationContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/registration-invitations/{token}": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalGetRegistrationInvitationEndpoint2",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalRegistrationInvitationContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/session-login": {
       "post": {
         "tags": [
@@ -538,6 +598,72 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalLoginRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalAuthUserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/magic-sign-in": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalMagicSignInEndpoint1",
+        "requestBody": {
+          "x-name": "MagicSignInRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiEndpointsAuthLocalMagicSignInRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalAuthUserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/magic-sign-in": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalMagicSignInEndpoint2",
+        "requestBody": {
+          "x-name": "MagicSignInRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiEndpointsAuthLocalMagicSignInRequest"
               }
             }
           },
@@ -736,6 +862,72 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalResetPasswordRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalLocalAuthCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email/start": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalStartEmailAuthEndpoint1",
+        "requestBody": {
+          "x-name": "StartEmailAuthRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalStartEmailAuthRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalLocalAuthCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/email/start": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsAuthLocalStartEmailAuthEndpoint2",
+        "requestBody": {
+          "x-name": "StartEmailAuthRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAuthLocalStartEmailAuthRequest"
               }
             }
           },
@@ -5139,6 +5331,19 @@
           }
         }
       },
+      "EbashITSportgearhubApiModelsAuthLocalRegistrationInvitationContextResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "EbashITSportgearhubApiModelsAuthLocalLoginRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -5151,10 +5356,23 @@
           }
         }
       },
+      "EbashITSportgearhubApiEndpointsAuthLocalMagicSignInRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "EbashITSportgearhubApiModelsAuthLocalRegisterRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "token": {
+            "type": "string",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           },
@@ -5162,10 +5380,12 @@
             "type": "string"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "password": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "app": {
             "type": "string",
@@ -5195,6 +5415,19 @@
           },
           "newPassword": {
             "type": "string"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsAuthLocalStartEmailAuthRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

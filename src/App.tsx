@@ -4,6 +4,8 @@ import { useAuth } from './context/useAuth';
 import {
   CheckEmailPage,
   ForgotPasswordPage,
+  MagicSignInPage,
+  PasswordSignInPage,
   RegisterPage,
   ResetPasswordPage,
   SignInPage,
@@ -75,7 +77,9 @@ function AppShell() {
   }, [currentPath, loading, memberships.length, user]);
 
   const renderAuthPage = () => {
-    if (currentPath === '/auth/register') return <RegisterPage onNavigate={navigate} />;
+    if (currentPath === '/auth/register') return <RegisterPage token={params.get('token')} onNavigate={navigate} />;
+    if (currentPath === '/auth/password-sign-in') return <PasswordSignInPage initialEmail={params.get('email') ?? ''} onNavigate={navigate} />;
+    if (currentPath === '/auth/magic-sign-in') return <MagicSignInPage token={params.get('token')} onNavigate={navigate} />;
     if (currentPath === '/auth/check-email') return <CheckEmailPage email={params.get('email') ?? user?.email ?? ''} onNavigate={navigate} />;
     if (currentPath === '/auth/verify-email' || currentPath === '/auth/verify-mail') return <VerifyEmailPage token={params.get('token')} onNavigate={navigate} />;
     if (currentPath === '/auth/forgot-password') return <ForgotPasswordPage initialEmail={params.get('email') ?? ''} onNavigate={navigate} />;

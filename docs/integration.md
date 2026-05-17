@@ -1,8 +1,8 @@
-# Sportgearhub Provider CRM Integration
+# Sportgearhub Web Provider Console API Integration
 
-This is the single structured API integration file for the provider CRM web app.
+This file is the working integration plan for `sportgearhub-web-provider-console`.
 
-Use this file for endpoint wiring, app-specific auth payloads, and current checklist status.
+Use `sportgearhub-web-provider-console-prototype.md` as the product brief. Use this file for implementation order, endpoint wiring, and current checklist status.
 
 ## Current API Base Assumptions
 
@@ -11,35 +11,26 @@ Use this file for endpoint wiring, app-specific auth payloads, and current check
 - Provider OIDC client id: `sportgearhub-provider`.
 - Provider callback route: `/auth/callback`.
 - Provider scopes: `openid profile email offline_access roles provider_api`.
+- Cookie-based API calls must use browser credentials.
 - Bearer-token API calls must use the OIDC access token.
-- Backend persistence is organized by PostgreSQL bounded-context schemas (`auth`, `catalog`, `provider`, `inventory`, `booking`, `payments`, `operations`, `equipment`). This is operational structure only and does not change frontend route paths.
 
 API routes:
 
-- Swagger document: `/swagger/provider/swagger.json`
-- Swagger UI: `/swagger`
+- Swagger: `/swagger`
 - Health: `/health`
 - Cities: `/api/v1/catalog/cities`
+- Email auth start: `/api/v1/auth/email/start`
+- Registration invitation context: `/api/v1/auth/registration-invitations/{token}`
 - Register: `/api/v1/auth/register`
-- Login: `/api/v1/auth/login`
+- Magic sign-in: `/api/v1/auth/magic-sign-in`
+- Session login: `/api/v1/auth/session-login`
+- Token/password grant login: `/api/v1/auth/login`
 - Current user: `/api/v1/auth/me`
 - Current provider memberships: `/api/v1/auth/provider-memberships`
 - Dev email outbox: `/api/v1/development/emails`
 - Provider onboarding options: `/api/v1/provider-onboarding/options`
 - Current provider onboarding: `/api/v1/provider-onboarding/current`
-- Provider onboarding RU legal identity lookup: `/api/v1/provider-onboarding/legal-identity/ru/lookup`
-- RU address suggestions: `/api/v1/addresses/ru/suggestions`
 - Provider locations: `/api/v1/provider/locations`
-- Provider profile: `/api/v1/provider/profile`
-- Equipment categories: `/api/v1/provider/equipment-categories`
-- Equipment category attributes: `/api/v1/provider/equipment-categories/{categorySlug}/attributes`
-- Equipment brand suggestions: `/api/v1/provider/equipment-brands/suggestions`
-- Equipment brand create/request: `/api/v1/provider/equipment-brands`
-- Provider resources: `/api/v1/provider/resources`
-- Provider resource variants: `/api/v1/provider/resources/{resourceId}/variants`
-- Provider inventory units: `/api/v1/provider/resources/{resourceId}/units`
-- Provider inventory summary: `/api/v1/provider/resources/{resourceId}/inventory-summary`
-- Provider offers: `/api/v1/provider/offers`
 - OIDC authorize: `/connect/authorize`
 - OIDC token: `/connect/token`
 - OIDC userinfo: `/connect/userinfo`
@@ -65,54 +56,52 @@ Do not grant provider access in frontend state. The API decides access from auth
 
 Use `/api/v1/auth/me` for signed-in user identity only. Use `/api/v1/auth/provider-memberships` to decide whether the user can enter a provider workspace or needs provider onboarding.
 
-### Sign In And Tokens
+## API Error Contract
 
-Provider CRM sign-in uses the OIDC password grant through the login alias:
+Most API-level business and auth failures return `application/problem+json`-style JSON with a stable `code` extension. The API is RU-first for now, so `title` and `detail` are localized Russian messages that can be shown in the frontend.
 
-```http
-POST /api/v1/auth/login
-Content-Type: application/x-www-form-urlencoded
-```
+Frontend code should still branch on `code`, not on localized text or HTTP status alone.
 
-Form body:
-
-```text
-grant_type=password
-client_id=sportgearhub-provider
-username=<provider-user-email>
-password=<provider-user-password>
-scope=openid profile email offline_access roles provider_api
-```
-
-The response is the OpenIddict token envelope:
+Shape:
 
 ```json
 {
-  "access_token": "...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "...",
-  "id_token": "..."
+  "type": "about:blank",
+  "title": "Пароль должен содержать не менее 8 символов.",
+  "status": 400,
+  "detail": "Пароль должен содержать не менее 8 символов.",
+  "instance": "/api/v1/auth/register",
+  "code": "auth.password_too_short"
 }
 ```
 
-Store the token response in provider auth state. Call authenticated APIs with:
+Frontend normalization:
 
-```http
-Authorization: Bearer <access_token>
-```
+- keep `status`, `title`, `detail`, and `code`
+- show `title` or `detail` directly when the UI has no better field-level copy
+- use `code` for field-specific UI states
+- show generic copy for security-sensitive flows where this document says to do so
+- keep the raw response only for logs/diagnostics, not for UI branching
 
-Before provider approval, the user may sign in with `public_api` scope to continue onboarding. After approval, refresh/sign in with `provider_api` scope for `/api/v1/provider/*`.
+Bad integration to avoid:
+
+- do not treat every `400` as the same registration failure
+- do not parse `title` to detect password, email, or token errors
+- do not ignore `code: "auth.password_too_short"` and show a generic server error
+- do not send JSON credentials to `/api/v1/auth/login`; JSON cookie login belongs to `/api/v1/auth/session-login`
+- do not use legacy `/api/auth/*` routes in new provider web code
 
 ## Location Model
 
 Location concepts are intentionally split:
 
 - `registeredAddress`: legal registration address for onboarding, acquiring, payout, and compliance
-- `city`: a catalog value used by provider operational locations and future marketplace filtering
+- `cityId`: platform city catalog identity used by provider profile, provider operational locations, and future marketplace filtering
 - `provider location`: provider-owned pickup/service place, created after provider access exists
 
 Do not model “Адрес точки выдачи” as onboarding legal identity. A provider can have multiple pickup/service places.
+
+The city catalog is the Sportgearhub source of truth for supported service cities. Dadata can be added later for address/legal identity suggestions, but it must not auto-create supported cities during provider registration.
 
 ### Cities
 
@@ -179,13 +168,141 @@ Location `type` values:
 - `pickup`
 - `service_area`
 
-## Step 1: Registration And Email Verification
+## Step 1: Email Start, Registration Invitation, And Magic Sign-In
 
-Goal: a new provider owner candidate can create a normal user account and verify email before provider onboarding.
+Goal: a provider owner candidate proves access to an email before account creation, while existing users can receive a magic sign-in link. This is the primary provider-console auth entry flow.
+
+The email-start endpoint performs email validation, including configured MX checks. This flow may later be mirrored by phone-first verification with the same proof-token pattern.
 
 ### API Endpoints
 
-#### Register
+#### Start Email Auth
+
+```http
+POST /api/v1/auth/email/start
+```
+
+Request:
+
+```json
+{
+  "email": "ivan@example.com",
+  "app": "crm"
+}
+```
+
+Response:
+
+```json
+{
+  "accepted": true,
+  "message": "Если email корректен, письмо отправлено."
+}
+```
+
+Behavior:
+
+- unknown email: API sends `/auth/register?token=registration_invitation_token`
+- existing email: API sends `/auth/magic-sign-in?token=magic_sign_in_token`
+- invalid email shape or MX failure: API returns `auth.email_invalid`
+- `app` must be `crm` for provider web links
+
+The registration invitation token is proof of email access only. It is not a user/session token.
+
+#### Read Registration Invitation
+
+```http
+GET /api/v1/auth/registration-invitations/{token}
+```
+
+Response:
+
+```json
+{
+  "email": "ivan@example.com",
+  "expiresAt": "2026-05-17T12:00:00Z"
+}
+```
+
+Frontend behavior:
+
+- route: `/auth/register?token=...`
+- call this endpoint before rendering the registration form
+- lock/prefill the email from the response
+- show expired/invalid token state if the token cannot be read
+
+#### Register With Invitation Token
+
+```http
+POST /api/v1/auth/register
+```
+
+Request:
+
+```json
+{
+  "token": "registration_invitation_token",
+  "name": "Ivan",
+  "surname": "Petrov",
+  "password": "optional-if-password-login-is-enabled"
+}
+```
+
+Response:
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000001",
+  "name": "Ivan",
+  "surname": "Petrov",
+  "email": "ivan@example.com",
+  "emailVerified": true
+}
+```
+
+Frontend behavior:
+
+- after success, call `/api/v1/auth/me` if the API set a session cookie in the current implementation path
+- if no session is present, route through sign-in/magic-link flow
+- do not let the user edit email; the token owns the email
+- password is optional for token registration, but if the UI asks for it, enforce the API minimum of 8 characters
+
+#### Magic Sign-In
+
+```http
+POST /api/v1/auth/magic-sign-in
+```
+
+Request:
+
+```json
+{
+  "token": "magic_sign_in_token"
+}
+```
+
+Response:
+
+```json
+{
+  "userId": "00000000-0000-0000-0000-000000000001",
+  "name": "Ivan",
+  "surname": "Petrov",
+  "email": "ivan@example.com",
+  "emailVerified": true
+}
+```
+
+Frontend behavior:
+
+- route: `/auth/magic-sign-in?token=...`
+- submit the token to the API
+- after success, call `/api/v1/auth/me`
+- then call `/api/v1/auth/provider-memberships`
+
+#### Legacy Password Register
+
+The old password-registration path still exists for compatibility, but new provider web code should prefer email-start registration.
 
 ```http
 POST /api/v1/auth/register
@@ -203,25 +320,51 @@ Request:
 }
 ```
 
-Response:
+Response has `emailVerified: false` and requires email verification.
+
+Auth errors:
 
 ```json
 {
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "emailVerified": false
+  "title": "Пароль должен содержать не менее 8 символов.",
+  "status": 400,
+  "detail": "Пароль должен содержать не менее 8 символов.",
+  "instance": "/api/v1/auth/register",
+  "code": "auth.password_too_short"
 }
 ```
 
+Stable auth error codes for this slice:
+
+- `auth.email_required`: email is missing or blank
+- `auth.email_invalid`: email shape or email receiving checks failed
+- `auth.password_too_short`: password is missing, blank, or shorter than 8 characters
+- `auth.email_already_exists`: account already exists for the normalized email
+- `auth.invalid_email_app`: `app` is not one of `client`, `crm`, or `admin`
+- `auth.token_invalid`: token is malformed or not for this purpose
+- `auth.token_invalid_or_expired`: token is expired or no longer valid
+
+Current RU messages:
+
+- `auth.email_required`: `Укажите email.`
+- `auth.email_invalid`: `Укажите корректный email.`
+- `auth.password_too_short`: `Пароль должен содержать не менее 8 символов.`
+- `auth.email_already_exists`: `Пользователь с таким email уже существует.`
+- `auth.invalid_email_app`: `Некорректное приложение для email-ссылки.`
+- `auth.token_invalid`: `Ссылка недействительна.`
+- `auth.token_invalid_or_expired`: `Ссылка недействительна или срок ее действия истек.`
+
 Frontend behavior:
 
-- show success state after registration
-- tell the user to check email
-- pass `app: "crm"` so verification links return to `crm.sportgearhub.ru`
+- first ask for email only and call `/api/v1/auth/email/start`
+- show generic check-email copy after email-start success
 - in development, offer a link to the dev email outbox
-- do not auto-mark email verified locally
+- use the link path to decide whether to render register or magic-sign-in callback
+- do not auto-mark email verified locally; trust the API response
+- map `auth.password_too_short` to the password field, using the API minimum of 8 characters
+- map `auth.email_required`, `auth.email_invalid`, and `auth.email_already_exists` to the email field
+- treat `auth.invalid_email_app` as an integration/configuration error; provider web should send `app: "crm"`
+- preserve the user's typed form values after a registration error except for password confirmation fields if the local UX clears them intentionally
 
 #### Read Dev Emails
 
@@ -271,18 +414,23 @@ Request:
 Frontend behavior:
 
 - use from verification-error screen and post-registration screen
-- pass `app: "crm"` so verification links return to `crm.sportgearhub.ru`
+- pass `app: "crm"` so the email link returns to `crm.sportgearhub.ru`
 - always show generic success copy
 
 ### Checklist
 
-- [ ] registration screen
-- [ ] registration API client method
-- [ ] post-registration check-email screen
-- [ ] dev email outbox helper for local development
-- [ ] verify-email callback route
-- [ ] resend verification action
-- [ ] invalid or expired verification token state
+- [x] email-start screen
+- [x] email-start API client method
+- [x] check-email screen
+- [x] registration invitation context API client method
+- [x] token-based registration screen
+- [x] token-based registration API client method
+- [x] magic-sign-in callback route
+- [x] magic-sign-in API client method
+- [x] dev email outbox helper for local development
+- [x] invalid or expired invitation/magic token state
+- [x] legacy verify-email callback only if password registration remains exposed
+- [x] legacy resend verification action only if password registration remains exposed
 
 ## Step 2: Sign In And Session
 
@@ -290,44 +438,47 @@ Goal: a verified or existing user can sign in and the app can load current user 
 
 ### API Endpoints
 
-#### Password Login
+#### Password Session Login
 
 ```http
-POST /api/v1/auth/login
-Content-Type: application/x-www-form-urlencoded
+POST /api/v1/auth/session-login
 ```
 
-Form body:
+Request:
 
-```text
-grant_type=password
-client_id=sportgearhub-provider
-username=ivan@example.com
-password=strong-password
-scope=openid profile email offline_access roles provider_api
+```json
+{
+  "email": "ivan@example.com",
+  "password": "strong-password"
+}
 ```
 
 Response:
 
 ```json
 {
-  "access_token": "...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "refresh_token": "...",
-  "id_token": "..."
+  "userId": "00000000-0000-0000-0000-000000000001",
+  "name": "Ivan",
+  "surname": "Petrov",
+  "email": "ivan@example.com",
+  "emailVerified": true
 }
 ```
 
 Frontend behavior:
 
-- store the token response in auth state
-- call authenticated APIs with `Authorization: Bearer <access_token>`
+- call with credentials enabled
+- use this endpoint for JSON browser-session login
 - after success, call `GET /api/v1/auth/me`
 - if `emailVerified` is false, route to check-email/resend screen
 - call `GET /api/v1/auth/provider-memberships`
 - if memberships exist, enter provider shell or show provider switcher
 - otherwise route to provider onboarding
+
+Login errors:
+
+- `auth.invalid_credentials`: show one generic email/password error; do not reveal whether the email exists
+- missing username/password validation may return `400`; show the relevant required field state locally before calling the API where possible
 
 #### Current User
 
@@ -392,6 +543,13 @@ If the provider web app uses bearer tokens instead of cookie-only calls:
 4. Store token in the app's normal auth layer.
 5. Use `GET /connect/userinfo` to validate `provider_api` and provider claims.
 
+Password grant shortcut:
+
+- endpoint: `POST /api/v1/auth/login`
+- content type: `application/x-www-form-urlencoded`
+- body fields: `grant_type=password`, `client_id=sportgearhub-provider`, `username`, `password`, `scope`
+- use only when the app intentionally uses bearer tokens; do not call this endpoint with JSON
+
 ### Checklist
 
 - [ ] sign-in screen
@@ -427,7 +585,7 @@ Request:
 Frontend behavior:
 
 - always show generic success copy
-- pass `app: "crm"` so reset links return to `crm.sportgearhub.ru`
+- pass `app: "crm"` so the reset link returns to `crm.sportgearhub.ru`
 - in development, point to dev email outbox
 
 #### Reset Password
@@ -467,13 +625,12 @@ Start this only after the auth slice is stable.
 
 Initial API calls:
 
+- `GET /api/v1/catalog/cities`
 - `GET /api/v1/provider-onboarding/options`
 - `GET /api/v1/provider-onboarding/current`
 - `POST /api/v1/provider-onboarding/current`
 - `PATCH /api/v1/provider-onboarding/current/profile`
 - `POST /api/v1/provider-onboarding/current/submit`
-- optional: `GET /api/v1/provider-onboarding/legal-identity/ru/lookup?taxNumber={inn}&branchNumber={kpp?}`
-- optional: `GET /api/v1/addresses/ru/suggestions?query={address}&count={count?}`
 
 #### Onboarding Options
 
@@ -575,7 +732,7 @@ Response after an application exists:
     "registeredAddress": null,
     "contactEmail": null,
     "contactPhone": null,
-    "city": null,
+    "cityId": null,
     "address": null,
     "description": null
   },
@@ -593,6 +750,18 @@ Request:
 
 - send JSON, even when creating an empty draft: `{}`
 - include any known draft fields in the JSON body to prefill the draft
+- use `cityId` from `GET /api/v1/catalog/cities`; do not send a free-text city
+
+Example with initial profile fields:
+
+```json
+{
+  "displayName": "Sportgearhub Rentals",
+  "contactEmail": "provider@example.com",
+  "cityId": "00000000-0000-0000-0000-000000000100",
+  "address": "ул. Ленина, 1"
+}
+```
 
 Response:
 
@@ -605,68 +774,13 @@ Checklist contract:
 - `profile`: ready when display name and contact email or contact phone are present
 - `legal`: ready when all `requiredLegalIdentityFields` for the selected legal form are present
 
-#### Legal Identity Lookup
-
-```http
-GET /api/v1/provider-onboarding/legal-identity/ru/lookup?taxNumber=7707083893&branchNumber=770701001
-```
-
-Use this as an optional INN/KPP helper before saving the draft. It returns one DaData-backed suggestion for RU legal identity fields:
-
-```json
-{
-  "source": "dadata",
-  "legalCountryCode": "RU",
-  "legalForm": "company",
-  "legalName": "ПАО СБЕРБАНК",
-  "taxNumber": "7707083893",
-  "registrationNumber": "1027700132195",
-  "branchNumber": "770701001",
-  "registeredAddress": "117312, г Москва, ул Вавилова, д 19"
-}
-```
-
-Frontend behavior:
-
-- call on explicit user action or after the user finishes editing INN/KPP
-- show returned values as a prefill/confirmation, not as a hidden overwrite
-- persist accepted fields with `POST /api/v1/provider-onboarding/current` or `PATCH /api/v1/provider-onboarding/current/profile`
-- if the API returns `404`, keep manual input available
-
-#### Address Suggestions
-
-```http
-GET /api/v1/addresses/ru/suggestions?query=Екатеринбург%20Ленина&count=10
-```
-
-Response shape:
-
-```json
-{
-  "source": "dadata",
-  "suggestions": [
-    {
-      "value": "г Екатеринбург, ул Ленина",
-      "unrestrictedValue": "Свердловская обл, г Екатеринбург, ул Ленина",
-      "fiasId": "00000000-0000-0000-0000-000000000000",
-      "kladrId": "6600000100000000000"
-    }
-  ]
-}
-```
-
-- use this global helper for `registeredAddress`, the simple provider profile `address`, and future address fields in other apps
-- debounce typing and avoid calls before 3 non-space characters
-- let users type an address manually even when suggestions are empty
-- store the selected/free-typed string through the existing onboarding draft endpoints
-- do not treat suggestion metadata such as `fiasId`, `kladrId`, or coordinates as onboarding truth yet
-
 Provider location note:
 
 - `registeredAddress` is the legal registration address and belongs to onboarding/legal identity.
-- `city` and `address` are a simple provider profile location only; do not use them as the long-term source of pickup point truth.
+- `cityId` points to `/api/v1/catalog/cities`; web should send the selected catalog city id, not free text.
+- `address` is a simple provider profile address only; do not use it as the long-term source of pickup point truth.
 - Pickup points / addresses of handover should become separate provider locations after provider approval, because one provider can operate multiple places.
-- Future provider locations should reference a city catalog instead of storing free-text city names.
+- Provider locations reference the same city catalog. Treat `cityId` as canonical; `cityName` in location responses is display convenience.
 
 Frontend routing:
 
@@ -684,440 +798,6 @@ Checklist:
 - [ ] profile form
 - [ ] submit for review
 - [ ] review/requested-changes state
-
-## Step 5: Post-Approval Provider Workspace
-
-After internal approval, the API creates:
-
-- `Provider`
-- owner `ProviderMembership`
-- user `Provider` role
-
-Newly approved providers do not receive seeded resources, inventory units, or offers. Demo seed data exists only for the built-in development provider. The provider CRM must guide real providers through setup before they can sell rental inventory.
-
-Entry behavior:
-
-1. Call `GET /api/v1/auth/provider-memberships`.
-2. If memberships exist, select a provider workspace.
-3. Call `GET /api/v1/provider/profile`.
-4. If the profile has no resources/offers, route to inventory setup instead of marketplace publishing.
-
-Provider profile:
-
-```http
-GET /api/v1/provider/profile
-```
-
-The profile response includes `providerId`, legal/profile fields, `operatingState`, and summary diagnostics such as `active_resources`, `total_resources`, `active_offers`, and `total_offers`.
-
-### Rental Inventory Setup Flow
-
-For current rental equipment services, treat inventory setup as the first provider task after approval.
-
-Domain mapping:
-
-- `ProviderResource`: operational thing the provider owns or manages, for example `Горные лыжи`
-- `ResourceVariant`: classification of that resource, for example `170cm / adult`
-- `ProviderResourceUnit`: physical rentable item, for example `SKI-001`
-- `Offer`: commercial package customers can discover/book, for example `Аренда горных лыж на день`
-
-Do not ask the provider to create offers before they have described real stock. Offers should be created after resources, variants, units, availability, pricing, and policies are at least minimally ready.
-
-#### Equipment Schema, Brands, And Inventory Intake
-
-Inventory intake is schema-driven. The frontend should not hardcode bicycle-specific fields except as presentation components for known attribute keys. The API owns categories, localized labels, enum values, visibility rules, and brand canonicalization.
-
-Current implementation matrix:
-
-| Area | Status | Frontend behavior |
-| --- | --- | --- |
-| category list | ready | use for category picker |
-| category attributes | ready | use to render variant/unit forms |
-| brand suggestions/create | ready | use for `brand` reference fields |
-| resource create/update | existing contract | create the operational root; category is selected in UI but not persisted on the resource contract yet |
-| variant create/update | bridge contract | send schema field values through `normalizedAttributes` until typed `attributes` lands |
-| unit create/update | existing contract | create physical stock; typed unit attributes are next API slice |
-| offer create | existing contract | create only after resource, variants, units, availability, pricing, and policies are minimally configured |
-
-Provider inventory flow:
-
-1. Load categories and let the provider choose what they rent.
-2. Load the selected category schema.
-3. Resolve or create referenced brands through the API.
-4. Create the `ProviderResource` operational root.
-5. Create one or more `ResourceVariant` records from schema fields that apply to `variant`.
-6. Add physical `ProviderResourceUnit` records and assign them to variants where useful.
-7. Configure availability, pricing, and policies.
-8. Create the commercial `Offer`.
-
-Read categories:
-
-```http
-GET /api/v1/provider/equipment-categories?locale=ru-RU
-```
-
-Response:
-
-```json
-[
-  {
-    "categoryId": "00000000-0000-0000-0000-000000000001",
-    "slug": "bicycle",
-    "label": "Велосипед",
-    "labels": {
-      "ru-RU": "Велосипед",
-      "en-US": "Bicycle"
-    },
-    "resourceType": "equipment",
-    "capacityMode": "inventory",
-    "status": "active",
-    "sortOrder": 10
-  }
-]
-```
-
-Use `resourceType` and `capacityMode` from the selected category when creating the resource.
-
-Read category attributes:
-
-```http
-GET /api/v1/provider/equipment-categories/bicycle/attributes?locale=ru-RU
-```
-
-Response shape:
-
-```json
-{
-  "category": {
-    "categoryId": "00000000-0000-0000-0000-000000000001",
-    "slug": "bicycle",
-    "label": "Велосипед",
-    "resourceType": "equipment",
-    "capacityMode": "inventory",
-    "status": "active",
-    "sortOrder": 10
-  },
-  "attributes": [
-    {
-      "attributeId": "00000000-0000-0000-0000-000000000101",
-      "key": "brand",
-      "label": "Бренд",
-      "labels": {
-        "ru-RU": "Бренд",
-        "en-US": "Brand"
-      },
-      "valueType": "reference",
-      "unit": null,
-      "unitLabel": null,
-      "referenceType": "equipment_brand",
-      "requiredOn": ["variant"],
-      "appliesTo": ["variant"],
-      "visibleWhen": [],
-      "filterable": true,
-      "comparable": true,
-      "searchable": true,
-      "sortOrder": 10,
-      "allowedValues": []
-    }
-  ]
-}
-```
-
-Schema field handling:
-
-- `key`: stable machine name to store in form state.
-- `label` and `labels`: localized display text.
-- `valueType`: input type, one of `string`, `enum`, `decimal`, `integer`, `boolean`, `datetime`, `reference`.
-- `referenceType: "equipment_brand"`: render brand lookup/create UX.
-- `requiredOn`: scopes where the field is required, for example `variant` or `unit`.
-- `appliesTo`: scopes where the field belongs.
-- `visibleWhen`: conditional visibility rule.
-- `filterable`, `comparable`, `searchable`: future marketplace/search hints; keep them in the typed client.
-- `allowedValues`: predefined values with localized labels. For `enum`, submit the stable `valueKey`. For numeric fields such as `decimal` and `integer`, treat these as suggested values/chips and still allow manual numeric input unless a later schema flag says otherwise.
-
-Conditional field example:
-
-```json
-{
-  "key": "motor_power_w",
-  "label": "Мощность мотора",
-  "valueType": "integer",
-  "unit": "W",
-  "unitLabel": "Вт",
-  "appliesTo": ["variant"],
-  "visibleWhen": [
-    {
-      "attributeKey": "bike_type",
-      "allowedValueKeys": ["e_bike"]
-    }
-  ]
-}
-```
-
-Frontend behavior for conditional fields:
-
-- Render fields by `sortOrder`.
-- Recompute visibility when the controlling attribute changes.
-- Do not submit hidden optional values.
-- If a field becomes hidden, clear its dirty value or ask the user before preserving it.
-- Treat frontend visibility as UX; API validation remains authoritative.
-
-For the seeded `bicycle` schema, expect variant-level fields such as:
-
-- `brand`: reference to equipment brand
-- `model`: model name, for example `Marlin 6`
-- `bike_type`: enum such as `mountain`, `road`, `city`, `gravel`, `kids`, `e_bike`
-- `frame_size`: frame size, for example `M`, `L`, `17`
-- `wheel_size_in`: wheel size in inches, for example `26`, `27.5`, `29`; render suggested values from `allowedValues`, but allow manual decimal input when the value is not listed
-- `brake_type`, `drivetrain_type`, `suspension_type`
-- conditional electric/suspension fields such as `motor_power_w` or `suspension_travel_front_mm`
-
-Brand suggestions:
-
-```http
-GET /api/v1/provider/equipment-brands/suggestions?query=trek&category=bicycle
-```
-
-Response:
-
-```json
-{
-  "items": [
-    {
-      "brandId": "00000000-0000-0000-0000-000000000201",
-      "canonicalName": "Trek",
-      "status": "approved",
-      "confidence": 1.0,
-      "matchKind": "brand_exact"
-    }
-  ]
-}
-```
-
-Create/request missing brand:
-
-```http
-POST /api/v1/provider/equipment-brands
-```
-
-Request:
-
-```json
-{
-  "name": "NorthPeak",
-  "category": "bicycle",
-  "website": null,
-  "countryCode": "RU"
-}
-```
-
-Response when matched:
-
-```json
-{
-  "status": "matched",
-  "brand": {
-    "brandId": "00000000-0000-0000-0000-000000000201",
-    "canonicalName": "Trek",
-    "status": "approved",
-    "website": null,
-    "countryCode": null
-  },
-  "matches": []
-}
-```
-
-Response when newly requested:
-
-```json
-{
-  "status": "created_pending_review",
-  "brand": {
-    "brandId": "00000000-0000-0000-0000-000000000301",
-    "canonicalName": "NorthPeak",
-    "status": "pending_review",
-    "website": null,
-    "countryCode": "RU"
-  },
-  "matches": []
-}
-```
-
-Brand frontend behavior:
-
-- Search before allowing free text creation.
-- Show alias matches such as `Trek Bicycle`.
-- If no suggestion fits, call create/request and keep the returned `brandId`.
-- `pending_review` brands are usable immediately in provider inventory flows.
-- Do not create local-only brand strings; the API owns duplicate checking and canonicalization.
-
-#### Create Equipment Resource
-
-```http
-POST /api/v1/provider/resources
-```
-
-Request:
-
-```json
-{
-  "resourceType": "equipment",
-  "capacityMode": "inventory",
-  "title": "Велосипеды",
-  "baseCapacity": 12
-}
-```
-
-Current contract notes:
-
-- Use the selected category's `resourceType` and `capacityMode`.
-- Use a provider-facing group title such as `Велосипеды`, `Горные лыжи`, or `SUP-доски`.
-- `baseCapacity` is a summary/default capacity only. Physical stock truth comes from units.
-- The current resource contract does not persist `categorySlug` yet. Keep the selected category in wizard state to drive the next variant/unit screens.
-
-#### Create Resource Variant
-
-```http
-POST /api/v1/provider/resources/{resourceId}/variants
-```
-
-Request:
-
-```json
-{
-  "variantKey": "TREK-MARLIN-6-M-29",
-  "variantType": "equipment_configuration",
-  "label": "Trek Marlin 6 / M / 29\"",
-  "normalizedAttributes": [
-    { "key": "brand", "value": "00000000-0000-0000-0000-000000000201" },
-    { "key": "brand_name", "value": "Trek" },
-    { "key": "model", "value": "Marlin 6" },
-    { "key": "bike_type", "value": "mountain" },
-    { "key": "frame_size", "value": "M" },
-    { "key": "wheel_size_in", "value": "29" },
-    { "key": "brake_type", "value": "disc_hydraulic" }
-  ],
-  "sortOrder": 10,
-  "status": "active"
-}
-```
-
-Current bridge behavior:
-
-- Build `normalizedAttributes` from schema attributes where `appliesTo` contains `variant`.
-- Store enum values by stable `valueKey`.
-- Store reference values as ids when available; include a display helper such as `brand_name` while the typed `attributes` contract is still pending.
-- Use `variantType: "equipment_configuration"` for schema-based equipment variants. Do not use `size` as the generic new value; frame size, wheel size, and other size-like fields are just attributes.
-- Generate `variantKey` deterministically from key distinguishing fields. For bicycles, a good key is brand/model/frame/wheel, normalized to uppercase ASCII-like segments.
-
-Target contract after the backend typed-attributes slice:
-
-```json
-{
-  "variantKey": "TREK-MARLIN-6-M-29",
-  "label": "Trek Marlin 6 / M / 29\"",
-  "attributes": {
-    "brand": "00000000-0000-0000-0000-000000000201",
-    "model": "Marlin 6",
-    "bike_type": "mountain",
-    "frame_size": "M",
-    "wheel_size_in": 29,
-    "brake_type": "disc_hydraulic"
-  },
-  "sortOrder": 10,
-  "status": "active"
-}
-```
-
-Variants are the provider's stock grouping for booking and selection. For most rental inventory, create variants before adding units.
-
-#### Add Physical Inventory Units
-
-```http
-POST /api/v1/provider/resources/{resourceId}/units
-```
-
-Request:
-
-```json
-{
-  "resourceVariantId": "00000000-0000-0000-0000-000000000020",
-  "inventoryCode": "BIKE-001",
-  "displayName": "Trek Marlin 6 M #001",
-  "status": "active",
-  "conditionStatus": "ready",
-  "externalReferenceCode": null
-}
-```
-
-Inventory rules:
-
-- `unitId` is platform identity.
-- `providerId + inventoryCode` is provider-scoped physical/human identity.
-- If `inventoryCode` is omitted, the API can generate one.
-- Use `status: "active"` and `conditionStatus: "ready"` for rentable units.
-- Use maintenance/damaged/inactive/retired statuses to keep stock visible but unavailable.
-- Put stable reusable specs on the variant, not on every unit.
-- Use units for serial/inventory identity, condition, operational status, and later per-unit inspection facts.
-- Unit-level schema attributes are planned, but the current endpoint accepts only the fields shown above. Do not treat frontend-only unit attributes as backend truth.
-
-Useful reads:
-
-```http
-GET /api/v1/provider/resources/{resourceId}/units
-GET /api/v1/provider/resources/{resourceId}/inventory-summary
-PATCH /api/v1/provider/resources/{resourceId}/units/{unitId}
-POST /api/v1/provider/resources/{resourceId}/units/{unitId}/archive
-```
-
-#### Configure Availability, Pricing, And Policies
-
-Use the resource configuration endpoints before creating or activating public offers:
-
-- availability profile/calendar for when inventory can be booked
-- pricing policy for rental prices
-- policy profile/overrides for cancellation, deposits, handover, and return rules
-
-The provider CRM should show readiness panels from the API where available and prevent “publish” UI from pretending an offer is bookable when required configuration is missing.
-
-#### Create Commercial Offer
-
-```http
-POST /api/v1/provider/offers
-```
-
-Request:
-
-```json
-{
-  "primaryResourceId": "00000000-0000-0000-0000-000000000010",
-  "offerType": "rental",
-  "bookingFlowType": "direct_checkout",
-  "variantExposureMode": "all_active_variants",
-  "title": "Аренда горных лыж",
-  "description": "Посуточная аренда горных лыж",
-  "locationRef": null
-}
-```
-
-Offer notes:
-
-- `Offer` is the commercial/discovery unit, not inventory truth.
-- Inventory truth remains in `ProviderResourceUnit`.
-- Booking execution should allocate/track actual units later in the booking/fulfillment flow.
-- For now, use `offerType: "rental"` for equipment rental services.
-
-Post-approval checklist:
-
-- [ ] provider workspace shell after membership exists
-- [ ] provider profile dashboard with resource/offer counters
-- [ ] empty-state route to inventory setup
-- [ ] create resource form for equipment inventory
-- [ ] variant list/create/edit flow
-- [ ] inventory unit list/create/edit/archive flow
-- [ ] inventory summary panel
-- [ ] availability/pricing/policy setup entry points
-- [ ] offer create flow after resource inventory exists
 
 ## Shared Frontend Implementation Checklist
 
