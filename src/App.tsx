@@ -76,6 +76,12 @@ function AppShell() {
     }
   }, [currentPath, loading, memberships.length, user]);
 
+  useEffect(() => {
+    if (!loading && user && user.emailVerified !== false && memberships.length > 0 && currentPath === '/onboarding') {
+      navigate('/', true);
+    }
+  }, [currentPath, loading, memberships.length, user]);
+
   const renderAuthPage = () => {
     if (currentPath === '/auth/register') return <RegisterPage token={params.get('token')} onNavigate={navigate} />;
     if (currentPath === '/auth/password-sign-in') return <PasswordSignInPage initialEmail={params.get('email') ?? ''} onNavigate={navigate} />;
@@ -138,14 +144,14 @@ function AppShell() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-transparent">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar
         currentPath={appPath}
         onNavigate={navigateTo}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#f3f6fb]">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/30">
         <Header title={page.title} subtitle={page.subtitle} actions={headerActions} />
         <main className={`relative min-h-0 flex-1 ${appPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderPage()}

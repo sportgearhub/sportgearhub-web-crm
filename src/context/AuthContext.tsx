@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useCallback, useState, useEffect, ReactNode } from 'react';
 import type { AuthUser, ProviderMembership } from '../types';
 import { ApiError, authApi } from '../lib/api-client';
 
@@ -44,16 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
-  useEffect(() => {
-    if (isPublicAuthEntry()) {
-      setLoading(false);
-      return;
-    }
-
-    void reloadUser();
-  }, []);
-
-  const reloadUser = async () => {
+  const reloadUser = useCallback(async () => {
     setLoading(true);
     try {
       const session = await loadSessionSnapshot();
@@ -72,7 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isPublicAuthEntry()) {
+      setLoading(false);
+      return;
+    }
+
+    void reloadUser();
+  }, [reloadUser]);
 
   const signIn = async (email: string, password: string) => {
     const nextUser = await authApi.login(email, password);

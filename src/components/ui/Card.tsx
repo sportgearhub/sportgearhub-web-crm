@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 
 interface CardProps {
   children: ReactNode;
@@ -9,7 +10,7 @@ interface CardProps {
 export function Card({ children, className = '', padding = true }: CardProps) {
   return (
     <div
-      className={`rounded-lg border border-[#d7e0ea] bg-white shadow-[0_1px_2px_rgba(18,38,63,0.08)] ${padding ? 'p-4' : ''} ${className}`}
+      className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', padding && 'p-4', className)}
     >
       {children}
     </div>
@@ -24,10 +25,10 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
   return (
-    <div className="flex items-start justify-between mb-4">
+    <div className="mb-4 flex items-start justify-between">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        <h3 className="text-sm font-semibold text-card-foreground">{title}</h3>
+        {subtitle && <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>}
       </div>
       {action && <div>{action}</div>}
     </div>

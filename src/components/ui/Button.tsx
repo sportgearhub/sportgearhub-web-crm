@@ -1,42 +1,59 @@
-import { ReactNode, ButtonHTMLAttributes } from 'react';
+import { ButtonHTMLAttributes, forwardRef, ReactNode } from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '../../lib/utils';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type Size = 'sm' | 'md' | 'lg';
+const buttonVariants = cva(
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  {
+    variants: {
+      variant: {
+        primary: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
+        secondary: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        danger: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+      },
+      size: {
+        sm: 'h-8 px-3 text-xs',
+        md: 'h-9 px-4 py-2',
+        lg: 'h-10 px-5 text-base',
+        icon: 'h-9 w-9',
+      },
+    },
+    defaultVariants: {
+      variant: 'secondary',
+      size: 'md',
+    },
+  }
+);
 
-const variantClasses: Record<Variant, string> = {
-  primary: 'bg-[#0d6efd] hover:bg-[#0b5ed7] text-white border-[#0a58ca]',
-  secondary: 'bg-white hover:bg-[#f8fafc] text-[#334155] border-[#cbd5e1]',
-  ghost: 'bg-transparent hover:bg-[#eff6ff] text-[#475569] border-transparent',
-  danger: 'bg-[#dc3545] hover:bg-[#bb2d3b] text-white border-[#b02a37]',
-};
-
-const sizeClasses: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-5 py-2.5 text-base',
-};
-
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  size?: Size;
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   children: ReactNode;
   loading?: boolean;
+  asChild?: boolean;
 }
 
-export function Button({ variant = 'secondary', size = 'md', children, loading, className = '', disabled, ...props }: ButtonProps) {
-  return (
-    <button
-      {...props}
-      disabled={disabled || loading}
-      className={`inline-flex items-center gap-1.5 rounded-md font-medium border transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#9ec5fe] focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
-    >
-      {loading && (
-        <svg className="animate-spin -ml-0.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      )}
-      {children}
-    </button>
-  );
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant, size, children, loading, className, disabled, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+
+    return (
+      <Comp
+        ref={ref}
+        disabled={disabled || loading}
+        className={cn(buttonVariants({ variant, size }), className)}
+        {...props}
+      >
+        {loading && (
+          <svg className="-ml-0.5 h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        )}
+        {children}
+      </Comp>
+    );
+  }
+);
+
+Button.displayName = 'Button';

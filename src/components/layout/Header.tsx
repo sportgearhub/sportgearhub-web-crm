@@ -1,5 +1,6 @@
 import { LogOut, Bell, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
+import { Button } from '../ui/Button';
 
 interface HeaderProps {
   title: string;
@@ -11,36 +12,38 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
   const { signOut, user, activeMembership } = useAuth();
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#cbd5e1] bg-[#f8fbff] px-4 py-2 lg:px-6">
-      <div className="flex items-center gap-3 py-1">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold tracking-[-0.02em] text-gray-950">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>}
+    <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
+      <div className="flex min-h-12 items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-semibold text-foreground">{title}</h1>
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
         </div>
 
         {user && (
-          <div className="hidden border-l border-[#d7e0ea] pl-3 text-right xl:block">
-            <p className="text-xs font-medium text-gray-900">{activeMembership?.displayName ?? 'Provider access'}</p>
-            <p className="text-[11px] text-gray-500">{user.email}</p>
+          <div className="hidden border-l pl-3 text-right xl:block">
+            <p className="text-xs font-medium text-foreground">{activeMembership?.displayName ?? 'Provider access'}</p>
+            <p className="text-[11px] text-muted-foreground">{user.email}</p>
           </div>
         )}
 
         <div className="flex items-center gap-2">
           {actions && <div className="mr-2 flex items-center gap-2">{actions}</div>}
-          <button className="rounded-md border border-[#cbd5e1] bg-white p-2 text-[#6b7a90] transition-colors hover:bg-[#f8fafc] hover:text-[#334155]">
+          <Button type="button" variant="secondary" size="icon" title="Notifications">
             <Bell size={15} />
-          </button>
-          <button className="rounded-md border border-[#cbd5e1] bg-white p-2 text-[#6b7a90] transition-colors hover:bg-[#f8fafc] hover:text-[#334155]">
+          </Button>
+          <Button type="button" variant="secondary" size="icon" title="Help">
             <HelpCircle size={15} />
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={signOut}
-            className="ml-1 inline-flex items-center gap-1.5 rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-medium text-[#495057] transition-colors hover:bg-[#f8fafc] hover:text-[#1f2d3d]"
+            variant="secondary"
+            size="sm"
+            className="ml-1"
             title={`Sign out ${user?.email}`}
           >
             <LogOut size={13} />
             Sign out
-          </button>
+          </Button>
         </div>
       </div>
     </header>

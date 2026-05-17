@@ -1,5 +1,6 @@
 import { InputHTMLAttributes, forwardRef, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -15,9 +16,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const ToggleIcon = isPasswordVisible ? EyeOff : Eye;
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {label && (
-          <label className="text-xs font-medium text-gray-700">{label}</label>
+          <label className="text-xs font-medium text-foreground">{label}</label>
         )}
         <div className="relative">
           <input
@@ -25,16 +26,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
             type={inputType}
             disabled={disabled}
-            className={`w-full rounded-md border bg-white px-3 py-2 text-sm text-[#1f2d3d] placeholder-[#8a97a8] focus:outline-none focus:ring-2 focus:ring-[#9ec5fe] focus:border-[#86b7fe] transition-colors ${
-              error ? 'border-[#dc3545]' : 'border-[#cbd5e1]'
-            } disabled:bg-[#f8fafc] disabled:text-[#94a3b8] ${hasPasswordToggle ? 'pr-10' : ''} ${className}`}
+            className={cn(
+              'flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+              error && 'border-destructive focus-visible:ring-destructive/40',
+              hasPasswordToggle && 'pr-10',
+              className
+            )}
           />
           {hasPasswordToggle && (
             <button
               type="button"
               onClick={() => setIsPasswordVisible(current => !current)}
               disabled={disabled}
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#9ec5fe] disabled:cursor-not-allowed disabled:text-gray-300"
+              className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={isPasswordVisible ? 'Скрыть пароль' : 'Показать пароль'}
               aria-pressed={isPasswordVisible}
             >
@@ -42,8 +46,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             </button>
           )}
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        {hint && !error && <p className="text-xs text-gray-500">{hint}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
     );
   }

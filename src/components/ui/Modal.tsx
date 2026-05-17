@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 interface ModalProps {
   open: boolean;
@@ -26,11 +27,11 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[#1f2d3d]/35" onClick={onClose} />
-      <div className={`relative w-full max-h-[90vh] overflow-y-auto rounded-lg border border-[#cbd5e1] bg-white shadow-[0_10px_30px_rgba(18,38,63,0.12)] ${sizeClasses[size]}`}>
-        <div className="flex items-center justify-between rounded-t-lg border-b border-[#d7e0ea] bg-[#f8fbff] px-5 py-4">
-          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="rounded-md border border-[#cbd5e1] bg-white p-1 text-gray-400 hover:bg-[#f8fafc] hover:text-gray-600 transition-colors">
+      <div className="absolute inset-0 bg-foreground/35" onClick={onClose} />
+      <div className={cn('relative max-h-[90vh] w-full overflow-y-auto rounded-lg border bg-background shadow-lg', sizeClasses[size])}>
+        <div className="flex items-center justify-between rounded-t-lg border-b bg-muted/50 px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          <button onClick={onClose} className="rounded-md border bg-background p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
             <X size={16} />
           </button>
         </div>

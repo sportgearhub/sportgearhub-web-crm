@@ -175,6 +175,7 @@ export type OnboardingStatus =
   | 'submitted'
   | 'in_review'
   | 'approved'
+  | 'accepted'
   | 'rejected'
   | 'cancelled';
 
@@ -198,6 +199,11 @@ export type ProviderOnboarding = {
   applicationId: string | null;
   providerId: string | null;
   status: OnboardingStatus;
+  review: {
+    reasonCode: string | null;
+    message: string | null;
+    reviewedAt: string | null;
+  } | null;
   checklist: {
     profile: OnboardingChecklistValue;
     legal: OnboardingChecklistValue;
@@ -215,6 +221,41 @@ export type OnboardingLegalFormOption = {
 export type ProviderOnboardingOptions = {
   legalCountries: Array<{ value: string; label: string }>;
   legalForms: OnboardingLegalFormOption[];
+};
+
+export type RuAddressSuggestion = {
+  value: string;
+  unrestrictedValue: string;
+  postalCode: string | null;
+  country: string | null;
+  countryCode: string | null;
+  region: string | null;
+  city: string | null;
+  settlement: string | null;
+  street: string | null;
+  house: string | null;
+  block: string | null;
+  flat: string | null;
+  fiasId: string | null;
+  kladrId: string | null;
+  geoLat: string | null;
+  geoLon: string | null;
+};
+
+export type RuAddressSuggestionsResponse = {
+  source: string;
+  suggestions: RuAddressSuggestion[];
+};
+
+export type RuLegalIdentityLookupResponse = {
+  source: string;
+  legalCountryCode: string;
+  legalForm: string | null;
+  legalName: string | null;
+  taxNumber: string | null;
+  registrationNumber: string | null;
+  branchNumber: string | null;
+  registeredAddress: string | null;
 };
 
 function normalizeUser(user: ApiUser): AuthUser {
@@ -336,6 +377,16 @@ async function oidcTokenRequest(body: URLSearchParams, scope: string) {
   return token;
 }
 
+async function passwordGrant(email: string, password: string) {
+  return oidcTokenRequest(new URLSearchParams({
+    grant_type: 'password',
+    client_id: AUTH_CLIENT_ID,
+    username: email,
+    password,
+    scope: PROVIDER_AUTH_SCOPE,
+  }), PROVIDER_AUTH_SCOPE);
+}
+
 async function refreshGrant(token: StoredOidcToken) {
   if (!token.refresh_token) {
     clearStoredToken();
@@ -382,7 +433,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   }
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
+    credentials: accessToken ? 'omit' : 'include',
     ...fetchOptions,
     headers,
   });
@@ -422,12 +473,10 @@ export const authApi = {
       auth: false,
       body: JSON.stringify({ token }),
     })),
-  login: async (email: string, password: string) =>
-    normalizeUser(await request<ApiUser>('/api/v1/auth/session-login', {
-      method: 'POST',
-      auth: false,
-      body: JSON.stringify({ email, password }),
-    })),
+  login: async (email: string, password: string) => {
+    await passwordGrant(email, password);
+    return normalizeUser(await request<ApiUser>('/api/v1/auth/me'));
+  },
   me: async () => normalizeUser(await request<ApiUser>('/api/v1/auth/me')),
   register: async (data: { token?: string; name: string; surname: string; email?: string; password?: string }) =>
     normalizeUser(await request<ApiUser>('/api/v1/auth/register', {
@@ -491,6 +540,26 @@ export const providerOnboardingApi = {
       method: 'POST',
       body: JSON.stringify({}),
     }),
+  lookupRuLegalIdentity: (taxNumber: string, branchNumber?: string) => {
+    const params = new URLSearchParams({ taxNumber });
+
+    if (branchNumber) {
+      params.set('branchNumber', branchNumber);
+    }
+
+    return request<RuLegalIdentityLookupResponse>(`/api/v1/provider-onboarding/legal-identity/ru/lookup?${params.toString()}`);
+  },
+};
+
+export const addressesApi = {
+  ruSuggestions: (query: string, count = 10) => {
+    const params = new URLSearchParams({
+      query,
+      count: String(count),
+    });
+
+    return request<RuAddressSuggestionsResponse>(`/api/v1/addresses/ru/suggestions?${params.toString()}`);
+  },
 };
 
 // ─── Profile & Dashboard ──────────────────────────────────────────────────────
