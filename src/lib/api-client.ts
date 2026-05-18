@@ -5,6 +5,7 @@ import type {
   DashboardResponse,
   OnboardingResponse,
   Resource,
+  ResourceImage,
   AvailabilityProfile,
   AvailabilityCalendar,
   CapacitySlot,
@@ -418,10 +419,13 @@ async function getAccessToken() {
 
 type ApiRequestInit = RequestInit & { auth?: boolean };
 
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
 async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
   const { auth = true, ...fetchOptions } = options;
   const headers = new Headers(fetchOptions.headers);
   const accessToken = auth ? await getAccessToken() : null;
+  const method = (fetchOptions.method ?? 'GET').toUpperCase();
 
   if (fetchOptions.body && !headers.has('Content-Type') && !(fetchOptions.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
@@ -430,24 +434,43 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: accessToken ? 'omit' : 'include',
-    ...fetchOptions,
-    headers,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    if (auth && res.status === 401) {
-      clearStoredToken();
+  const canDedupe = method === 'GET' && !fetchOptions.body;
+  const requestKey = canDedupe
+    ? `${auth ? accessToken ?? 'cookie' : 'public'}:${method}:${path}`
+    : '';
+
+  if (canDedupe && inFlightGetRequests.has(requestKey)) {
+    return inFlightGetRequests.get(requestKey) as Promise<T>;
+  }
+
+  const promise = (async () => {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: accessToken ? 'omit' : 'include',
+      ...fetchOptions,
+      method,
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      if (auth && res.status === 401) {
+        clearStoredToken();
+      }
+      throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`, err.code);
     }
-    throw new ApiError(res.status, err.message || err.title || `API error ${res.status}`, err.code);
+
+    if (res.status === 204) {
+      return undefined as T;
+    }
+
+    return res.json() as Promise<T>;
+  })();
+
+  if (canDedupe) {
+    inFlightGetRequests.set(requestKey, promise);
+    promise.finally(() => inFlightGetRequests.delete(requestKey));
   }
 
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return res.json();
+  return promise;
 }
 
 function providerRequest<T>(path: string, options: RequestInit = {}) {
@@ -622,6 +645,21 @@ export const resourcesApi = {
     providerRequest<void>(`/resources/${resourceId}`, {
       method: 'DELETE',
     }),
+
+  images: {
+    list: (resourceId: string) =>
+      providerRequest<ResourceImage[]>(`/resources/${resourceId}/images`),
+
+    upload: (resourceId: string, files: File[]) => {
+      const formData = new FormData();
+      files.forEach(file => formData.append('files', file));
+
+      return providerRequest<ResourceImage[]>(`/resources/${resourceId}/images`, {
+        method: 'POST',
+        body: formData,
+      });
+    },
+  },
 
   getRoutabilityImpact: (resourceId: string) =>
     providerRequest<{

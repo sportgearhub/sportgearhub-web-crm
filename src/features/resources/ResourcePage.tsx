@@ -5,10 +5,13 @@ import {
   Search,
   ChevronDown,
   AlertTriangle,
+  CreditCard as Edit2,
   ImageOff,
+  Trash2,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { ResourceDeleteDialog } from './ResourceDeleteDialog';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
@@ -79,6 +82,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
   const [error, setError] = useState('');
   const [categoriesError, setCategoriesError] = useState('');
   const [removeError, setRemoveError] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<Resource | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -329,12 +333,14 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
     }
   };
 
+  const requestRemove = (resource: Resource) => {
+    setRemoveError('');
+    setRemoveTarget(resource);
+  };
+
   const handleRemove = async (resource: Resource) => {
     setError('');
     setRemoveError('');
-
-    const confirmed = window.confirm(`Удалить ресурс "${resource.title}"? Это действие нельзя отменить.`);
-    if (!confirmed) return;
 
     setRemoving(true);
     try {
@@ -343,6 +349,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
       setSelectedIds(prev => prev.filter(id => id !== resource.id));
       setView('list');
       setSelected(null);
+      setRemoveTarget(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setRemoveError('Ресурс уже связан с офферами, бронями или выдачей. Удаление недоступно, используйте архивирование.');
@@ -400,33 +407,65 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
     );
   };
 
+  const openDetail = (resource: Resource) => {
+    setSelected(resource);
+    setView('detail');
+  };
+
+  const openEdit = (resource: Resource) => {
+    setSelected(resource);
+    setView('edit');
+  };
+
   const returnToList = () => {
     setView('list');
     setSelected(null);
   };
 
+  const closeRemoveDialog = () => {
+    setRemoveTarget(null);
+    setRemoveError('');
+  };
+
+  const removeDialog = (
+    <ResourceDeleteDialog
+      resource={removeTarget}
+      removing={removing}
+      error={removeError}
+      onClose={closeRemoveDialog}
+      onConfirm={resource => void handleRemove(resource)}
+      onArchive={resource => {
+        void handleArchive(resource);
+        closeRemoveDialog();
+      }}
+    />
+  );
+
   // Detail view
   if (view === 'detail' && selected) {
     return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <ResourceBreadcrumb current={selected.title} onBack={returnToList} />
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            <ResourceDetail
-              resource={selected}
-              onEdit={() => setView('edit')}
-              onArchive={() => {
-                void handleArchive(selected);
-                setView('list');
-                setSelected(null);
-              }}
-              onRemove={() => void handleRemove(selected)}
-              removing={removing}
-              removeError={removeError}
-            />
+      <>
+        <div className="flex h-screen flex-col bg-gray-50">
+          <ResourceBreadcrumb current={selected.title} onBack={returnToList} />
+          <div className="flex-1 overflow-auto">
+            <div className="p-6">
+              <ResourceDetail
+                resource={selected}
+                onEdit={() => setView('edit')}
+                onArchive={() => {
+                  void handleArchive(selected);
+                  setView('list');
+                  setSelected(null);
+                }}
+                onRemove={() => requestRemove(selected)}
+                removing={removing}
+                removeError={removeError}
+              />
+            </div>
           </div>
         </div>
-      </div>
+        {removeDialog}
+      </>
     );
   }
 
@@ -530,22 +569,16 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
             <p className="mt-3 text-sm font-medium text-gray-900">Загружаем ресурсы...</p>
           </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <AlertTriangle size={40} className="text-gray-300" />
-            <p className="mt-3 text-sm font-medium text-gray-900">Ресурсов нет</p>
-            <p className="text-xs text-gray-500">Измените фильтры или создайте новый ресурс</p>
-          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {/* Resource column (fixed) */}
-                  <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-200 px-4 py-3 text-left font-semibold text-gray-700 min-w-64 relative">
+                  <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-56 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'resource')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700 relative"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700 relative"
                     >
                       Ресурс
                       <ChevronDown size={13} className={sortColumn === 'title' ? 'text-blue-600' : 'text-gray-400'} />
@@ -563,10 +596,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Category */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-32 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'category')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Категория
                       <ChevronDown size={13} className={categoryFilter ? 'text-blue-600' : 'text-gray-400'} />
@@ -584,10 +617,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Price */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-24 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'price')}
-                      className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Цена
                       <ChevronDown size={13} className={sortColumn === 'price' ? 'text-blue-600' : 'text-gray-400'} />
@@ -605,10 +638,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Stock */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'stock')}
-                      className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Остаток
                       <ChevronDown size={13} className={sortColumn === 'stock' ? 'text-blue-600' : 'text-gray-400'} />
@@ -626,10 +659,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Availability */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-32 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'availability')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Доступность
                       <ChevronDown size={13} className={availabilityFilter ? 'text-blue-600' : 'text-gray-400'} />
@@ -646,10 +679,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Health */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-28 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'health')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Готовность
                       <ChevronDown size={13} className={healthFilter ? 'text-blue-600' : 'text-gray-400'} />
@@ -666,10 +699,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Status */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-24 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'status')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Статус
                       <ChevronDown size={13} className={statusFilter ? 'text-blue-600' : 'text-gray-400'} />
@@ -686,10 +719,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Bookings */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'bookings')}
-                      className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Брони
                       <ChevronDown size={13} className={sortColumn === 'bookings' ? 'text-blue-600' : 'text-gray-400'} />
@@ -707,10 +740,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Revenue */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-24 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'revenue')}
-                      className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Выручка
                       <ChevronDown size={13} className={sortColumn === 'revenue' ? 'text-blue-600' : 'text-gray-400'} />
@@ -728,10 +761,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Updated */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-28 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-24 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'updated')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
+                      className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
                     >
                       Обновлено
                       <ChevronDown size={13} className={sortColumn === 'updated' ? 'text-blue-600' : 'text-gray-400'} />
@@ -748,11 +781,25 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                     />
                   </th>
 
+                  {/* Actions */}
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20">
+                    Действия
+                  </th>
 
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(row => {
+                {sorted.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="px-4 py-14 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <AlertTriangle size={40} className="text-gray-300" />
+                        <p className="mt-3 text-sm font-medium text-gray-900">Ресурсов нет</p>
+                        <p className="text-xs text-gray-500">Измените фильтры или создайте новый ресурс</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : sorted.map(row => {
                   const { resource } = row;
                   const status = statusBadge[resource.status];
                   const isSelected = selectedIds.includes(resource.id);
@@ -760,7 +807,13 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   return (
                     <tr
                       key={resource.id}
-                      onClick={() => toggleSelection(resource.id)}
+                      onClick={event => {
+                        if (event.metaKey || event.ctrlKey) {
+                          toggleSelection(resource.id);
+                          return;
+                        }
+                        openDetail(resource);
+                      }}
                       className={`cursor-pointer border-b border-gray-100 transition ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                     >
                       {/* Resource (fixed) */}
@@ -830,6 +883,37 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                       </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation();
+                              openEdit(resource);
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+                            title="Редактировать ресурс"
+                            aria-label={`Редактировать ресурс ${resource.title}`}
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={event => {
+                              event.stopPropagation();
+                              requestRemove(resource);
+                            }}
+                            disabled={removing}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Удалить ресурс"
+                            aria-label={`Удалить ресурс ${resource.title}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -846,6 +930,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
           onClick={() => setFlyoutState({ column: null, position: null })}
         />
       )}
+      {removeDialog}
     </div>
   );
 }

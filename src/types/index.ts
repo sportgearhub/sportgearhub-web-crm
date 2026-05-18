@@ -154,6 +154,17 @@ export interface Resource {
   variantCount?: number;
 }
 
+export interface ResourceImage {
+  imageId: string;
+  resourceId: string;
+  originalFileName: string;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
 // ─── Availability ─────────────────────────────────────────────────────────────
 
 export interface AvailabilityProfile {

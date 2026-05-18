@@ -2,6 +2,7 @@ import { Archive, CalendarDays, CreditCard as Edit2, Package, Tag, Trash2, Trend
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { ResourceImagesSection } from './ResourceImagesSection';
 import type { Booking, Offer, Resource, ResourceStatus, ResourceVariant } from '../../types';
 
 const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
@@ -78,6 +79,10 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
           )}
         </Card>
 
+        <ResourceImagesSection resourceId={resource.resourceId} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="overflow-hidden">
           <div className="mb-4 flex items-center gap-2">
             <CalendarDays size={15} className="text-gray-400" />

@@ -4,6 +4,7 @@ import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
+import { ResourceImageDraftSection, ResourceImagesSection } from './ResourceImagesSection';
 import type { Resource } from '../../types';
 import {
   ApiError,
@@ -22,6 +23,7 @@ export type ResourceFormData = {
   categoryName?: string;
   description?: string;
   imageUrl?: string;
+  imageFiles?: File[];
   status?: Resource['status'];
   variant?: {
     variantKey: string;
@@ -190,10 +192,11 @@ export function ResourceForm({
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaError, setSchemaError] = useState('');
   const [description, setDescription] = useState(resource?.description || '');
-  const [imageUrl, setImageUrl] = useState(resource?.imageUrl || '');
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [brandSelection, setBrandSelection] = useState<EquipmentBrandSuggestion | null>(null);
   const [variants, setVariants] = useState<DraftVariant[]>(() => [newDraftVariant()]);
   const [activeVariantId, setActiveVariantId] = useState('');
+  const submitInFlightRef = useRef(false);
   const [form, setForm] = useState<BikeFormState>({
     brandName: '',
     brandId: '',
@@ -384,50 +387,61 @@ export function ResourceForm({
   };
 
   const handleSubmit = async () => {
+    if (submitting || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+
     const nextErrors = validate();
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
+      submitInFlightRef.current = false;
       return;
     }
-    if (!selectedCategory) return;
+    if (!selectedCategory) {
+      submitInFlightRef.current = false;
+      return;
+    }
 
-    const resolvedBrand = await resolveBrand();
-    const nextForm = {
-      ...form,
-      brandName: resolvedBrand.brandName,
-      brandId: resolvedBrand.brandId,
-    };
-    if (!isEdit && !schema) return;
-    const title = makeResourceTitle(selectedCategory.label, nextForm.brandName, nextForm.model, titleOverride);
-    const nextVariants = variants.map((variant, index) => {
-      const variantLabel = makeVariantLabel(nextForm, variant.attributeValues) || `Комплектация ${index + 1}`;
-
-      return {
-        variantKey: makeKey([
-          nextForm.brandName,
-          nextForm.model,
-          variant.attributeValues.frame_size,
-          variant.attributeValues.wheel_size_in,
-          String(index + 1),
-        ]),
-        label: variantLabel,
-        normalizedAttributes: buildAttributes(nextForm, schema, variant.attributeValues),
-        status: 'active',
+    try {
+      const resolvedBrand = await resolveBrand();
+      const nextForm = {
+        ...form,
+        brandName: resolvedBrand.brandName,
+        brandId: resolvedBrand.brandId,
       };
-    });
+      if (!isEdit && !schema) return;
+      const title = makeResourceTitle(selectedCategory.label, nextForm.brandName, nextForm.model, titleOverride);
+      const nextVariants = variants.map((variant, index) => {
+        const variantLabel = makeVariantLabel(nextForm, variant.attributeValues) || `Комплектация ${index + 1}`;
 
-    await onSubmit({
-      title,
-      categorySlug: selectedCategory.slug,
-      resourceType: selectedCategory.resourceType,
-      capacityMode: selectedCategory.capacityMode,
-      categoryName: selectedCategory.label,
-      description,
-      imageUrl: imageUrl || undefined,
-      status: 'draft',
-      variant: isEdit ? undefined : nextVariants[0],
-      variants: isEdit ? undefined : nextVariants,
-    });
+        return {
+          variantKey: makeKey([
+            nextForm.brandName,
+            nextForm.model,
+            variant.attributeValues.frame_size,
+            variant.attributeValues.wheel_size_in,
+            String(index + 1),
+          ]),
+          label: variantLabel,
+          normalizedAttributes: buildAttributes(nextForm, schema, variant.attributeValues),
+          status: 'active',
+        };
+      });
+
+      await onSubmit({
+        title,
+        categorySlug: selectedCategory.slug,
+        resourceType: selectedCategory.resourceType,
+        capacityMode: selectedCategory.capacityMode,
+        categoryName: selectedCategory.label,
+        description,
+        imageFiles: isEdit ? undefined : imageFiles,
+        status: 'draft',
+        variant: isEdit ? undefined : nextVariants[0],
+        variants: isEdit ? undefined : nextVariants,
+      });
+    } finally {
+      submitInFlightRef.current = false;
+    }
   };
 
   return (
@@ -555,24 +569,20 @@ export function ResourceForm({
 
           <Card className="p-3">
             <CardHeader title="Наличие" className="mb-3" />
-            <div className="grid gap-3 md:grid-cols-2">
-              <Input
-                label="URL изображения"
-                value={imageUrl}
-                onChange={event => setImageUrl(event.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-            <div className="mt-3">
-              <Textarea
-                label="Описание (необязательно)"
-                value={description}
-                onChange={event => setDescription(event.target.value)}
-                rows={2}
-                placeholder="Короткое описание состояния, комплекта или особенностей."
-              />
-            </div>
+            <Textarea
+              label="Описание (необязательно)"
+              value={description}
+              onChange={event => setDescription(event.target.value)}
+              rows={2}
+              placeholder="Короткое описание состояния, комплекта или особенностей."
+            />
           </Card>
+
+          {isEdit && resource?.resourceId ? (
+            <ResourceImagesSection resourceId={resource.resourceId} compact />
+          ) : (
+            <ResourceImageDraftSection files={imageFiles} onChange={setImageFiles} disabled={submitting} />
+          )}
         </>
       )}
 

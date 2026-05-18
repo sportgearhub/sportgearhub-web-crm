@@ -1919,6 +1919,88 @@
         ]
       }
     },
+    "/api/v1/provider/resources/{resourceId}/images": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderResourcesGetProviderResourceImagesEndpoint",
+        "parameters": [
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesProviderResourceImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderResourcesPostProviderResourceImagesEndpoint",
+        "parameters": [
+          {
+            "name": "resourceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesProviderResourceImageResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/provider/resources": {
       "get": {
         "tags": [
@@ -6656,6 +6738,45 @@
         "type": "object",
         "additionalProperties": false
       },
+      "EbashITSportgearhubApiModelsProviderResourcesProviderResourceImageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "imageId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "resourceId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "originalFileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "url": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderResourcesGetProviderResourceImagesRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "EbashITSportgearhubApiModelsProviderResourcesProviderResourceSummaryResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6933,6 +7054,10 @@
             "nullable": true
           }
         }
+      },
+      "EbashITSportgearhubApiEndpointsProviderResourcesPostProviderResourceImagesRequest": {
+        "type": "object",
+        "additionalProperties": false
       },
       "EbashITSportgearhubApiEndpointsProviderResourcesPostResourceVariantRequest": {
         "type": "object",

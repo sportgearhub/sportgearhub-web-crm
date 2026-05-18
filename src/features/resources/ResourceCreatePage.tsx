@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { ApiError, equipmentApi, resourcesApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
@@ -13,6 +13,7 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [categoriesError, setCategoriesError] = useState('');
+  const createInFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +50,8 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
   }, []);
 
   const handleCreate = async (data: ResourceFormData) => {
+    if (createInFlightRef.current) return;
+    createInFlightRef.current = true;
     setError('');
     setSaving(true);
     try {
@@ -67,6 +70,10 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
         })
       ));
 
+      if (data.imageFiles?.length) {
+        await resourcesApi.images.upload(newResource.resourceId, data.imageFiles);
+      }
+
       onNavigate('/resources');
     } catch (err) {
       setError(err instanceof ApiError
@@ -76,6 +83,7 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
           : 'Не удалось создать ресурс в API.');
     } finally {
       setSaving(false);
+      createInFlightRef.current = false;
     }
   };
 
