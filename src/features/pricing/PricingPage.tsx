@@ -29,7 +29,7 @@ export function PricingPage() {
       type: 'percentage',
       amount: -10,
       condition: '',
-      label: 'New adjustment',
+      label: 'Новая корректировка',
     };
     setEditData(prev => ({ ...prev, adjustments: [...(prev.adjustments || []), adj] }));
   };
@@ -48,11 +48,11 @@ export function PricingPage() {
   return (
     <div className="p-6 space-y-5 max-w-4xl">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Pricing Configuration</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Configure base pricing rules and adjustments for your offers.</p>
+        <h2 className="text-sm font-semibold text-gray-900">Настройка цен</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Настройте базовые цены и корректировки для офферов.</p>
       </div>
 
-      <PrototypeBanner label="pending_api" message="Pricing write operations are prototype-only. Real API support is pending." />
+      <PrototypeBanner label="ожидает API" message="Запись цен пока работает только в прототипе. Поддержка API будет подключена позже." />
 
       <div className="space-y-4">
         {policies.map(p => {
@@ -63,23 +63,23 @@ export function PricingPage() {
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">{p.label}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Updated {new Date(p.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Обновлено {new Date(p.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
                 {isEditing ? (
                   <div className="flex gap-2">
-                    <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Save</Button>
+                    <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Сохранить</Button>
                     <Button size="sm" variant="ghost" onClick={cancelEdit}><X size={12} /></Button>
                   </div>
                 ) : (
                   <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
-                    <Edit2 size={12} /> Edit
+                    <Edit2 size={12} /> Редактировать
                   </Button>
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Base Price</p>
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Базовая цена</p>
                   {isEditing ? (
                     <Input
                       type="number"
@@ -94,15 +94,15 @@ export function PricingPage() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Adjustments</p>
+                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Корректировки</p>
                   {isEditing && (
                     <Button size="sm" variant="ghost" onClick={addAdjustment}>
-                      <Plus size={12} /> Add
+                      <Plus size={12} /> Добавить
                     </Button>
                   )}
                 </div>
                 {(d.adjustments || []).length === 0 ? (
-                  <p className="text-xs text-gray-500">No adjustments configured.</p>
+                  <p className="text-xs text-gray-500">Корректировки не настроены.</p>
                 ) : (
                   <div className="space-y-2">
                     {(d.adjustments || []).map(adj => (
@@ -113,10 +113,10 @@ export function PricingPage() {
                               value={adj.label}
                               onChange={e => updateAdjustment(adj.id, 'label', e.target.value)}
                               className="flex-1"
-                              placeholder="Label"
+                              placeholder="Название"
                             />
                             <Select
-                              options={[{ value: 'percentage', label: '%' }, { value: 'fixed', label: 'Fixed' }]}
+                              options={[{ value: 'percentage', label: '%' }, { value: 'fixed', label: 'Фикс.' }]}
                               value={adj.type}
                               onChange={e => updateAdjustment(adj.id, 'type', e.target.value)}
                               className="w-24"
@@ -154,11 +154,11 @@ export function PricingPage() {
 
       <Card>
         <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Quote Preview</h3>
-          <Badge variant="yellow">pending_api</Badge>
+          <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Предпросмотр расчета</h3>
+          <Badge variant="yellow">ожидает API</Badge>
         </div>
         <p className="text-xs text-gray-500">
-          Live quote simulation will be available when the pricing calculation API is ready. You will be able to preview exact customer-facing prices for different durations and dates.
+          Предпросмотр расчета станет доступен после подключения API ценообразования. Можно будет проверять итоговые цены для разных дат и длительностей.
         </p>
       </Card>
     </div>

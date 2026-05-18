@@ -31,6 +31,7 @@ API routes:
 - Provider onboarding options: `/api/v1/provider-onboarding/options`
 - Current provider onboarding: `/api/v1/provider-onboarding/current`
 - Provider locations: `/api/v1/provider/locations`
+- Provider resources: `/api/v1/provider/resources`
 - OIDC authorize: `/connect/authorize`
 - OIDC token: `/connect/token`
 - OIDC userinfo: `/connect/userinfo`
@@ -167,6 +168,36 @@ Location `type` values:
 
 - `pickup`
 - `service_area`
+
+## Provider Resources
+
+Provider resource endpoints require a provider-authenticated session or bearer token with provider access.
+
+### Delete Resource
+
+```http
+DELETE /api/v1/provider/resources/{resourceId}
+Authorization: Bearer <access_token>
+```
+
+Swagger response contract:
+
+- `204 No Content`: resource was deleted
+- `401 Unauthorized`: user/session/token is not authorized
+
+Frontend behavior:
+
+- expose deletion from the resource detail danger zone
+- ask for explicit confirmation before calling delete
+- on `204`, remove the resource from local list state and navigate back to `/resources`
+- if the API returns `404`, show that the resource is missing or not available to the current provider
+- if the API returns `409`, do not retry deletion; offer archive instead because the resource is already linked to offers, reservations, or fulfillment records
+
+Current client wiring:
+
+- `resourcesApi.remove(resourceId)` calls `DELETE /api/v1/provider/resources/{resourceId}`
+- `ResourceDetail` renders the delete action in the danger zone
+- `ResourcePage.handleRemove` handles success plus `404` and `409` provider-facing errors
 
 ## Step 1: Email Start, Registration Invitation, And Magic Sign-In
 
@@ -419,18 +450,18 @@ Frontend behavior:
 
 ### Checklist
 
-- [x] email-start screen
-- [x] email-start API client method
-- [x] check-email screen
-- [x] registration invitation context API client method
-- [x] token-based registration screen
-- [x] token-based registration API client method
-- [x] magic-sign-in callback route
-- [x] magic-sign-in API client method
-- [x] dev email outbox helper for local development
-- [x] invalid or expired invitation/magic token state
-- [x] legacy verify-email callback only if password registration remains exposed
-- [x] legacy resend verification action only if password registration remains exposed
+- [ ] email-start screen
+- [ ] email-start API client method
+- [ ] check-email screen
+- [ ] registration invitation context API client method
+- [ ] token-based registration screen
+- [ ] token-based registration API client method
+- [ ] magic-sign-in callback route
+- [ ] magic-sign-in API client method
+- [ ] dev email outbox helper for local development
+- [ ] invalid or expired invitation/magic token state
+- [ ] legacy verify-email callback only if password registration remains exposed
+- [ ] legacy resend verification action only if password registration remains exposed
 
 ## Step 2: Sign In And Session
 
@@ -658,8 +689,7 @@ Response:
         "legalCountryCode",
         "legalForm",
         "legalName",
-        "taxNumber",
-        "registeredAddress"
+        "taxNumber"
       ]
     },
     {
@@ -776,7 +806,7 @@ Checklist contract:
 
 Provider location note:
 
-- `registeredAddress` is the legal registration address and belongs to onboarding/legal identity.
+- `registeredAddress` is the legal registration address and belongs to onboarding/legal identity for ИП and organizations; it is not required for `self_employed`.
 - `cityId` points to `/api/v1/catalog/cities`; web should send the selected catalog city id, not free text.
 - `address` is a simple provider profile address only; do not use it as the long-term source of pickup point truth.
 - Pickup points / addresses of handover should become separate provider locations after provider approval, because one provider can operate multiple places.

@@ -11,11 +11,11 @@ import { IssueReportForm } from './IssueReportForm';
 import type { FulfillmentItem, FulfillmentStatus } from '../../types';
 
 const statusConfig: Record<FulfillmentStatus, { label: string; variant: 'yellow' | 'blue' | 'teal' | 'green' | 'red' }> = {
-  pending_handover: { label: 'Pending Handover', variant: 'yellow' },
-  active: { label: 'Active', variant: 'blue' },
-  pending_return: { label: 'Pending Return', variant: 'teal' },
-  completed: { label: 'Completed', variant: 'green' },
-  issue_reported: { label: 'Issue Reported', variant: 'red' },
+  pending_handover: { label: 'Ожидает выдачи', variant: 'yellow' },
+  active: { label: 'Активно', variant: 'blue' },
+  pending_return: { label: 'Ожидает возврата', variant: 'teal' },
+  completed: { label: 'Завершено', variant: 'green' },
+  issue_reported: { label: 'Есть обращение', variant: 'red' },
 };
 
 type FulfillmentAction = 'handover' | 'return' | 'complete' | 'issue';
@@ -34,10 +34,10 @@ export function FulfillmentPage() {
   const handleSuccess = (updated: FulfillmentItem) => {
     setQueue(prev => prev.map(item => item.bookingId === updated.bookingId ? updated : item));
     const successLabels: Record<FulfillmentAction, string> = {
-      handover: 'Handover recorded successfully.',
-      return: 'Return recorded successfully.',
-      complete: 'Booking marked as completed.',
-      issue: 'Issue report submitted.',
+      handover: 'Выдача успешно записана.',
+      return: 'Возврат успешно записан.',
+      complete: 'Бронирование завершено.',
+      issue: 'Обращение отправлено.',
     };
 
     if (action) {
@@ -66,7 +66,7 @@ export function FulfillmentPage() {
           }}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 mb-4 transition-colors"
         >
-          <ChevronLeft size={14} /> Back to fulfillment queue
+          <ChevronLeft size={14} /> Назад к очереди выдачи
         </button>
 
         <div className="mb-4">
@@ -95,13 +95,13 @@ export function FulfillmentPage() {
   return (
     <div className="p-6 space-y-5 max-w-6xl">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Fulfillment Queue</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Track handovers, returns, and issue handling.</p>
+        <h2 className="text-sm font-semibold text-gray-900">Очередь выдачи</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Выдачи, возвраты и работа с обращениями.</p>
       </div>
 
       <PrototypeBanner
-        label="prototype_flow"
-        message="Fulfillment actions currently update local prototype state only. Server workflows can be wired in later."
+        label="прототип"
+        message="Действия по выдаче пока обновляют только локальное состояние. Серверные сценарии можно подключить позже."
       />
 
       {successMsg && (
@@ -113,13 +113,13 @@ export function FulfillmentPage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700">Open Queue</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700">Открытая очередь</h3>
           <Badge variant="blue">{activeItems.length}</Badge>
         </div>
 
         {activeItems.length === 0 ? (
           <Card>
-            <p className="text-xs text-gray-500">No active fulfillment items.</p>
+            <p className="text-xs text-gray-500">Нет активных задач по выдаче.</p>
           </Card>
         ) : (
           activeItems.map(item => (
@@ -134,13 +134,13 @@ export function FulfillmentPage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700">Completed / Issues</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700">Завершено / обращения</h3>
           <Badge variant="gray">{completedItems.length}</Badge>
         </div>
 
         {completedItems.length === 0 ? (
           <Card>
-            <p className="text-xs text-gray-500">Completed rentals and issue reports will appear here.</p>
+            <p className="text-xs text-gray-500">Завершенные аренды и обращения появятся здесь.</p>
           </Card>
         ) : (
           completedItems.map(item => (
@@ -184,7 +184,7 @@ function FulfillmentCard({
             {item.selection.variantTitle ? ` · ${item.selection.variantTitle}` : ''}
           </p>
           <p className="text-xs text-gray-500">
-            Starts {new Date(item.selection.startDate).toLocaleString('en-GB', {
+            Начало: {new Date(item.selection.startDate).toLocaleString('ru-RU', {
               day: 'numeric',
               month: 'short',
               hour: '2-digit',
@@ -203,22 +203,22 @@ function FulfillmentCard({
           <div className="flex flex-wrap gap-2">
             {item.status === 'pending_handover' && (
               <Button size="sm" variant="primary" onClick={() => onAction(item, 'handover')}>
-                Record Handover
+                Записать выдачу
               </Button>
             )}
             {item.status === 'active' && (
               <Button size="sm" variant="secondary" onClick={() => onAction(item, 'return')}>
-                Record Return
+                Записать возврат
               </Button>
             )}
             {item.status === 'pending_return' && (
               <Button size="sm" variant="primary" onClick={() => onAction(item, 'complete')}>
-                Complete Booking
+                Завершить
               </Button>
             )}
             {item.status !== 'issue_reported' && item.status !== 'completed' && (
               <Button size="sm" variant="ghost" onClick={() => onAction(item, 'issue')}>
-                Report Issue
+                Сообщить о проблеме
               </Button>
             )}
           </div>

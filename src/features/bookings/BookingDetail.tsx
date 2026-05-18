@@ -4,11 +4,11 @@ import { Badge } from '../../components/ui/Badge';
 import type { Booking, BookingStatus } from '../../types';
 
 const statusBadge: Record<BookingStatus, { label: string; variant: 'green' | 'yellow' | 'red' | 'blue' | 'gray' }> = {
-  confirmed: { label: 'Confirmed', variant: 'green' },
-  pending: { label: 'Pending', variant: 'yellow' },
-  cancelled: { label: 'Cancelled', variant: 'red' },
-  completed: { label: 'Completed', variant: 'blue' },
-  no_show: { label: 'No Show', variant: 'gray' },
+  confirmed: { label: 'Подтверждено', variant: 'green' },
+  pending: { label: 'Ожидает', variant: 'yellow' },
+  cancelled: { label: 'Отменено', variant: 'red' },
+  completed: { label: 'Завершено', variant: 'blue' },
+  no_show: { label: 'Неявка', variant: 'gray' },
 };
 
 interface BookingDetailProps {
@@ -24,7 +24,7 @@ export function BookingDetail({ booking }: BookingDetailProps) {
         <div>
           <h2 className="text-base font-semibold text-gray-900 font-mono">{booking.ref}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Created {new Date(booking.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            Создано {new Date(booking.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
         <Badge variant={s.variant} size="md">{s.label}</Badge>
@@ -34,60 +34,60 @@ export function BookingDetail({ booking }: BookingDetailProps) {
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <User size={14} className="text-gray-400" />
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Customer</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Клиент</h3>
           </div>
           <div className="space-y-2">
-            <DetailRow label="Name" value={booking.customer.name} />
+            <DetailRow label="Имя" value={booking.customer.name} />
             <DetailRow label="Email" value={booking.customer.email} />
-            {booking.customer.phone && <DetailRow label="Phone" value={booking.customer.phone} />}
+            {booking.customer.phone && <DetailRow label="Телефон" value={booking.customer.phone} />}
           </div>
         </Card>
 
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <Package size={14} className="text-gray-400" />
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Selection</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Выбор</h3>
           </div>
           <div className="space-y-2">
-            <DetailRow label="Offer" value={booking.selection.offerTitle} />
-            <DetailRow label="Resource" value={booking.selection.resourceTitle} />
-            {booking.selection.variantTitle && <DetailRow label="Variant" value={booking.selection.variantTitle} />}
-            <DetailRow label="Quantity" value={String(booking.selection.quantity)} />
+            <DetailRow label="Оффер" value={booking.selection.offerTitle} />
+            <DetailRow label="Ресурс" value={booking.selection.resourceTitle} />
+            {booking.selection.variantTitle && <DetailRow label="Вариант" value={booking.selection.variantTitle} />}
+            <DetailRow label="Количество" value={String(booking.selection.quantity)} />
           </div>
         </Card>
 
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <Calendar size={14} className="text-gray-400" />
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Schedule</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Расписание</h3>
           </div>
           <div className="space-y-2">
             <DetailRow
-              label="Start"
-              value={new Date(booking.selection.startDate).toLocaleString('en-GB', {
+              label="Начало"
+              value={new Date(booking.selection.startDate).toLocaleString('ru-RU', {
                 day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
               })}
             />
             {booking.selection.endDate && (
               <DetailRow
-                label="End"
-                value={new Date(booking.selection.endDate).toLocaleString('en-GB', {
+                label="Конец"
+                value={new Date(booking.selection.endDate).toLocaleString('ru-RU', {
                   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
                 })}
               />
             )}
-            <DetailRow label="Duration" value={booking.selection.durationLabel} />
+            <DetailRow label="Длительность" value={booking.selection.durationLabel} />
           </div>
         </Card>
 
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <CreditCard size={14} className="text-gray-400" />
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Payment</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Оплата</h3>
           </div>
           <div className="space-y-2">
-            <DetailRow label="Total" value={`${booking.totalAmount.toLocaleString()} ${booking.currency}`} />
-            <DetailRow label="Status" value="Paid" />
+            <DetailRow label="Итого" value={`${booking.totalAmount.toLocaleString()} ${booking.currency}`} />
+            <DetailRow label="Статус" value="Оплачено" />
           </div>
         </Card>
       </div>
@@ -96,7 +96,7 @@ export function BookingDetail({ booking }: BookingDetailProps) {
         <Card>
           <div className="flex items-center gap-2 mb-2">
             <FileText size={14} className="text-gray-400" />
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Notes</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Заметки</h3>
           </div>
           <p className="text-sm text-gray-700">{booking.notes}</p>
         </Card>

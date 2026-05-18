@@ -6,8 +6,8 @@ interface PrototypeBannerProps {
 }
 
 export function PrototypeBanner({
-  label = 'Prototype',
-  message = 'This module uses mock data. Backend API support is pending.',
+  label = 'Прототип',
+  message = 'Этот модуль использует моковые данные. Поддержка backend API ожидается.',
 }: PrototypeBannerProps) {
   return (
     <div className="flex items-start gap-2.5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">

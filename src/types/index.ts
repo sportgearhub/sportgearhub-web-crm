@@ -139,7 +139,6 @@ export interface Resource {
   capacityMode?: string;
   status: ResourceStatus;
   title: string;
-  baseCapacity: number;
   readiness: ResourceReadiness;
   publishabilityImpact: PublishabilityImpact;
   updatedAt: string;
@@ -234,7 +233,6 @@ export interface ResourceVariant {
   variantId: string;
   resourceId: string;
   variantKey: string;
-  variantType: string;
   label: string;
   status: 'active' | 'inactive' | 'archived';
   normalizedAttributes: NormalizedAttribute[];

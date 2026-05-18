@@ -29,30 +29,30 @@ export function CompleteForm({ item, onSuccess, onCancel }: CompleteFormProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">Complete Booking</h3>
-        <p className="text-xs text-gray-500 mt-0.5">Mark this booking as fully completed.</p>
+        <h3 className="text-sm font-semibold text-gray-900">Завершить бронь</h3>
+        <p className="text-xs text-gray-500 mt-0.5">Отметьте бронь как полностью завершенную.</p>
       </div>
 
       <div className="bg-emerald-50 border border-emerald-100 rounded-md px-4 py-3">
         <p className="text-xs text-emerald-800">
-          Completing this booking confirms equipment has been returned and the rental is concluded.
+          Завершение подтверждает, что оборудование возвращено, а аренда закрыта.
         </p>
       </div>
 
       <Textarea
-        label="Completion notes (optional)"
+        label="Заметки о завершении (необязательно)"
         value={notes}
         onChange={e => setNotes(e.target.value)}
         rows={3}
-        placeholder="Final remarks, rating, follow-ups..."
+        placeholder="Итоговые комментарии, оценка, дальнейшие действия..."
       />
 
       <div className="flex gap-2 pt-2">
         <Button variant="primary" onClick={handleSubmit} loading={loading}>
-          Mark as Completed
+          Завершить
         </Button>
         <Button variant="secondary" onClick={onCancel} disabled={loading}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </div>

@@ -97,41 +97,41 @@ type DraftBookingSeed = {
 };
 
 const viewItems: Array<{ value: ViewMode; label: string; icon: typeof Rows3 }> = [
-  { value: 'timeline', label: 'Timeline', icon: Rows3 },
-  { value: 'calendar', label: 'Calendar', icon: CalendarDays },
-  { value: 'table', label: 'Table', icon: LayoutList },
-  { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
+  { value: 'timeline', label: 'Таймлайн', icon: Rows3 },
+  { value: 'calendar', label: 'Календарь', icon: CalendarDays },
+  { value: 'table', label: 'Таблица', icon: LayoutList },
+  { value: 'kanban', label: 'Канбан', icon: LayoutGrid },
 ];
 
 const zoomItems: Array<{ value: ZoomLevel; label: string }> = [
-  { value: 'hour', label: 'Hour' },
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
+  { value: 'hour', label: 'Час' },
+  { value: 'day', label: 'День' },
+  { value: 'week', label: 'Неделя' },
 ];
 
 const groupByItems: Array<{ value: GroupByMode; label: string }> = [
-  { value: 'activity', label: 'Activity' },
-  { value: 'resource', label: 'Resource' },
+  { value: 'activity', label: 'Активность' },
+  { value: 'resource', label: 'Ресурс' },
   { value: 'sku', label: 'SKU' },
 ];
 
 const statusOptions = [
-  { value: '', label: 'All statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'no_show', label: 'No Show' },
+  { value: '', label: 'Все статусы' },
+  { value: 'pending', label: 'Ожидает' },
+  { value: 'confirmed', label: 'Подтверждено' },
+  { value: 'completed', label: 'Завершено' },
+  { value: 'cancelled', label: 'Отменено' },
+  { value: 'no_show', label: 'Неявка' },
 ];
 
 const locationByCategory: Record<string, string> = {
-  'Mountain Bikes': 'North Hub',
-  'Ski Equipment': 'Alpine Depot',
-  'Water Sports': 'River Dock',
-  'Climbing Gear': 'Summit Loft',
-  'Cameras & Electronics': 'City Locker',
-  'Travel & Carriers': 'Transit Bay',
-  'Camping Gear': 'Trail Store',
+  'Горные велосипеды': 'Северный хаб',
+  'Лыжное оборудование': 'Альпийский склад',
+  'Водный спорт': 'Речной док',
+  'Скалолазное снаряжение': 'Склад восхождения',
+  'Камеры и электроника': 'Городской локер',
+  'Перевозка и багаж': 'Транзитная зона',
+  'Кемпинг': 'Туристический склад',
 };
 
 const zoomConfig: Record<
@@ -177,11 +177,11 @@ const statusBadge: Record<
   BookingStatus,
   { label: string; variant: 'green' | 'yellow' | 'red' | 'blue' | 'gray' }
 > = {
-  confirmed: { label: 'Confirmed', variant: 'green' },
-  pending: { label: 'Pending', variant: 'yellow' },
-  cancelled: { label: 'Cancelled', variant: 'red' },
-  completed: { label: 'Completed', variant: 'blue' },
-  no_show: { label: 'No Show', variant: 'gray' },
+  confirmed: { label: 'Подтверждено', variant: 'green' },
+  pending: { label: 'Ожидает', variant: 'yellow' },
+  cancelled: { label: 'Отменено', variant: 'red' },
+  completed: { label: 'Завершено', variant: 'blue' },
+  no_show: { label: 'Неявка', variant: 'gray' },
 };
 
 const TOOLBAR_BUTTON_CLASS =
@@ -427,9 +427,9 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
 
   const locationOptions = useMemo(
     () => [
-      { value: '', label: 'All locations' },
+      { value: '', label: 'Все локации' },
       ...Array.from(
-        new Set(mockResources.map(resource => locationByCategory[resource.categoryName] || 'Main Hub'))
+          new Set(mockResources.map(resource => locationByCategory[resource.categoryName] || 'Главный хаб'))
       )
         .sort()
         .map(location => ({ value: location, label: location })),
@@ -439,7 +439,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
 
   const categoryOptions = useMemo(
     () => [
-      { value: '', label: 'All categories' },
+      { value: '', label: 'Все категории' },
       ...Array.from(new Set(mockResources.map(resource => resource.categoryName)))
         .sort()
         .map(category => ({ value: category, label: category })),
@@ -466,7 +466,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
     () =>
       bookings.map(booking => {
         const resource = resourceLookup.get(booking.selection.resourceId);
-        const locationName = locationByCategory[resource?.categoryName || ''] || 'Main Hub';
+        const locationName = locationByCategory[resource?.categoryName || ''] || 'Главный хаб';
         const startMs = new Date(booking.selection.startDate).getTime();
         const endMs = booking.selection.endDate
           ? new Date(booking.selection.endDate).getTime()
@@ -479,7 +479,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
 
         return {
           ...booking,
-          categoryName: resource?.categoryName || 'Uncategorized',
+          categoryName: resource?.categoryName || 'Без категории',
           locationName,
           rowId: `resource:${booking.selection.resourceId}`,
           resourceStatus: resource?.status || 'inactive',
@@ -530,7 +530,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
   const filterableResources = useMemo(
     () =>
       mockResources.filter(resource => {
-        const locationName = locationByCategory[resource.categoryName] || 'Main Hub';
+        const locationName = locationByCategory[resource.categoryName] || 'Главный хаб';
         const matchesCategory = !categoryFilter || resource.categoryName === categoryFilter;
         const matchesLocation = !locationFilter || locationName === locationFilter;
         const matchesResource = !focusedResourceId || resource.id === focusedResourceId;
@@ -557,7 +557,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
         }, new Map())
       )
         .map(([categoryId, resources]) => {
-          const categoryName = resources[0]?.categoryName || 'Uncategorized';
+          const categoryName = resources[0]?.categoryName || 'Без категории';
         const categoryBookings = timelineBookings.filter(booking =>
           resources.some(resource => booking.selection.resourceId === resource.id)
         );
@@ -568,12 +568,12 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
             label: categoryName,
             depth: 0,
             categoryName,
-            locationName: locationByCategory[categoryName] || 'Main Hub',
+            locationName: locationByCategory[categoryName] || 'Главный хаб',
             status: 'group',
             bookingCount: categoryBookings.length,
             utilization: computeUtilization(categoryBookings, rangeStart.getTime(), rangeEnd.getTime()),
             isBookable: false,
-            meta: `${resources.length} resources`,
+            meta: `Ресурсов: ${resources.length}`,
             capacity: resources.length,
           };
         })
@@ -640,7 +640,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
             label: `${resource.title} · ${variant.title}`,
             depth: 0,
             categoryName: resource.categoryName,
-            locationName: locationByCategory[resource.categoryName] || 'Main Hub',
+            locationName: locationByCategory[resource.categoryName] || 'Главный хаб',
             status: variant.status,
             resourceId: resource.id,
             variantId: variant.id,
@@ -686,7 +686,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
           bookingCount: resourceBookings.length,
           utilization: computeUtilization(resourceBookings, rangeStart.getTime(), rangeEnd.getTime()),
           isBookable: resource.status === 'active',
-          meta: variants.length ? `${resource.categoryName} · ${variants.length} SKUs` : resource.categoryName,
+          meta: variants.length ? `${resource.categoryName} · SKU: ${variants.length}` : resource.categoryName,
           capacity,
           imageUrl: resource.imageUrl,
         };
@@ -1081,19 +1081,19 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
             {showDateFlyout ? (
               <div className="absolute left-0 top-[calc(100%+8px)] z-[300] w-[360px] rounded-xl border border-[#cbd5e1] bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.12)]">
                 <div className="grid grid-cols-4 gap-2">
-                  <button onClick={jumpTimelineToToday} className={FLYOUT_ACTION_BUTTON_CLASS}>Today</button>
-                  <button onClick={() => applyTimelinePreset('day')} className={FLYOUT_ACTION_BUTTON_CLASS}>Day</button>
-                  <button onClick={() => applyTimelinePreset('week')} className={FLYOUT_ACTION_BUTTON_CLASS}>Week</button>
-                  <button onClick={() => applyTimelinePreset('month')} className={FLYOUT_ACTION_BUTTON_CLASS}>4 Weeks</button>
+                  <button onClick={jumpTimelineToToday} className={FLYOUT_ACTION_BUTTON_CLASS}>Сегодня</button>
+                  <button onClick={() => applyTimelinePreset('day')} className={FLYOUT_ACTION_BUTTON_CLASS}>День</button>
+                  <button onClick={() => applyTimelinePreset('week')} className={FLYOUT_ACTION_BUTTON_CLASS}>Неделя</button>
+                  <button onClick={() => applyTimelinePreset('month')} className={FLYOUT_ACTION_BUTTON_CLASS}>4 недели</button>
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <button onClick={() => shiftTimelineWindow(-1)} className={FLYOUT_ACTION_BUTTON_CLASS}>Previous Window</button>
-                  <button onClick={jumpTimelineToToday} className={FLYOUT_ACTION_BUTTON_CLASS}>Center On Today</button>
-                  <button onClick={() => shiftTimelineWindow(1)} className={FLYOUT_ACTION_BUTTON_CLASS}>Next Window</button>
+                  <button onClick={() => shiftTimelineWindow(-1)} className={FLYOUT_ACTION_BUTTON_CLASS}>Назад</button>
+                  <button onClick={jumpTimelineToToday} className={FLYOUT_ACTION_BUTTON_CLASS}>К сегодня</button>
+                  <button onClick={() => shiftTimelineWindow(1)} className={FLYOUT_ACTION_BUTTON_CLASS}>Вперед</button>
                 </div>
                 <div className="mt-4 space-y-3">
                   <label className="block text-xs font-medium text-[#475569]">
-                    Start
+                    Начало
                     <input
                       type="date"
                       value={rangeDraftStart}
@@ -1102,7 +1102,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
                     />
                   </label>
                   <label className="block text-xs font-medium text-[#475569]">
-                    End
+                    Конец
                     <input
                       type="date"
                       value={rangeDraftEnd}
@@ -1116,13 +1116,13 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
                     onClick={() => setShowDateFlyout(false)}
                     className="rounded-lg border border-[#d7e0ea] px-3 py-2 text-xs font-medium text-[#475569] transition-colors hover:bg-[#f8fafc]"
                   >
-                    Close
+                    Закрыть
                   </button>
                   <button
                     onClick={applyCustomRange}
                     className="rounded-lg border border-[#0a58ca] bg-[#0d6efd] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#0b5ed7]"
                   >
-                    Apply Range
+                    Применить
                   </button>
                 </div>
               </div>
@@ -1149,7 +1149,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
         <div className="hidden items-center gap-2 lg:flex">
           <div className="w-[140px]">
             <Select
-              options={groupByItems.map(item => ({ value: item.value, label: `Group: ${item.label}` }))}
+              options={groupByItems.map(item => ({ value: item.value, label: `Группа: ${item.label}` }))}
               value={groupBy}
               onChange={event => handleGroupByChange(event.target.value as GroupByMode)}
             />
@@ -1158,7 +1158,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
           {groupBy !== 'sku' ? (
             <div className="w-[180px]">
               <Select
-                options={[{ value: '', label: 'Root: All categories' }, ...categoryOptions.slice(1)]}
+                options={[{ value: '', label: 'Корень: все категории' }, ...categoryOptions.slice(1)]}
                 value={categoryFilter}
                 onChange={event => setCategoryFilter(event.target.value)}
               />
@@ -1171,7 +1171,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
               className={`${TOOLBAR_BUTTON_CLASS} text-[#495057]`}
             >
               <Filter size={14} />
-              Filters
+              Фильтры
               {activeFilterCount > 0 ? <Badge variant="blue">{activeFilterCount}</Badge> : null}
             </button>
 
@@ -1206,7 +1206,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
                 : 'border-[#cbd5e1] bg-white text-[#495057] hover:bg-[#f8fafc]'
             }`}
           >
-            Minimap
+            Миникарта
           </button>
 
           <button
@@ -1224,7 +1224,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
             className="inline-flex items-center gap-2 rounded-md border border-[#0a58ca] bg-[#0d6efd] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0b5ed7]"
           >
             <Plus size={14} />
-            New Booking
+            Новая бронь
           </button>
         </div>
 
@@ -1233,7 +1233,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
           className="inline-flex items-center gap-2 rounded-md border border-[#cbd5e1] bg-white px-3 py-1.5 text-xs font-medium text-[#495057] transition-colors hover:bg-[#f8fafc] lg:hidden"
         >
           <Filter size={14} />
-          Filters
+          Фильтры
         </button>
       </>
     ),
@@ -1367,7 +1367,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
       <Modal
         open={showFilterModal}
         onClose={() => setShowFilterModal(false)}
-        title="Filters"
+        title="Фильтры"
         size="sm"
       >
         <FilterPanel
@@ -1395,7 +1395,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
       <Modal
         open={showCreateModal && Boolean(draftSeed)}
         onClose={() => setShowCreateModal(false)}
-        title="New Booking"
+        title="Новая бронь"
         size="md"
       >
         {draftSeed ? (
@@ -1430,12 +1430,12 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
                   status: 'pending',
                   customer: {
                     id: `c-${String(current.length + 1).padStart(3, '0')}`,
-                    name: draftName || 'Walk-in Customer',
+                    name: draftName || 'Клиент без записи',
                     email: 'pending@example.com',
                   },
                   selection: {
                     offerId: 'off-manual',
-                    offerTitle: 'Manual Booking',
+                    offerTitle: 'Ручная бронь',
                     resourceId: resource.id,
                     resourceTitle: resource.title,
                     variantId: variant?.id,
@@ -1460,14 +1460,14 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
       <Modal
         open={Boolean(stackedSegmentDetail)}
         onClose={() => setStackedSegmentDetail(null)}
-        title={stackedSegmentDetail ? `Stacked Units • ${stackedSegmentDetail.rowLabel}` : 'Stacked Units'}
+        title={stackedSegmentDetail ? `Занятые единицы • ${stackedSegmentDetail.rowLabel}` : 'Занятые единицы'}
         size="lg"
       >
         {stackedSegmentDetail ? (
           <div className="space-y-4">
             <div className="rounded-lg border border-[#d7e0ea] bg-[#f8fbff] px-3 py-2 text-xs text-[#475569]">
               <p className="font-semibold text-[#334155]">
-                {stackedSegmentDetail.unitCount} {stackedSegmentDetail.unitCount === 1 ? 'unit' : 'units'} booked
+                Забронировано единиц: {stackedSegmentDetail.unitCount}
               </p>
               <p className="mt-1">
                 {formatDateTime(stackedSegmentDetail.startMs)} - {formatDateTime(stackedSegmentDetail.endMs)}
@@ -1494,13 +1494,13 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
                     </div>
                     <div className="shrink-0 text-right">
                       <Badge variant={status.variant}>{status.label}</Badge>
-                      <p className="mt-1 text-[11px] text-[#64748b]">qty: {booking.selection.quantity}</p>
+                      <p className="mt-1 text-[11px] text-[#64748b]">кол-во: {booking.selection.quantity}</p>
                     </div>
                   </button>
                 );
               })}
               {stackedSegmentBookings.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[#94a3b8]">No bookings in this segment.</p>
+                <p className="py-8 text-center text-sm text-[#94a3b8]">В этом сегменте броней нет.</p>
               ) : null}
             </div>
           </div>
@@ -1770,7 +1770,7 @@ function TimelineScheduler({
               <div className="relative flex items-center justify-between" ref={resourceFlyoutRef}>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6b7a90]">
-                    Resources
+                    Ресурсы
                   </p>
                 </div>
                 <button
@@ -1779,7 +1779,7 @@ function TimelineScheduler({
                   className="inline-flex items-center gap-1 rounded-md border border-[#d2dbe7] bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#526581] transition-colors hover:bg-[#f8fafc]"
                 >
                   <Filter size={12} />
-                  {allVisibleSelected ? 'All' : selectedCount}
+                  {allVisibleSelected ? 'Все' : selectedCount}
                 </button>
 
                 {showResourceFlyout ? (
@@ -1790,7 +1790,7 @@ function TimelineScheduler({
                         type="text"
                         value={resourceFlyoutSearch}
                         onChange={event => setResourceFlyoutSearch(event.target.value)}
-                        placeholder="Filter resources"
+                        placeholder="Фильтр ресурсов"
                         className="w-full rounded-md border border-[#cbd5e1] bg-white px-8 py-2 text-xs text-[#0f172a] outline-none transition focus:border-[#86b7fe] focus:ring-2 focus:ring-[#9ec5fe]"
                       />
                     </div>
@@ -1800,14 +1800,14 @@ function TimelineScheduler({
                         onClick={onSelectAllResources}
                         className="rounded-md border border-[#d7e0ea] px-2 py-1 text-[11px] font-medium text-[#334155] transition-colors hover:bg-[#f8fafc]"
                       >
-                        {allVisibleSelected ? 'Deselect all' : 'Select all'}
+                        {allVisibleSelected ? 'Снять все' : 'Выбрать все'}
                       </button>
                       <button
                         type="button"
                         onClick={onClearResourceSelections}
                         className="rounded-md border border-[#d7e0ea] px-2 py-1 text-[11px] font-medium text-[#334155] transition-colors hover:bg-[#f8fafc]"
                       >
-                        Clear
+                        Сбросить
                       </button>
                     </div>
                     <div className="mt-3 max-h-[260px] space-y-1 overflow-auto pr-1">
@@ -1838,14 +1838,14 @@ function TimelineScheduler({
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium">{resource.title}</span>
                               <span className="block truncate text-[10px] text-[#64748b]">
-                                {resource.categoryName} · {resource.variantCount} units
+                                {resource.categoryName} · единиц: {resource.variantCount}
                               </span>
                             </span>
                           </label>
                         );
                       })}
                       {filteredResourceOptions.length === 0 ? (
-                        <p className="px-2 py-4 text-center text-[11px] text-[#94a3b8]">No matching resources</p>
+                        <p className="px-2 py-4 text-center text-[11px] text-[#94a3b8]">Подходящих ресурсов нет</p>
                       ) : null}
                     </div>
                   </div>
@@ -1873,7 +1873,7 @@ function TimelineScheduler({
                   style={{ left: nowX }}
                 >
                   <div className="absolute left-1 top-1 rounded bg-[#dc2626] px-1 py-0.5 text-[9px] font-semibold text-white">
-                    Now
+                    Сейчас
                   </div>
                 </div>
               ) : null}
@@ -1917,12 +1917,12 @@ function TimelineScheduler({
       {showMinimap ? (
         <div className="relative border-t border-[#d7e0ea] bg-[#f8fbff] px-4 py-2">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6b7a90]">Timeline Minimap</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6b7a90]">Миникарта таймлайна</p>
             <button
               onClick={() => onShowMinimapChange(false)}
               className="text-[10px] font-medium text-[#64748b] transition-colors hover:text-[#1f2d3d]"
             >
-              Hide
+              Скрыть
             </button>
           </div>
           <div
@@ -2067,7 +2067,7 @@ function TimelineScheduler({
                 }}
                 className="flex w-full items-center rounded px-3 py-2 text-left text-xs font-medium text-[#334155] transition-colors hover:bg-[#f1f5f9]"
               >
-                Hide minimap
+                Скрыть миникарту
               </button>
             </div>
           ) : null}
@@ -2167,13 +2167,13 @@ function SchedulerRow({
                 </>
               ) : null}
               <span className="text-[#c0cad6]">•</span>
-              <span>{row.bookingCount} bookings</span>
+              <span>Броней: {row.bookingCount}</span>
             </div>
           </div>
 
           <div className="w-14 shrink-0 text-right">
             <p className="text-xs font-semibold text-[#1f2d3d]">{row.utilization}%</p>
-            <p className="text-[10px] uppercase tracking-[0.14em] text-[#94a3b8]">Util</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#94a3b8]">Загр.</p>
           </div>
         </div>
       </div>
@@ -2328,7 +2328,7 @@ function ResourceOccupancyTrack({
                 left: placement.left,
                 width: Math.max(placement.width, 8),
               }}
-              title={`${segment.unitCount} ${segment.unitCount === 1 ? 'unit' : 'units'} booked · ${formatDateTime(segment.startMs)} - ${formatDateTime(segment.endMs)}`}
+              title={`Забронировано единиц: ${segment.unitCount} · ${formatDateTime(segment.startMs)} - ${formatDateTime(segment.endMs)}`}
             >
               <div className="absolute inset-0 flex flex-col-reverse">
                 {Array.from({ length: visibleUnitCount }, (_, index) => (
@@ -2350,7 +2350,7 @@ function ResourceOccupancyTrack({
 
               {canLabel ? (
                 <span className="pointer-events-none absolute left-2 top-1 z-[20] truncate rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.16)]">
-                  {segment.unitCount} {segment.unitCount === 1 ? 'unit' : 'units'}
+                  {segment.unitCount} ед.
                 </span>
               ) : null}
             </button>
@@ -2412,7 +2412,7 @@ function BookingBar({
   onSelect: () => void;
   onMoveStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }) {
-  const status = booking.hasConflict ? { label: 'Conflict', variant: 'red' as const } : statusBadge[booking.status];
+  const status = booking.hasConflict ? { label: 'Конфликт', variant: 'red' as const } : statusBadge[booking.status];
   const barClass = statusBarClass(status.variant, booking.hasConflict);
 
   return (
@@ -2475,7 +2475,7 @@ function FilterPanel({
           type="text"
           value={search}
           onChange={event => onSearchChange(event.target.value)}
-          placeholder="Search booking or customer"
+          placeholder="Поиск брони или клиента"
           className="w-full rounded-md border border-[#cbd5e1] bg-white px-9 py-2 text-sm text-gray-900 outline-none transition focus:border-[#86b7fe] focus:ring-2 focus:ring-[#9ec5fe]"
         />
       </div>
@@ -2483,7 +2483,7 @@ function FilterPanel({
       <Select options={locationOptions} value={locationFilter} onChange={event => onLocationChange(event.target.value)} />
       <Select options={statusOptions} value={statusFilter} onChange={event => onStatusChange(event.target.value)} />
       <label className="flex items-center justify-between rounded-md border border-[#d7e0ea] bg-[#f8fbff] px-3 py-2 text-sm text-[#334155]">
-        <span>Show only active resources</span>
+        <span>Показывать только активные ресурсы</span>
         <input
           type="checkbox"
           checked={activeOnly}
@@ -2492,7 +2492,7 @@ function FilterPanel({
         />
       </label>
       <label className="flex items-center justify-between rounded-md border border-[#d7e0ea] bg-[#f8fbff] px-3 py-2 text-sm text-[#334155]">
-        <span>Hide empty resources</span>
+        <span>Скрывать пустые ресурсы</span>
         <input
           type="checkbox"
           checked={hideEmptyResources}
@@ -2505,7 +2505,7 @@ function FilterPanel({
           onClick={onClear}
           className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-medium text-[#495057] transition-colors hover:bg-[#f8fafc]"
         >
-          Clear filters
+          Сбросить фильтры
         </button>
       </div>
     </div>
@@ -2538,29 +2538,29 @@ function CreateBookingForm({
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1 block text-xs font-medium text-gray-600">Customer name</label>
+        <label className="mb-1 block text-xs font-medium text-gray-600">Имя клиента</label>
         <input
           type="text"
           value={draftName}
           onChange={event => onNameChange(event.target.value)}
-          placeholder="Customer"
+          placeholder="Клиент"
           className="w-full rounded-md border border-[#cbd5e1] px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#86b7fe] focus:ring-2 focus:ring-[#9ec5fe]"
         />
       </div>
       <div className="grid gap-3 rounded-lg border border-[#d7e0ea] bg-[#f8fbff] p-4 text-sm text-[#334155]">
         <div className="flex justify-between gap-4">
-          <span className="text-xs text-[#64748b]">Resource</span>
+          <span className="text-xs text-[#64748b]">Ресурс</span>
           <span className="text-right font-medium">
             {resource?.title}
             {variant ? ` · ${variant.title}` : ''}
           </span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-xs text-[#64748b]">Start</span>
+          <span className="text-xs text-[#64748b]">Начало</span>
           <span className="text-right font-medium">{formatDateTime(seed.startMs)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-xs text-[#64748b]">End</span>
+          <span className="text-xs text-[#64748b]">Конец</span>
           <span className="text-right font-medium">{formatDateTime(seed.endMs)}</span>
         </div>
       </div>
@@ -2569,13 +2569,13 @@ function CreateBookingForm({
           onClick={onCancel}
           className="rounded-md border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-medium text-[#495057] transition-colors hover:bg-[#f8fafc]"
         >
-          Cancel
+          Отмена
         </button>
         <button
           onClick={onCreate}
           className="rounded-md border border-[#0a58ca] bg-[#0d6efd] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#0b5ed7]"
         >
-          Create booking
+          Создать бронь
         </button>
       </div>
     </div>
@@ -2599,7 +2599,7 @@ function BookingDrawer({
       <aside className="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-y-auto border-l border-[#d7e0ea] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)]">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#d7e0ea] bg-[#f8fbff] px-5 py-3">
           <div>
-            <p className="text-sm font-semibold text-gray-900">Booking Detail</p>
+            <p className="text-sm font-semibold text-gray-900">Детали брони</p>
             <p className="mt-0.5 text-xs text-gray-500">{booking.ref}</p>
           </div>
           <button
@@ -2620,16 +2620,16 @@ function BookingDrawer({
 function SchedulerPlaceholder({ viewMode }: { viewMode: Exclude<ViewMode, 'timeline'> }) {
   const copy: Record<Exclude<ViewMode, 'timeline'>, { title: string; text: string }> = {
     calendar: {
-      title: 'Calendar view is secondary',
-      text: 'Timeline is now the operational source of truth. Calendar can be layered in as a planning view on the same booking state.',
+      title: 'Календарь как дополнительный вид',
+      text: 'Таймлайн сейчас основной рабочий инструмент. Календарь можно добавить как плановый вид поверх того же состояния броней.',
     },
     table: {
-      title: 'Table view is secondary',
-      text: 'Table can be used for audit and export workflows, but timeline is now the primary scheduling tool.',
+      title: 'Таблица как дополнительный вид',
+      text: 'Таблица подойдет для аудита и экспорта, а основным инструментом расписания остается таймлайн.',
     },
     kanban: {
-      title: 'Kanban view is secondary',
-      text: 'Kanban can focus on booking status workflows without replacing the scheduler.',
+      title: 'Канбан как дополнительный вид',
+      text: 'Канбан может закрывать работу со статусами броней, не заменяя расписание.',
     },
   };
 
@@ -2693,8 +2693,8 @@ function buildTimelineTicks(rangeStart: Date, rangeEnd: Date, zoom: ZoomLevel) {
     while (cursor < rangeEnd) {
       ticks.push({
         key: cursor.toISOString(),
-        label: cursor.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        subLabel: cursor.getHours() === 0 ? cursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : undefined,
+        label: cursor.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+        subLabel: cursor.getHours() === 0 ? cursor.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) : undefined,
         startMs: cursor.getTime(),
         isMajor: cursor.getHours() % 6 === 0,
       });
@@ -2708,12 +2708,12 @@ function buildTimelineTicks(rangeStart: Date, rangeEnd: Date, zoom: ZoomLevel) {
       key: cursor.toISOString(),
       label:
         zoom === 'day'
-          ? cursor.toLocaleDateString('en-GB', { weekday: 'short' })
-          : cursor.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          ? cursor.toLocaleDateString('ru-RU', { weekday: 'short' })
+          : cursor.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }),
       subLabel:
         zoom === 'day'
-          ? cursor.toLocaleDateString('en-GB', { day: '2-digit' })
-          : cursor.toLocaleDateString('en-GB', { weekday: 'short' }),
+          ? cursor.toLocaleDateString('ru-RU', { day: '2-digit' })
+          : cursor.toLocaleDateString('ru-RU', { weekday: 'short' }),
       startMs: cursor.getTime(),
       isMajor: zoom === 'day' ? cursor.getDay() === 1 : cursor.getDate() === 1 || cursor.getDay() === 1,
     });
@@ -2922,10 +2922,10 @@ function defaultCreateDurationMinutes(zoom: ZoomLevel) {
 
 function formatVisibleRange(start: Date, end: Date) {
   const inclusiveEnd = new Date(end.getTime() - 60_000);
-  return `${start.toLocaleDateString('en-GB', {
+  return `${start.toLocaleDateString('ru-RU', {
     day: '2-digit',
     month: 'short',
-  })} - ${inclusiveEnd.toLocaleDateString('en-GB', {
+  })} - ${inclusiveEnd.toLocaleDateString('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -2933,7 +2933,7 @@ function formatVisibleRange(start: Date, end: Date) {
 }
 
 function formatDateTime(timestampMs: number) {
-  return new Date(timestampMs).toLocaleString('en-GB', {
+  return new Date(timestampMs).toLocaleString('ru-RU', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -2943,11 +2943,11 @@ function formatDateTime(timestampMs: number) {
 }
 
 function formatTimeRangeMs(startMs: number, endMs: number) {
-  const start = new Date(startMs).toLocaleTimeString('en-GB', {
+  const start = new Date(startMs).toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
   });
-  const end = new Date(endMs).toLocaleTimeString('en-GB', {
+  const end = new Date(endMs).toLocaleTimeString('ru-RU', {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -2958,11 +2958,11 @@ function formatDurationLabel(startMs: number, endMs: number) {
   const totalMinutes = Math.round((endMs - startMs) / 60_000);
   if (totalMinutes >= 24 * 60) {
     const days = Math.round(totalMinutes / (24 * 60));
-    return `${days} day${days === 1 ? '' : 's'}`;
+    return `${days} дн.`;
   }
   if (totalMinutes >= 60) {
     const hours = Math.round(totalMinutes / 60);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
+    return `${hours} ч`;
   }
   return `${totalMinutes} min`;
 }

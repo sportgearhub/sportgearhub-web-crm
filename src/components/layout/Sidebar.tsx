@@ -27,30 +27,30 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Bookings', icon: ShoppingBag, path: '/bookings' },
-  { label: 'Fulfillment', icon: CheckSquare, path: '/fulfillment', badge: '8' },
+  { label: 'Дашборд', icon: LayoutDashboard, path: '/' },
+  { label: 'Бронирования', icon: ShoppingBag, path: '/bookings' },
+  { label: 'Выдача', icon: CheckSquare, path: '/fulfillment', badge: '8' },
   {
-    label: 'Catalog',
+    label: 'Каталог',
     icon: Package,
     path: '/resources',
     children: [
-      { label: 'Resources', path: '/resources' },
-      { label: 'Variants', path: '/variants' },
-      { label: 'Offers', path: '/offers' },
+      { label: 'Ресурсы', path: '/resources' },
+      { label: 'Варианты', path: '/variants' },
+      { label: 'Офферы', path: '/offers' },
     ],
   },
   {
-    label: 'Configuration',
+    label: 'Настройки',
     icon: CalendarDays,
     path: '/availability',
     children: [
-      { label: 'Availability', path: '/availability' },
-      { label: 'Pricing', path: '/pricing' },
-      { label: 'Policy', path: '/policy' },
+      { label: 'Доступность', path: '/availability' },
+      { label: 'Цены', path: '/pricing' },
+      { label: 'Правила', path: '/policy' },
     ],
   },
-  { label: 'Reports', icon: ClipboardList, path: '/reports' },
+  { label: 'Отчеты', icon: ClipboardList, path: '/reports' },
 ];
 
 interface SidebarProps {
@@ -62,7 +62,7 @@ interface SidebarProps {
 
 export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
   const { user } = useAuth();
-  const [expanded, setExpanded] = useState<string[]>(['Catalog', 'Configuration']);
+  const [expanded, setExpanded] = useState<string[]>(['Каталог', 'Настройки']);
 
   const toggleExpand = (label: string) => {
     setExpanded(prev =>
@@ -90,7 +90,7 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-sidebar-foreground">Sportgearhub</p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Partner CRM</p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Кабинет партнера</p>
             </div>
           )}
         </div>
@@ -101,7 +101,7 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
         variant="ghost"
         size="icon"
         className="m-3 self-center text-muted-foreground"
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
       >
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </Button>

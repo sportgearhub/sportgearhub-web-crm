@@ -35,27 +35,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const pendingReturns = fulfillmentQueue.filter(f => f.status === 'pending_return');
   const recentBookings = bookings.slice(0, 4);
 
-  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const today = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <div className="p-6 space-y-6 max-w-6xl">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">
-          Good morning, {user?.name.split(' ')[0]}
+          Доброе утро, {user?.name.split(' ')[0]}
         </h2>
-        <p className="text-sm text-gray-500">{today} · {activeMembership?.displayName ?? 'Provider console'}</p>
+        <p className="text-sm text-gray-500">{today} · {activeMembership?.displayName ?? 'Кабинет партнера'}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Active Bookings"
+          label="Активные бронирования"
           value={stats.activeBookings}
           icon={<ShoppingBag size={18} className="text-blue-500" />}
           color="blue"
           onClick={() => onNavigate('/bookings')}
         />
         <StatCard
-          label="Pending Handovers"
+          label="Ожидают выдачи"
           value={stats.pendingHandovers}
           icon={<Clock size={18} className="text-amber-500" />}
           color="amber"
@@ -63,14 +63,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           onClick={() => onNavigate('/fulfillment')}
         />
         <StatCard
-          label="Pending Returns"
+          label="Ожидают возврата"
           value={stats.pendingReturns}
           icon={<RotateCcw size={18} className="text-teal-500" />}
           color="teal"
           onClick={() => onNavigate('/fulfillment')}
         />
         <StatCard
-          label="Revenue MTD"
+          label="Выручка за месяц"
           value={`${stats.totalRevenueMTD.toLocaleString()} ${stats.currency}`}
           icon={<TrendingUp size={18} className="text-green-500" />}
           color="green"
@@ -81,18 +81,18 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <Card padding={false}>
           <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Fulfillment Queue</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Actions needed today</p>
+              <h3 className="text-sm font-semibold text-gray-900">Очередь выдачи</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Действия на сегодня</p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => onNavigate('/fulfillment')}>
-              View all <ArrowRight size={12} />
+              Все <ArrowRight size={12} />
             </Button>
           </div>
           <div>
             {pendingHandovers.length === 0 && pendingReturns.length === 0 ? (
               <div className="py-8 text-center">
                 <CheckSquare size={24} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-xs text-gray-500">No pending actions</p>
+                <p className="text-xs text-gray-500">Нет ожидающих действий</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
@@ -110,7 +110,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                       <p className="text-[11px] text-gray-500 truncate">{item.selection.offerTitle}</p>
                     </div>
                     <Badge variant={item.status === 'pending_handover' ? 'yellow' : 'teal'}>
-                      {item.status === 'pending_handover' ? 'Handover' : 'Return'}
+                      {item.status === 'pending_handover' ? 'Выдача' : 'Возврат'}
                     </Badge>
                   </div>
                 ))}
@@ -122,11 +122,11 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <Card padding={false}>
           <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
             <div>
-              <h3 className="text-sm font-semibold text-gray-900">Recent Bookings</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Latest activity</p>
+              <h3 className="text-sm font-semibold text-gray-900">Последние бронирования</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Недавняя активность</p>
             </div>
             <Button size="sm" variant="ghost" onClick={() => onNavigate('/bookings')}>
-              View all <ArrowRight size={12} />
+              Все <ArrowRight size={12} />
             </Button>
           </div>
           <div className="divide-y divide-gray-50">
@@ -155,12 +155,12 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">Catalog Readiness</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Готовность каталога</h3>
             <Package size={16} className="text-gray-400" />
           </div>
           <div className="flex items-end gap-2 mb-2">
             <span className="text-2xl font-bold text-gray-900">{stats.catalogReadiness}%</span>
-            <span className="text-xs text-gray-500 mb-0.5">ready</span>
+            <span className="text-xs text-gray-500 mb-0.5">готово</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
             <div
@@ -169,44 +169,44 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             />
           </div>
           <Button size="sm" variant="ghost" className="w-full justify-center" onClick={() => onNavigate('/resources')}>
-            Manage resources
+            Управлять ресурсами
           </Button>
         </Card>
 
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">Open Issues</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Открытые обращения</h3>
             <AlertTriangle size={16} className={stats.openIssues > 0 ? 'text-amber-400' : 'text-gray-400'} />
           </div>
           <div className="flex items-end gap-2 mb-3">
             <span className={`text-2xl font-bold ${stats.openIssues > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
               {stats.openIssues}
             </span>
-            <span className="text-xs text-gray-500 mb-0.5">open issue{stats.openIssues !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-500 mb-0.5">открыто</span>
           </div>
           {stats.openIssues > 0 ? (
             <div className="text-xs text-amber-700 bg-amber-50 rounded-md px-3 py-2 mb-3">
-              1 issue reported on booking SGH-20240416-003
+              Обращение по бронированию SGH-20240416-003
             </div>
           ) : (
-            <p className="text-xs text-gray-500 mb-3">All clear — no open issues</p>
+            <p className="text-xs text-gray-500 mb-3">Все спокойно — открытых обращений нет</p>
           )}
           <Button size="sm" variant="ghost" className="w-full justify-center" onClick={() => onNavigate('/fulfillment')}>
-            View fulfillment
+            К выдаче
           </Button>
         </Card>
 
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">Quick Navigation</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Быстрый переход</h3>
           </div>
           <div className="space-y-1">
             {[
-              { label: 'Inventory', path: '/resources' },
-              { label: 'Offers', path: '/offers' },
-              { label: 'Availability', path: '/availability' },
-              { label: 'Pricing', path: '/pricing' },
-              { label: 'Policy', path: '/policy' },
+              { label: 'Инвентарь', path: '/resources' },
+              { label: 'Офферы', path: '/offers' },
+              { label: 'Доступность', path: '/availability' },
+              { label: 'Цены', path: '/pricing' },
+              { label: 'Правила', path: '/policy' },
             ].map(link => (
               <button
                 key={link.path}
@@ -253,11 +253,11 @@ function StatCard({
 
 function BookingStatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: 'green' | 'yellow' | 'red' | 'blue' | 'gray' }> = {
-    confirmed: { label: 'Confirmed', variant: 'green' },
-    pending: { label: 'Pending', variant: 'yellow' },
-    cancelled: { label: 'Cancelled', variant: 'red' },
-    completed: { label: 'Completed', variant: 'blue' },
-    no_show: { label: 'No Show', variant: 'gray' },
+    confirmed: { label: 'Подтверждено', variant: 'green' },
+    pending: { label: 'Ожидает', variant: 'yellow' },
+    cancelled: { label: 'Отменено', variant: 'red' },
+    completed: { label: 'Завершено', variant: 'blue' },
+    no_show: { label: 'Неявка', variant: 'gray' },
   };
   const s = map[status] || { label: status, variant: 'gray' as const };
   return <Badge variant={s.variant}>{s.label}</Badge>;

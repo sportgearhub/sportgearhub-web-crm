@@ -72,7 +72,6 @@ type ApiResource = {
   status?: string;
   capacityMode?: string;
   title?: string | null;
-  baseCapacity?: number | null;
   readiness?: unknown;
   publishabilityImpact?: unknown;
   createdAt?: string;
@@ -289,7 +288,6 @@ function normalizeResource(resource: ApiResource): Resource {
     capacityMode: resource.capacityMode,
     status,
     title,
-    baseCapacity: resource.baseCapacity ?? 0,
     readiness: (resource.readiness ?? {
       capabilityValid: false,
       availabilityReady: false,
@@ -601,14 +599,13 @@ export const resourcesApi = {
     resourceType: string;
     capacityMode: string;
     title: string;
-    baseCapacity: number;
   }) => providerRequest<ApiResource>('/resources', { method: 'POST', body: JSON.stringify(data) }).then(normalizeResource),
 
   get: (resourceId: string) => providerRequest<ApiResource>(`/resources/${resourceId}`).then(normalizeResource),
 
   patch: (
     resourceId: string,
-    data: { status?: ResourceStatus; title?: string; baseCapacity?: number }
+    data: { status?: ResourceStatus; title?: string }
   ) =>
     providerRequest<ApiResource>(`/resources/${resourceId}`, {
       method: 'PATCH',
@@ -620,6 +617,11 @@ export const resourcesApi = {
       method: 'POST',
       body: JSON.stringify({ reasonCode }),
     }).then(normalizeResource),
+
+  remove: (resourceId: string) =>
+    providerRequest<void>(`/resources/${resourceId}`, {
+      method: 'DELETE',
+    }),
 
   getRoutabilityImpact: (resourceId: string) =>
     providerRequest<{
@@ -740,7 +742,6 @@ export const variantsApi = {
     resourceId: string,
     data: {
       variantKey: string;
-      variantType: string;
       label: string;
       normalizedAttributes: ResourceVariant['normalizedAttributes'];
       sortOrder: number;
@@ -758,7 +759,7 @@ export const variantsApi = {
   patch: (
     resourceId: string,
     variantId: string,
-    data: Partial<Pick<ResourceVariant, 'label' | 'variantKey' | 'variantType' | 'normalizedAttributes' | 'sortOrder' | 'status'>>
+    data: Partial<Pick<ResourceVariant, 'label' | 'variantKey' | 'normalizedAttributes' | 'sortOrder' | 'status'>>
   ) =>
     providerRequest<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`, {
       method: 'PATCH',

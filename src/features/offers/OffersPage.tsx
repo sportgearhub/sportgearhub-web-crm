@@ -9,21 +9,21 @@ import { OfferForm } from './OfferForm';
 import type { Offer, OfferStatus, Resource } from '../../types';
 
 const statusBadge: Record<OfferStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
-  active: { label: 'Active', variant: 'green' },
-  draft: { label: 'Draft', variant: 'yellow' },
-  inactive: { label: 'Inactive', variant: 'gray' },
-  archived: { label: 'Archived', variant: 'gray' },
+  active: { label: 'Активно', variant: 'green' },
+  draft: { label: 'Черновик', variant: 'yellow' },
+  inactive: { label: 'Неактивно', variant: 'gray' },
+  archived: { label: 'В архиве', variant: 'gray' },
 };
 
 const statusOptions = [
-  { value: '', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: '', label: 'Все статусы' },
+  { value: 'active', label: 'Активно' },
+  { value: 'draft', label: 'Черновик' },
+  { value: 'inactive', label: 'Неактивно' },
 ];
 
 const resourceOptions = [
-  { value: '', label: 'All resources' },
+  { value: '', label: 'Все ресурсы' },
 ];
 
 type View = 'list' | 'detail' | 'create' | 'edit';
@@ -54,7 +54,7 @@ export function OffersPage() {
   const handleCreate = (data: Partial<Offer>) => {
     const newOffer: Offer = {
       id: `off-${Date.now()}`,
-      title: data.title || 'New Offer',
+      title: data.title || 'Новый оффер',
       slug: (data.title || 'new-offer').toLowerCase().replace(/\s+/g, '-'),
       status: 'draft',
       resourceId: data.resourceId || resourceFilter || '',
@@ -68,7 +68,7 @@ export function OffersPage() {
       durationUnit: data.durationUnit || 'day',
       durationValue: data.durationValue || 1,
       isPublishable: Boolean(data.title && data.basePrice),
-      publishabilityIssues: data.title && data.basePrice ? [] : ['Offer needs title and price'],
+      publishabilityIssues: data.title && data.basePrice ? [] : ['Нужны название и цена'],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -96,7 +96,7 @@ export function OffersPage() {
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <button onClick={() => setView('list')} className="mb-4 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-            <ChevronLeft size={14} /> Back
+            <ChevronLeft size={14} /> Назад
           </button>
           <OfferDetail
             offer={selected}
@@ -116,7 +116,7 @@ export function OffersPage() {
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <button onClick={() => setView('list')} className="mb-4 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-            <ChevronLeft size={14} /> Back
+            <ChevronLeft size={14} /> Назад
           </button>
           <OfferForm onSubmit={handleCreate} onCancel={() => setView('list')} initialResourceId={resourceFilter || undefined} />
         </div>
@@ -129,7 +129,7 @@ export function OffersPage() {
       <div className="p-4 lg:p-6">
         <div className="mx-auto max-w-5xl">
           <button onClick={() => setView('list')} className="mb-4 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-            <ChevronLeft size={14} /> Back
+            <ChevronLeft size={14} /> Назад
           </button>
           <OfferForm offer={selected} onSubmit={handleUpdate} onCancel={() => setView('list')} />
         </div>
@@ -142,13 +142,13 @@ export function OffersPage() {
       <div className="mx-auto max-w-7xl space-y-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Offers</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Офферы</h2>
             <p className="text-xs text-gray-500">
-              {filtered.length} rows · {readyCount} ready · {offers.length} total
+              Строк: {filtered.length} · готово: {readyCount} · всего: {offers.length}
             </p>
           </div>
           <Button variant="primary" size="sm" onClick={() => setView('create')}>
-            <Plus size={13} /> Add
+            <Plus size={13} /> Добавить
           </Button>
         </div>
 
@@ -160,7 +160,7 @@ export function OffersPage() {
                 type="text"
                 value={query}
                 onChange={event => setQuery(event.target.value)}
-                placeholder="Search offer, resource, slug..."
+                placeholder="Поиск по офферу, ресурсу, slug..."
                 className="w-full rounded-xl border border-gray-200 bg-white px-9 py-2.5 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
               />
             </div>
@@ -175,28 +175,28 @@ export function OffersPage() {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="sticky left-0 z-10 border-b border-r border-gray-100 bg-gray-50 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Offer
+                    Оффер
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Resource
+                    Ресурс
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Price
+                    Цена
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Duration
+                    Длительность
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Publishable
+                    Публикация
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Status
+                    Статус
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Updated
+                    Обновлено
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Actions
+                    Действия
                   </th>
                 </tr>
               </thead>
@@ -204,7 +204,7 @@ export function OffersPage() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
-                      No offers found.
+                      Офферы не найдены.
                     </td>
                   </tr>
                 ) : (
@@ -223,14 +223,14 @@ export function OffersPage() {
                           {offer.basePrice.toLocaleString()} {offer.currency}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                          {offer.durationValue} {offer.durationUnit}{offer.durationValue > 1 ? 's' : ''}
+                          {offer.durationValue} {offer.durationUnit === 'hour' ? 'ч' : offer.durationUnit === 'week' ? 'нед.' : 'дн.'}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5">
                           {offer.isPublishable ? (
-                            <span className="text-xs font-medium text-emerald-700">Ready</span>
+                            <span className="text-xs font-medium text-emerald-700">Готово</span>
                           ) : (
                             <span className="text-xs font-medium text-amber-700">
-                              {offer.publishabilityIssues.length || 1} blocker{offer.publishabilityIssues.length === 1 ? '' : 's'}
+                              Блокеров: {offer.publishabilityIssues.length || 1}
                             </span>
                           )}
                         </td>
@@ -238,7 +238,7 @@ export function OffersPage() {
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
-                          {new Date(offer.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                          {new Date(offer.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5">
                           <div className="flex items-center justify-end gap-1">

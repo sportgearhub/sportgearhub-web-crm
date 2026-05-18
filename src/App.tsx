@@ -18,6 +18,7 @@ import { DashboardPage } from './features/dashboard/DashboardPage';
 import { BookingsPage } from './features/bookings/BookingPage';
 import { FulfillmentPage } from './features/fulfillment/FulfillmentPage';
 import { ResourcesPage } from './features/resources/ResourcePage';
+import { ResourceCreatePage } from './features/resources/ResourceCreatePage';
 import { VariantsPage } from './features/variants/VariantsPage';
 import { OffersPage } from './features/offers/OffersPage';
 import { AvailabilityPage } from './features/availability/AvailabilityPage';
@@ -26,17 +27,20 @@ import { PolicyPage } from './features/policy/PolicyPage';
 import { ReportsPage } from './features/reports/ReportsPage';
 
 const pageConfig: Record<string, { title: string; subtitle?: string }> = {
-  '/': { title: 'Dashboard', subtitle: 'Provider overview' },
-  '/bookings': { title: 'Bookings', subtitle: 'All provider bookings' },
-  '/fulfillment': { title: 'Fulfillment', subtitle: 'Handovers, returns, and issue reports' },
-  '/resources': { title: 'Resources', subtitle: 'Inventory catalog management' },
-  '/variants': { title: 'Variants', subtitle: 'Resource variant management' },
-  '/offers': { title: 'Offers', subtitle: 'Customer-facing rental offers' },
-  '/availability': { title: 'Availability', subtitle: 'Booking horizons and capacity' },
-  '/pricing': { title: 'Pricing', subtitle: 'Pricing rules and adjustments' },
-  '/policy': { title: 'Policy', subtitle: 'Cancellation, deposits, and terms' },
-  '/reports': { title: 'Reports', subtitle: 'Performance and analytics' },
+  '/': { title: 'Дашборд', subtitle: 'Обзор партнера' },
+  '/bookings': { title: 'Бронирования', subtitle: 'Все бронирования партнера' },
+  '/fulfillment': { title: 'Выдача и возврат', subtitle: 'Выдачи, возвраты и обращения' },
+  '/resources': { title: 'Ресурсы', subtitle: 'Управление каталогом инвентаря' },
+  '/resources/create': { title: 'Создать ресурс', subtitle: 'Создайте ресурс и комплектации в каталоге.' },
+  '/variants': { title: 'Варианты', subtitle: 'Управление вариантами ресурсов' },
+  '/offers': { title: 'Офферы', subtitle: 'Предложения для клиентов' },
+  '/availability': { title: 'Доступность', subtitle: 'Горизонты бронирования и вместимость' },
+  '/pricing': { title: 'Цены', subtitle: 'Правила ценообразования и корректировки' },
+  '/policy': { title: 'Правила', subtitle: 'Отмена, депозиты и условия' },
+  '/reports': { title: 'Отчеты', subtitle: 'Показатели и аналитика' },
 };
+
+type HeaderContent = { title: string; subtitle?: string } | null;
 
 function AppShell() {
   const { user, memberships, loading } = useAuth();
@@ -44,6 +48,7 @@ function AppShell() {
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const [headerContent, setHeaderContent] = useState<HeaderContent>(null);
   const params = new URLSearchParams(window.location.search);
 
   useEffect(() => {
@@ -98,7 +103,7 @@ function AppShell() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-gray-500">Loading...</p>
+          <p className="text-xs text-gray-500">Загрузка...</p>
         </div>
       </div>
     );
@@ -125,7 +130,8 @@ function AppShell() {
   }
 
   const appPath = knownPaths.has(currentPath) ? currentPath : '/';
-  const page = pageConfig[appPath] || { title: 'Partner Console' };
+  const page = pageConfig[appPath] || { title: 'Кабинет партнера' };
+  const headerPage = headerContent ?? page;
 
   const renderPage = () => {
     if (appPath === '/') return <DashboardPage onNavigate={navigateTo} />;
@@ -133,7 +139,8 @@ function AppShell() {
       return <BookingsPage onHeaderActionsChange={setHeaderActions} />;
     }
     if (appPath === '/fulfillment') return <FulfillmentPage />;
-    if (appPath === '/resources') return <ResourcesPage />;
+    if (appPath === '/resources') return <ResourcesPage onHeaderContentChange={setHeaderContent} onNavigate={navigateTo} />;
+    if (appPath === '/resources/create') return <ResourceCreatePage onNavigate={navigateTo} />;
     if (appPath === '/variants') return <VariantsPage />;
     if (appPath === '/offers') return <OffersPage />;
     if (appPath === '/availability') return <AvailabilityPage />;
@@ -152,7 +159,7 @@ function AppShell() {
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/30">
-        <Header title={page.title} subtitle={page.subtitle} actions={headerActions} />
+        <Header title={headerPage.title} subtitle={headerPage.subtitle} actions={headerActions} />
         <main className={`relative min-h-0 flex-1 ${appPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderPage()}
         </main>

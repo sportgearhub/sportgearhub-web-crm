@@ -21,17 +21,17 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
 
         {user && (
           <div className="hidden border-l pl-3 text-right xl:block">
-            <p className="text-xs font-medium text-foreground">{activeMembership?.displayName ?? 'Provider access'}</p>
+            <p className="text-xs font-medium text-foreground">{activeMembership?.displayName ?? 'Доступ партнера'}</p>
             <p className="text-[11px] text-muted-foreground">{user.email}</p>
           </div>
         )}
 
         <div className="flex items-center gap-2">
           {actions && <div className="mr-2 flex items-center gap-2">{actions}</div>}
-          <Button type="button" variant="secondary" size="icon" title="Notifications">
+          <Button type="button" variant="secondary" size="icon" title="Уведомления">
             <Bell size={15} />
           </Button>
-          <Button type="button" variant="secondary" size="icon" title="Help">
+          <Button type="button" variant="secondary" size="icon" title="Помощь">
             <HelpCircle size={15} />
           </Button>
           <Button
@@ -39,10 +39,10 @@ export function Header({ title, subtitle, actions }: HeaderProps) {
             variant="secondary"
             size="sm"
             className="ml-1"
-            title={`Sign out ${user?.email}`}
+            title={`Выйти из ${user?.email}`}
           >
             <LogOut size={13} />
-            Sign out
+            Выйти
           </Button>
         </div>
       </div>

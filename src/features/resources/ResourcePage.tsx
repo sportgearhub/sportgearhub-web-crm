@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ChevronLeft,
+  ChevronRight,
   Plus,
   Search,
   ChevronDown,
@@ -12,12 +12,12 @@ import { Button } from '../../components/ui/Button';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import { ApiError, equipmentApi, resourcesApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, type EquipmentCategory } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
 type QuickTab = 'all' | 'active' | 'draft' | 'needs_attention' | 'out_of_stock';
-type View = 'list' | 'detail' | 'create' | 'edit';
+type View = 'list' | 'detail' | 'edit';
 type AvailabilityState = 'available' | 'partially_booked' | 'fully_booked' | 'no_stock';
 type HealthState = 'ready' | 'needs_attention';
 type SortColumn = 'title' | 'price' | 'stock' | 'bookings' | 'revenue' | 'updated' | null;
@@ -44,55 +44,41 @@ interface ColumnFlyoutState {
   position: { top: number; left: number } | null;
 }
 
+interface ResourcesPageProps {
+  onHeaderContentChange?: (content: { title: string; subtitle?: string } | null) => void;
+  onNavigate: (path: string) => void;
+}
 
 const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
-  active: { label: 'Active', variant: 'green' },
-  draft: { label: 'Draft', variant: 'yellow' },
-  inactive: { label: 'Inactive', variant: 'gray' },
-  archived: { label: 'Archived', variant: 'gray' },
+  active: { label: 'Активен', variant: 'green' },
+  draft: { label: 'Черновик', variant: 'yellow' },
+  inactive: { label: 'Отключен', variant: 'gray' },
+  archived: { label: 'В архиве', variant: 'gray' },
 };
 
-function isGuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
+const healthIssueLabel: Record<string, string> = {
+  'Missing pricing': 'Нет цены',
+  'Missing variants': 'Нет вариантов',
+  Draft: 'Черновик',
+};
 
-async function resolveVariantAttributes(data: ResourceFormData) {
-  if (!data.variant) return [];
+const availabilityLabel: Record<AvailabilityState, string> = {
+  available: 'Доступно',
+  partially_booked: 'Частично занято',
+  fully_booked: 'Занято',
+  no_stock: 'Нет остатков',
+};
 
-  const normalizedAttributes: Array<{ key: string; value: string }> = [];
-
-  for (const attribute of data.variant.normalizedAttributes) {
-    if (attribute.key !== 'brand') {
-      normalizedAttributes.push(attribute);
-      continue;
-    }
-
-    if (isGuid(attribute.value)) {
-      normalizedAttributes.push(attribute);
-      continue;
-    }
-
-    const suggestions = await equipmentApi.brandSuggestions(attribute.value, data.categorySlug);
-    const brand = suggestions.items[0];
-    if (!brand) {
-      throw new Error(`Could not resolve brand "${attribute.value}" from the API.`);
-    }
-
-    normalizedAttributes.push({ key: 'brand', value: brand.brandId });
-    normalizedAttributes.push({ key: 'brand_name', value: brand.canonicalName });
-  }
-
-  return normalizedAttributes;
-}
-
-export function ResourcesPage() {
+export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPageProps) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState('');
   const [categoriesError, setCategoriesError] = useState('');
+  const [removeError, setRemoveError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -114,8 +100,8 @@ export function ResourcesPage() {
       setResources(nextResources);
     } catch (err) {
       setError(err instanceof ApiError && err.status === 403
-        ? 'Provider access is not available for this account.'
-        : 'Could not load resources from the API.');
+        ? 'Для этого аккаунта недоступен доступ партнера.'
+        : 'Не удалось загрузить ресурсы из API.');
     } finally {
       setLoading(false);
     }
@@ -134,8 +120,8 @@ export function ResourcesPage() {
     } catch (err) {
       setCategories([]);
       setCategoriesError(err instanceof ApiError
-        ? `Could not load equipment categories from the API: ${err.message}`
-        : 'Could not load equipment categories from the API.');
+        ? `Не удалось загрузить категории оборудования из API: ${err.message}`
+        : 'Не удалось загрузить категории оборудования из API.');
     } finally {
       setCategoriesLoading(false);
     }
@@ -146,13 +132,33 @@ export function ResourcesPage() {
     void loadCategories();
   }, []);
 
+  useEffect(() => {
+    if (!onHeaderContentChange) return undefined;
+
+    if (view === 'edit') {
+      onHeaderContentChange({
+        title: 'Редактировать ресурс',
+        subtitle: selected?.title,
+      });
+    } else if (view === 'detail') {
+      onHeaderContentChange({
+        title: selected?.title ?? 'Ресурс',
+        subtitle: selected?.categoryName ?? 'Просмотр ресурса',
+      });
+    } else {
+      onHeaderContentChange(null);
+    }
+
+    return () => onHeaderContentChange(null);
+  }, [onHeaderContentChange, selected, view]);
+
   const rows = useMemo<ResourceTableRow[]>(() => {
     return resources.map(resource => {
       const variants = mockVariants.filter(variant => variant.resourceId === resource.id);
       const offers = mockOffers.filter(offer => offer.resourceId === resource.id);
       const bookings = mockBookings.filter(booking => booking.selection.resourceId === resource.id);
       const variantStock = variants.reduce((sum, variant) => sum + (variant.stock ?? 0), 0);
-      const totalStock = variantStock || resource.baseCapacity || 0;
+      const totalStock = variantStock;
       const activeBookings = bookings.filter(
         booking => booking.status === 'confirmed' || booking.status === 'pending'
       ).length;
@@ -195,7 +201,11 @@ export function ResourcesPage() {
         completenessScore,
         healthState: healthIssues.length === 0 ? 'ready' : 'needs_attention',
         healthLabel:
-          healthIssues.length === 0 ? 'Ready' : healthIssues.length === 1 ? healthIssues[0] : `${healthIssues[0]} +${healthIssues.length - 1}`,
+          healthIssues.length === 0
+            ? 'Готово'
+            : healthIssues.length === 1
+              ? healthIssueLabel[healthIssues[0]] ?? healthIssues[0]
+              : `${healthIssueLabel[healthIssues[0]] ?? healthIssues[0]} +${healthIssues.length - 1}`,
         healthIssues,
       };
     });
@@ -286,41 +296,6 @@ export function ResourcesPage() {
     return result;
   }, [filtered, sortColumn, sortOrder]);
 
-  const allFilteredIds = filtered.map(row => row.resource.id);
-  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.includes(id));
-
-  const handleCreate = async (data: ResourceFormData) => {
-    setError('');
-    setSaving(true);
-    try {
-      const newResource = await resourcesApi.create({
-        resourceType: data.resourceType,
-        capacityMode: data.capacityMode,
-        title: data.title,
-        baseCapacity: data.baseCapacity,
-      });
-
-      if (data.variant) {
-        await variantsApi.create(newResource.resourceId, {
-          ...data.variant,
-          normalizedAttributes: await resolveVariantAttributes(data),
-          sortOrder: 1,
-        });
-      }
-
-      setResources(prev => [{ ...newResource, categoryName: data.categoryName, variantCount: data.variant ? 1 : 0 }, ...prev]);
-      setView('list');
-    } catch (err) {
-      setError(err instanceof ApiError
-        ? `Could not create the resource in the API: ${err.message}`
-        : err instanceof Error
-          ? err.message
-          : 'Could not create the resource in the API.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleUpdate = async (data: ResourceFormData) => {
     if (!selected) return;
     setError('');
@@ -328,7 +303,6 @@ export function ResourcesPage() {
     try {
       const nextResource = await resourcesApi.patch(selected.resourceId, {
         title: data.title,
-        baseCapacity: data.baseCapacity,
       });
       setResources(prev =>
         prev.map(resource => (resource.id === selected.id ? nextResource : resource))
@@ -336,7 +310,7 @@ export function ResourcesPage() {
       setView('list');
       setSelected(null);
     } catch {
-      setError('Could not update the resource in the API.');
+      setError('Не удалось обновить ресурс в API.');
     } finally {
       setSaving(false);
     }
@@ -344,13 +318,41 @@ export function ResourcesPage() {
 
   const handleArchive = async (resource: Resource) => {
     setError('');
+    setRemoveError('');
     try {
       const nextResource = await resourcesApi.archive(resource.resourceId, 'provider_requested');
       setResources(prev =>
         prev.map(item => (item.id === resource.id ? nextResource : item))
       );
     } catch {
-      setError('Could not archive the resource in the API.');
+      setError('Не удалось архивировать ресурс в API.');
+    }
+  };
+
+  const handleRemove = async (resource: Resource) => {
+    setError('');
+    setRemoveError('');
+
+    const confirmed = window.confirm(`Удалить ресурс "${resource.title}"? Это действие нельзя отменить.`);
+    if (!confirmed) return;
+
+    setRemoving(true);
+    try {
+      await resourcesApi.remove(resource.resourceId);
+      setResources(prev => prev.filter(item => item.id !== resource.id));
+      setSelectedIds(prev => prev.filter(id => id !== resource.id));
+      setView('list');
+      setSelected(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setRemoveError('Ресурс уже связан с офферами, бронями или выдачей. Удаление недоступно, используйте архивирование.');
+      } else if (err instanceof ApiError && err.status === 404) {
+        setRemoveError('Ресурс не найден или недоступен для текущего партнера.');
+      } else {
+        setRemoveError('Не удалось удалить ресурс.');
+      }
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -366,7 +368,7 @@ export function ResourcesPage() {
       setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
       setSelectedIds([]);
     } catch {
-      setError('Could not update selected resources in the API.');
+      setError('Не удалось обновить выбранные ресурсы в API.');
     } finally {
       setSaving(false);
     }
@@ -384,7 +386,7 @@ export function ResourcesPage() {
       setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
       setSelectedIds([]);
     } catch {
-      setError('Could not archive selected resources in the API.');
+      setError('Не удалось архивировать выбранные ресурсы в API.');
     } finally {
       setSaving(false);
     }
@@ -398,21 +400,16 @@ export function ResourcesPage() {
     );
   };
 
+  const returnToList = () => {
+    setView('list');
+    setSelected(null);
+  };
+
   // Detail view
   if (view === 'detail' && selected) {
     return (
       <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => {
-              setView('list');
-              setSelected(null);
-            }}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
+        <ResourceBreadcrumb current={selected.title} onBack={returnToList} />
         <div className="flex-1 overflow-auto">
           <div className="p-6">
             <ResourceDetail
@@ -423,35 +420,9 @@ export function ResourcesPage() {
                 setView('list');
                 setSelected(null);
               }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Create view
-  if (view === 'create') {
-    return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => setView('list')}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            {error && <ResourceError message={error} />}
-            {categoriesError && <ResourceError message={categoriesError} />}
-            <ResourceForm
-              categories={categories}
-              loadingCategories={categoriesLoading}
-              onSubmit={handleCreate}
-              onCancel={() => setView('list')}
-              submitting={saving}
+              onRemove={() => void handleRemove(selected)}
+              removing={removing}
+              removeError={removeError}
             />
           </div>
         </div>
@@ -463,17 +434,7 @@ export function ResourcesPage() {
   if (view === 'edit' && selected) {
     return (
       <div className="flex h-screen flex-col bg-gray-50">
-        <div className="border-b border-gray-200 bg-white px-6 py-4">
-          <button
-            onClick={() => {
-              setView('list');
-              setSelected(null);
-            }}
-            className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900"
-          >
-            <ChevronLeft size={16} /> Back to Resources
-          </button>
-        </div>
+        <ResourceBreadcrumb current="Редактирование" onBack={returnToList} />
         <div className="flex-1 overflow-auto">
           <div className="p-6">
             {categoriesError && <ResourceError message={categoriesError} />}
@@ -494,25 +455,19 @@ export function ResourcesPage() {
     );
   }
 
-  const handleColumnHover = (e: React.MouseEvent, column: string) => {
+  const handleColumnOpen = (e: React.MouseEvent, column: string) => {
+    e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const left = Math.min(rect.left, window.innerWidth - 240);
     setFlyoutState({
       column,
-      position: { top: rect.bottom, left: rect.left },
+      position: { top: rect.bottom + 6, left: Math.max(8, left) },
     });
   };
 
-  const handleColumnLeave = () => {
-    setFlyoutState({ column: null, position: null });
-  };
-
-  const handleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortOrder('asc');
-    }
+  const handleSort = (column: SortColumn, order?: SortOrder) => {
+    setSortColumn(column);
+    setSortOrder(order ?? (sortColumn === column && sortOrder === 'asc' ? 'desc' : 'asc'));
     setFlyoutState({ column: null, position: null });
   };
 
@@ -523,9 +478,9 @@ export function ResourcesPage() {
         <div className="flex items-center justify-between px-6 py-3">
           {/* Left: Title & Stats */}
           <div>
-            <h1 className="text-sm font-semibold text-gray-900">Resources</h1>
+            <h1 className="text-sm font-semibold text-gray-900">Ресурсы</h1>
             <p className="text-xs text-gray-500">
-              {loading ? 'Loading live resources...' : `${filtered.length} of ${resources.length} · ${stats.needsAttention} issues`}
+              {loading ? 'Загружаем ресурсы...' : `${filtered.length} из ${resources.length} · проблем: ${stats.needsAttention}`}
             </p>
           </div>
 
@@ -536,20 +491,15 @@ export function ResourcesPage() {
               type="text"
               value={search}
               onChange={event => setSearch(event.target.value)}
-              placeholder="Search resources..."
+              placeholder="Поиск ресурсов..."
               className="w-full rounded border border-gray-300 bg-white px-8 py-2 text-sm text-gray-900 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
-            {selectedIds.length > 0 && (
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                {selectedIds.length} selected
-              </span>
-            )}
-            <Button variant="primary" size="sm" onClick={() => setView('create')}>
-              <Plus size={13} /> New
+            <Button variant="primary" size="sm" onClick={() => onNavigate('/resources/create')}>
+              <Plus size={13} /> Создать
             </Button>
           </div>
         </div>
@@ -559,11 +509,11 @@ export function ResourcesPage() {
           <div className="border-t border-gray-100 px-6 py-2 flex items-center gap-2 flex-wrap text-sm">
             {selectedIds.length > 0 && (
               <>
-                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('active')}>Activate</Button>
-                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('inactive')}>Deactivate</Button>
-                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkArchive()}>Archive</Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('active')}>Включить</Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkStatus('inactive')}>Отключить</Button>
+                <Button size="sm" variant="secondary" loading={saving} onClick={() => void handleBulkArchive()}>В архив</Button>
                 <div className="ml-auto">
-                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Clear</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Сбросить</Button>
                 </div>
               </>
             )}
@@ -578,59 +528,47 @@ export function ResourcesPage() {
         {loading ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-            <p className="mt-3 text-sm font-medium text-gray-900">Loading resources...</p>
+            <p className="mt-3 text-sm font-medium text-gray-900">Загружаем ресурсы...</p>
           </div>
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <AlertTriangle size={40} className="text-gray-300" />
-            <p className="mt-3 text-sm font-medium text-gray-900">No resources</p>
-            <p className="text-xs text-gray-500">Try adjusting filters or create a new resource</p>
+            <p className="mt-3 text-sm font-medium text-gray-900">Ресурсов нет</p>
+            <p className="text-xs text-gray-500">Измените фильтры или создайте новый ресурс</p>
           </div>
         ) : (
-          <div className="overflow-x-auto" onMouseLeave={() => setFlyoutState({ column: null, position: null })}>
+          <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
-                  {/* Checkbox column */}
-                  <th className="sticky left-0 z-20 bg-gray-50 w-12 px-4 py-3 text-left border-r border-gray-200">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={() => setSelectedIds(allSelected ? [] : allFilteredIds)}
-                      className="rounded border-gray-300"
+                  {/* Resource column (fixed) */}
+                  <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-200 px-4 py-3 text-left font-semibold text-gray-700 min-w-64 relative">
+                    <button
+                      onClick={(e) => handleColumnOpen(e, 'resource')}
+                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700 relative"
+                    >
+                      Ресурс
+                      <ChevronDown size={13} className={sortColumn === 'title' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'resource'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сортировать А-Я', value: 'asc' },
+                        { label: 'Сортировать Я-А', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('title', order)}
+                      activeOrder={sortColumn === 'title' ? sortOrder : null}
                     />
                   </th>
 
-                  {/* Resource column (fixed) */}
-                  <th className="sticky left-12 z-20 bg-gray-50 border-r border-gray-200 px-4 py-3 text-left font-semibold text-gray-700 min-w-64 relative" onMouseLeave={handleColumnLeave}>
-                    <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'resource')}
-                      className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700 relative"
-                    >
-                      Resource
-                      <ChevronDown size={13} className={sortColumn === 'title' ? 'text-blue-600' : 'text-gray-400'} />
-                      <ColumnFlyout
-                        isOpen={flyoutState.column === 'resource'}
-                        position={flyoutState.position}
-                        options={[
-                          { label: 'Sort A→Z', value: 'asc' },
-                          { label: 'Sort Z→A', value: 'desc' },
-                        ]}
-                        onSort={() => handleSort('title')}
-                        hasActiveSort={sortColumn === 'title'}
-                        onMouseEnter={() => {}}
-                        onMouseLeave={handleColumnLeave}
-                      />
-                    </button>
-                  </th>
-
                   {/* Category */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'category')}
+                      onClick={(e) => handleColumnOpen(e, 'category')}
                       className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Category
+                      Категория
                       <ChevronDown size={13} className={categoryFilter ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
                     <CategoryFilterFlyout
@@ -642,40 +580,58 @@ export function ResourcesPage() {
                         setFlyoutState({ column: null, position: null });
                       }}
                       options={categoryFilterOptions}
-                      onMouseEnter={() => {}}
-                      onMouseLeave={handleColumnLeave}
                     />
                   </th>
 
                   {/* Price */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'price')}
+                      onClick={(e) => handleColumnOpen(e, 'price')}
                       className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Price
+                      Цена
                       <ChevronDown size={13} className={sortColumn === 'price' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'price'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала дешевле', value: 'asc' },
+                        { label: 'Сначала дороже', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('price', order)}
+                      activeOrder={sortColumn === 'price' ? sortOrder : null}
+                    />
                   </th>
 
                   {/* Stock */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'stock')}
+                      onClick={(e) => handleColumnOpen(e, 'stock')}
                       className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Stock
+                      Остаток
                       <ChevronDown size={13} className={sortColumn === 'stock' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'stock'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала меньше', value: 'asc' },
+                        { label: 'Сначала больше', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('stock', order)}
+                      activeOrder={sortColumn === 'stock' ? sortOrder : null}
+                    />
                   </th>
 
                   {/* Availability */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-40 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'availability')}
+                      onClick={(e) => handleColumnOpen(e, 'availability')}
                       className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Availability
+                      Доступность
                       <ChevronDown size={13} className={availabilityFilter ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
                     <AvailabilityFilterFlyout
@@ -686,18 +642,16 @@ export function ResourcesPage() {
                         setAvailabilityFilter(val);
                         setFlyoutState({ column: null, position: null });
                       }}
-                      onMouseEnter={() => {}}
-                      onMouseLeave={handleColumnLeave}
                     />
                   </th>
 
                   {/* Health */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'health')}
+                      onClick={(e) => handleColumnOpen(e, 'health')}
                       className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Health
+                      Готовность
                       <ChevronDown size={13} className={healthFilter ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
                     <HealthFilterFlyout
@@ -708,18 +662,16 @@ export function ResourcesPage() {
                         setHealthFilter(val);
                         setFlyoutState({ column: null, position: null });
                       }}
-                      onMouseEnter={() => {}}
-                      onMouseLeave={handleColumnLeave}
                     />
                   </th>
 
                   {/* Status */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-32 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'status')}
+                      onClick={(e) => handleColumnOpen(e, 'status')}
                       className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Status
+                      Статус
                       <ChevronDown size={13} className={statusFilter ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
                     <StatusFilterFlyout
@@ -730,42 +682,70 @@ export function ResourcesPage() {
                         setStatusFilter(val);
                         setFlyoutState({ column: null, position: null });
                       }}
-                      onMouseEnter={() => {}}
-                      onMouseLeave={handleColumnLeave}
                     />
                   </th>
 
                   {/* Bookings */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-24 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'bookings')}
+                      onClick={(e) => handleColumnOpen(e, 'bookings')}
                       className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Bookings
+                      Брони
                       <ChevronDown size={13} className={sortColumn === 'bookings' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'bookings'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала меньше', value: 'asc' },
+                        { label: 'Сначала больше', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('bookings', order)}
+                      activeOrder={sortColumn === 'bookings' ? sortOrder : null}
+                    />
                   </th>
 
                   {/* Revenue */}
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700 min-w-32 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'revenue')}
+                      onClick={(e) => handleColumnOpen(e, 'revenue')}
                       className="flex items-center justify-end gap-1 ml-auto px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Revenue
+                      Выручка
                       <ChevronDown size={13} className={sortColumn === 'revenue' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'revenue'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала меньше', value: 'asc' },
+                        { label: 'Сначала больше', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('revenue', order)}
+                      activeOrder={sortColumn === 'revenue' ? sortOrder : null}
+                    />
                   </th>
 
                   {/* Updated */}
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-28 relative" onMouseLeave={handleColumnLeave}>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 min-w-28 relative">
                     <button
-                      onMouseEnter={(e) => handleColumnHover(e, 'updated')}
+                      onClick={(e) => handleColumnOpen(e, 'updated')}
                       className="flex items-center gap-1 px-2 py-1.5 rounded hover:bg-gray-200 transition text-gray-700"
                     >
-                      Updated
+                      Обновлено
                       <ChevronDown size={13} className={sortColumn === 'updated' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'updated'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала старые', value: 'asc' },
+                        { label: 'Сначала новые', value: 'desc' },
+                      ]}
+                      onSort={(order) => handleSort('updated', order)}
+                      activeOrder={sortColumn === 'updated' ? sortOrder : null}
+                    />
                   </th>
 
 
@@ -778,19 +758,13 @@ export function ResourcesPage() {
                   const isSelected = selectedIds.includes(resource.id);
 
                   return (
-                    <tr key={resource.id} className={`border-b border-gray-100 transition ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                      {/* Checkbox */}
-                      <td className="sticky left-0 z-10 bg-white px-4 py-3 border-r border-gray-100">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelection(resource.id)}
-                          className="rounded border-gray-300"
-                        />
-                      </td>
-
+                    <tr
+                      key={resource.id}
+                      onClick={() => toggleSelection(resource.id)}
+                      className={`cursor-pointer border-b border-gray-100 transition ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                    >
                       {/* Resource (fixed) */}
-                      <td className="sticky left-12 z-10 bg-white border-r border-gray-100 px-4 py-3">
+                      <td className={`sticky left-0 z-10 border-r border-gray-100 px-4 py-3 ${isSelected ? 'bg-blue-50' : 'bg-white'}`}>
                         <div className="flex items-center gap-2">
                           {resource.imageUrl ? (
                             <img src={resource.imageUrl} alt={resource.title} className="h-8 w-8 rounded object-cover border border-gray-200" />
@@ -801,7 +775,6 @@ export function ResourcesPage() {
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-gray-900">{resource.title}</p>
-                            <p className="truncate text-xs text-gray-500">{resource.slug}</p>
                           </div>
                           {row.healthState === 'needs_attention' && (
                             <AlertTriangle size={14} className="flex-shrink-0 text-amber-600" />
@@ -824,7 +797,7 @@ export function ResourcesPage() {
                       <td className="px-4 py-3">
                         <div className="text-sm">
                           <p className="font-medium text-gray-900">{row.availableStock}/{row.totalStock}</p>
-                          <p className="text-xs text-gray-500 capitalize">{row.availabilityState.replace('_', ' ')}</p>
+                          <p className="text-xs text-gray-500">{availabilityLabel[row.availabilityState]}</p>
                         </div>
                       </td>
 
@@ -832,7 +805,7 @@ export function ResourcesPage() {
                       <td className="px-4 py-3">
                         <div className="text-sm">
                           <p className={`font-medium ${row.healthState === 'ready' ? 'text-green-700' : 'text-amber-700'}`}>
-                            {row.healthState === 'ready' ? '✓ Ready' : `${row.completenessScore}%`}
+                            {row.healthState === 'ready' ? 'Готово' : `${row.completenessScore}%`}
                           </p>
                           {row.healthState !== 'ready' && (
                             <p className="text-xs text-gray-500">{row.healthLabel}</p>
@@ -855,7 +828,7 @@ export function ResourcesPage() {
 
                       {/* Updated */}
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        {new Date(resource.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                        {new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                       </td>
                     </tr>
                   );
@@ -877,6 +850,24 @@ export function ResourcesPage() {
   );
 }
 
+function ResourceBreadcrumb({ current, onBack }: { current: string; onBack: () => void }) {
+  return (
+    <div className="border-b border-gray-200 bg-white px-6 py-3">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={onBack}
+          className="font-medium text-gray-600 transition-colors hover:text-gray-950"
+        >
+          Ресурсы
+        </button>
+        <ChevronRight size={14} className="shrink-0 text-gray-400" />
+        <span className="truncate font-semibold text-gray-950">{current}</span>
+      </div>
+    </div>
+  );
+}
+
 function ResourceError({ message }: { message: string }) {
   return (
     <div className="m-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
@@ -892,34 +883,29 @@ function ColumnFlyout({
   position,
   options,
   onSort,
-  hasActiveSort,
-  onMouseEnter,
-  onMouseLeave,
+  activeOrder,
 }: {
   isOpen: boolean;
   position: { top: number; left: number } | null;
-  options: { label: string; value: string }[];
-  onSort: () => void;
-  hasActiveSort: boolean;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  options: { label: string; value: SortOrder }[];
+  onSort: (order: SortOrder) => void;
+  activeOrder: SortOrder | null;
 }) {
   if (!isOpen || !position) return null;
 
   return (
     <div
-      className="absolute top-full left-0 mt-2 w-40 bg-white rounded-lg border border-gray-200 shadow-xl z-50"
+      className="fixed z-[80] w-44 rounded-lg border border-gray-200 bg-white shadow-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onClick={event => event.stopPropagation()}
     >
       <div className="p-2 space-y-1">
         {options.map(opt => (
           <button
             key={opt.value}
-            onClick={onSort}
+            onClick={() => onSort(opt.value)}
             className={`w-full text-left px-3 py-2 rounded text-sm transition ${
-              hasActiveSort ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-100 text-gray-700'
+              activeOrder === opt.value ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-100 text-gray-700'
             }`}
           >
             {opt.label}
@@ -936,16 +922,12 @@ function CategoryFilterFlyout({
   value,
   onChange,
   options,
-  onMouseEnter,
-  onMouseLeave,
 }: {
   isOpen: boolean;
   position: { top: number; left: number } | null;
   value: string;
   onChange: (val: string) => void;
   options: { value: string; label: string }[];
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }) {
   const [search, setSearch] = useState('');
   if (!isOpen || !position) return null;
@@ -954,15 +936,14 @@ function CategoryFilterFlyout({
 
   return (
     <div
-      className="absolute top-full left-0 mt-2 w-52 bg-white rounded-lg border border-gray-200 shadow-xl z-50"
+      className="fixed z-[80] w-52 rounded-lg border border-gray-200 bg-white shadow-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onClick={event => event.stopPropagation()}
     >
       <div className="p-3 border-b border-gray-100">
         <input
           type="text"
-          placeholder="Search..."
+          placeholder="Поиск..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           autoFocus
@@ -976,7 +957,7 @@ function CategoryFilterFlyout({
             value === '' ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-100 text-gray-700'
           }`}
         >
-          All categories
+          Все категории
         </button>
         {filtered.map(opt => (
           <button
@@ -999,31 +980,26 @@ function StatusFilterFlyout({
   position,
   value,
   onChange,
-  onMouseEnter,
-  onMouseLeave,
 }: {
   isOpen: boolean;
   position: { top: number; left: number } | null;
   value: string;
   onChange: (val: string) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }) {
   if (!isOpen || !position) return null;
 
   const options = [
-    { value: '', label: 'All statuses' },
-    { value: 'active', label: 'Active' },
-    { value: 'draft', label: 'Draft' },
-    { value: 'inactive', label: 'Inactive' },
+    { value: '', label: 'Все статусы' },
+    { value: 'active', label: 'Активен' },
+    { value: 'draft', label: 'Черновик' },
+    { value: 'inactive', label: 'Отключен' },
   ];
 
   return (
     <div
-      className="absolute top-full left-0 mt-2 w-44 bg-white rounded-lg border border-gray-200 shadow-xl z-50"
+      className="fixed z-[80] w-44 rounded-lg border border-gray-200 bg-white shadow-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onClick={event => event.stopPropagation()}
     >
       <div className="p-2 space-y-1">
         {options.map(opt => (
@@ -1047,32 +1023,27 @@ function AvailabilityFilterFlyout({
   position,
   value,
   onChange,
-  onMouseEnter,
-  onMouseLeave,
 }: {
   isOpen: boolean;
   position: { top: number; left: number } | null;
   value: string;
   onChange: (val: string) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }) {
   if (!isOpen || !position) return null;
 
   const options = [
-    { value: '', label: 'All availability' },
-    { value: 'available', label: 'Available' },
-    { value: 'partially_booked', label: 'Partially booked' },
-    { value: 'fully_booked', label: 'Fully booked' },
-    { value: 'no_stock', label: 'No stock' },
+    { value: '', label: 'Любая доступность' },
+    { value: 'available', label: 'Доступно' },
+    { value: 'partially_booked', label: 'Частично занято' },
+    { value: 'fully_booked', label: 'Занято' },
+    { value: 'no_stock', label: 'Нет остатков' },
   ];
 
   return (
     <div
-      className="absolute top-full left-0 mt-2 w-44 bg-white rounded-lg border border-gray-200 shadow-xl z-50"
+      className="fixed z-[80] w-44 rounded-lg border border-gray-200 bg-white shadow-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onClick={event => event.stopPropagation()}
     >
       <div className="p-2 space-y-1">
         {options.map(opt => (
@@ -1096,30 +1067,25 @@ function HealthFilterFlyout({
   position,
   value,
   onChange,
-  onMouseEnter,
-  onMouseLeave,
 }: {
   isOpen: boolean;
   position: { top: number; left: number } | null;
   value: string;
   onChange: (val: string) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
 }) {
   if (!isOpen || !position) return null;
 
   const options = [
-    { value: '', label: 'All health' },
-    { value: 'ready', label: 'Ready' },
-    { value: 'needs_attention', label: 'Needs attention' },
+    { value: '', label: 'Любая готовность' },
+    { value: 'ready', label: 'Готово' },
+    { value: 'needs_attention', label: 'Нужно внимание' },
   ];
 
   return (
     <div
-      className="absolute top-full left-0 mt-2 w-40 bg-white rounded-lg border border-gray-200 shadow-xl z-50"
+      className="fixed z-[80] w-40 rounded-lg border border-gray-200 bg-white shadow-xl"
       style={{ top: `${position.top}px`, left: `${position.left}px` }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onClick={event => event.stopPropagation()}
     >
       <div className="p-2 space-y-1">
         {options.map(opt => (

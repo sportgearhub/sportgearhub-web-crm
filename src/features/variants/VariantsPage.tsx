@@ -19,14 +19,14 @@ import type { Resource, ResourceVariant } from '../../types';
 const resources: Resource[] = [];
 
 const resourceOptions = [
-  { value: '', label: 'All resources' },
+  { value: '', label: 'Все ресурсы' },
   ...resources.map(resource => ({ value: resource.id, label: resource.title })),
 ];
 
 const statusOptions = [
-  { value: '', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+  { value: '', label: 'Все статусы' },
+  { value: 'active', label: 'Активно' },
+  { value: 'inactive', label: 'Неактивно' },
 ];
 
 export function VariantsPage() {
@@ -108,7 +108,7 @@ export function VariantsPage() {
         {
           id: `var-${Date.now()}`,
           resourceId,
-          title: data.title || 'New Variant',
+          title: data.title || 'Новый вариант',
           status: 'active',
           attributes: data.attributes || {},
           sortOrder,
@@ -129,9 +129,9 @@ export function VariantsPage() {
       <div className="mx-auto max-w-7xl space-y-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Variants</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Варианты</h2>
             <p className="text-xs text-gray-500">
-              {filtered.length} rows · {lowStockCount} low stock · {variants.length} total
+              Строк: {filtered.length} · мало остатков: {lowStockCount} · всего: {variants.length}
             </p>
           </div>
 
@@ -144,7 +144,7 @@ export function VariantsPage() {
                 setShowForm(true);
               }}
             >
-              <PackagePlus size={13} /> Add
+              <PackagePlus size={13} /> Добавить
             </Button>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function VariantsPage() {
                 type="text"
                 value={query}
                 onChange={event => setQuery(event.target.value)}
-                placeholder="Search title, SKU, resource, attribute..."
+                placeholder="Поиск по названию, SKU, ресурсу, атрибуту..."
                 className="w-full rounded-xl border border-gray-200 bg-white px-9 py-2.5 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
               />
             </div>
@@ -172,28 +172,28 @@ export function VariantsPage() {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="sticky left-0 z-10 border-b border-r border-gray-100 bg-gray-50 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Variant
+                    Вариант
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Resource
+                    Ресурс
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
                     SKU
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Attributes
+                    Атрибуты
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Stock
+                    Остаток
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Status
+                    Статус
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Order
+                    Порядок
                   </th>
                   <th className="border-b border-gray-100 px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Actions
+                    Действия
                   </th>
                 </tr>
               </thead>
@@ -201,7 +201,7 @@ export function VariantsPage() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
-                      No variants found.
+                      Варианты не найдены.
                     </td>
                   </tr>
                 ) : (
@@ -235,7 +235,7 @@ export function VariantsPage() {
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5">
                           <Badge variant={variant.status === 'active' ? 'green' : 'gray'}>
-                            {variant.status === 'active' ? 'Active' : 'Inactive'}
+                            {variant.status === 'active' ? 'Активно' : 'Неактивно'}
                           </Badge>
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5">
@@ -271,7 +271,7 @@ export function VariantsPage() {
                             <button
                               onClick={() => toggle(variant.id)}
                               className="rounded-md border border-gray-200 bg-white p-1 text-gray-500 transition hover:text-emerald-600"
-                              title={variant.status === 'active' ? 'Deactivate' : 'Activate'}
+                              title={variant.status === 'active' ? 'Деактивировать' : 'Активировать'}
                             >
                               {variant.status === 'active' ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                             </button>
@@ -341,24 +341,24 @@ function VariantFormModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={variant ? 'Edit Variant' : 'Add Variant'}>
+    <Modal open={open} onClose={onClose} title={variant ? 'Редактировать вариант' : 'Добавить вариант'}>
       <div className="space-y-3">
         <Select
-          label="Resource"
+          label="Ресурс"
           options={resourceOptions}
           value={resourceId}
           onChange={event => setResourceId(event.target.value)}
         />
-        <Input label="Title" value={title} onChange={event => setTitle(event.target.value)} />
+        <Input label="Название" value={title} onChange={event => setTitle(event.target.value)} />
         <Input label="SKU" value={sku} onChange={event => setSku(event.target.value)} />
-        <Input label="Stock" type="number" value={stock} onChange={event => setStock(event.target.value)} />
+        <Input label="Остаток" type="number" value={stock} onChange={event => setStock(event.target.value)} />
         <div className="grid grid-cols-2 gap-2">
-          <Input label="Attribute" value={attr1Key} onChange={event => setAttr1Key(event.target.value)} />
-          <Input label="Value" value={attr1Val} onChange={event => setAttr1Val(event.target.value)} />
+          <Input label="Атрибут" value={attr1Key} onChange={event => setAttr1Key(event.target.value)} />
+          <Input label="Значение" value={attr1Val} onChange={event => setAttr1Val(event.target.value)} />
         </div>
         <div className="flex gap-2 pt-2">
-          <Button variant="primary" onClick={handleSave}>{variant ? 'Save' : 'Create'}</Button>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={handleSave}>{variant ? 'Сохранить' : 'Создать'}</Button>
+          <Button variant="secondary" onClick={onClose}>Отмена</Button>
         </div>
       </div>
     </Modal>

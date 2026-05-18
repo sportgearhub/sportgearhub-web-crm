@@ -22,11 +22,11 @@ export function PolicyPage() {
   return (
     <div className="p-6 space-y-5 max-w-4xl">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Policy Configuration</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Configure cancellation, deposit, and operational policies.</p>
+        <h2 className="text-sm font-semibold text-gray-900">Правила работы</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Настройте отмены, депозиты и операционные правила.</p>
       </div>
 
-      <PrototypeBanner label="pending_api" message="Policy write operations are prototype-only. Real API support is pending." />
+      <PrototypeBanner label="ожидает API" message="Запись правил пока работает только в прототипе. Поддержка API будет подключена позже." />
 
       {policies.map(p => {
         const isEditing = editId === p.id;
@@ -38,36 +38,36 @@ export function PolicyPage() {
                 <Shield size={16} className="text-blue-500" />
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">{p.label}</h3>
-                  <p className="text-xs text-gray-500">Updated {new Date(p.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                  <p className="text-xs text-gray-500">Обновлено {new Date(p.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                 </div>
               </div>
               {isEditing ? (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Save</Button>
+                  <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Сохранить</Button>
                   <Button size="sm" variant="ghost" onClick={cancelEdit}><X size={12} /></Button>
                 </div>
               ) : (
                 <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
-                  <Edit2 size={12} /> Edit
+                  <Edit2 size={12} /> Редактировать
                 </Button>
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <SectionTitle>Cancellation</SectionTitle>
+                <SectionTitle>Отмена</SectionTitle>
                 <PolicyField
-                  label="Free cancellation window"
+                  label="Бесплатная отмена"
                   value={String(d.cancellationWindowHours)}
-                  suffix="hours before start"
+                  suffix="ч до начала"
                   type="number"
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, cancellationWindowHours: parseInt(v) || 0 }))}
                 />
                 <PolicyField
-                  label="Refund on cancellation"
+                  label="Возврат при отмене"
                   value={String(d.cancellationRefundPercent)}
-                  suffix="% of total"
+                  suffix="% от суммы"
                   type="number"
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, cancellationRefundPercent: parseInt(v) || 0 }))}
@@ -75,31 +75,31 @@ export function PolicyPage() {
               </div>
 
               <div className="space-y-4">
-                <SectionTitle>Deposits & Fees</SectionTitle>
+                <SectionTitle>Депозиты и штрафы</SectionTitle>
                 <ToggleField
-                  label="Deposit required"
+                  label="Нужен депозит"
                   value={!!d.depositRequired}
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, depositRequired: v }))}
                 />
                 {d.depositRequired && (
                   <PolicyField
-                    label="Deposit amount"
+                    label="Размер депозита"
                     value={String(d.depositPercent)}
-                    suffix="% of total"
+                    suffix="% от суммы"
                     type="number"
                     editing={isEditing}
                     onChange={v => setEditData(prev => ({ ...prev, depositPercent: parseInt(v) || 0 }))}
                   />
                 )}
                 <ToggleField
-                  label="Damage deposit required"
+                  label="Нужен залог за ущерб"
                   value={!!d.damageDepositRequired}
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, damageDepositRequired: v }))}
                 />
                 <ToggleField
-                  label="Late return fee"
+                  label="Штраф за поздний возврат"
                   value={!!d.lateReturnFeeEnabled}
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, lateReturnFeeEnabled: v }))}
@@ -108,13 +108,13 @@ export function PolicyPage() {
             </div>
 
             <div className="mt-5 pt-4 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-700 mb-1">Additional notes</p>
+              <p className="text-xs font-medium text-gray-700 mb-1">Дополнительные заметки</p>
               {isEditing ? (
                 <Textarea
                   value={editData.additionalNotes || ''}
                   onChange={e => setEditData(prev => ({ ...prev, additionalNotes: e.target.value }))}
                   rows={3}
-                  placeholder="Special requirements, ID verification, etc."
+                  placeholder="Особые требования, проверка документов и т.д."
                 />
               ) : (
                 <p className="text-sm text-gray-700">{p.additionalNotes || '—'}</p>
@@ -189,7 +189,7 @@ function ToggleField({
         </button>
       ) : (
         <span className={`text-xs font-medium ${value ? 'text-emerald-600' : 'text-gray-500'}`}>
-          {value ? 'Yes' : 'No'}
+          {value ? 'Да' : 'Нет'}
         </span>
       )}
     </div>

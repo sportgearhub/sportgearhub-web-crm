@@ -7,9 +7,9 @@ import { Select } from '../../components/ui/Select';
 import type { Offer, Resource } from '../../types';
 
 const durationUnitOptions = [
-  { value: 'hour', label: 'Hour(s)' },
-  { value: 'day', label: 'Day(s)' },
-  { value: 'week', label: 'Week(s)' },
+  { value: 'hour', label: 'Часы' },
+  { value: 'day', label: 'Дни' },
+  { value: 'week', label: 'Недели' },
 ];
 
 interface OfferFormProps {
@@ -33,8 +33,8 @@ export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: Offe
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!title.trim()) e.title = 'Title is required.';
-    if (!basePrice || isNaN(Number(basePrice))) e.basePrice = 'Valid base price is required.';
+    if (!title.trim()) e.title = 'Укажите название.';
+    if (!basePrice || isNaN(Number(basePrice))) e.basePrice = 'Укажите корректную базовую цену.';
     return e;
   };
 
@@ -56,39 +56,39 @@ export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: Offe
   return (
     <div className="max-w-xl space-y-5">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">{offer ? 'Edit Offer' : 'Create Offer'}</h2>
+        <h2 className="text-sm font-semibold text-gray-900">{offer ? 'Редактировать оффер' : 'Создать оффер'}</h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          {offer ? 'Update offer configuration.' : 'Define a new rental offer for customers.'}
+          {offer ? 'Обновите настройки оффера.' : 'Опишите новое предложение аренды для клиентов.'}
         </p>
       </div>
 
       <Card>
         <div className="space-y-4">
           <Input
-            label="Offer title"
+            label="Название оффера"
             value={title}
             onChange={e => setTitle(e.target.value)}
             error={errors.title}
-            placeholder="e.g. Mountain Bike Daily"
+            placeholder="Например: горный велосипед на день"
           />
           <Select
-            label="Resource"
+            label="Ресурс"
             options={resourceOptions}
             value={resourceId}
             onChange={e => setResourceId(e.target.value)}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Base price (RUB)"
+              label="Базовая цена (RUB)"
               type="number"
               value={basePrice}
               onChange={e => setBasePrice(e.target.value)}
               error={errors.basePrice}
-              placeholder="e.g. 3200"
+              placeholder="Например: 3200"
             />
             <div className="grid grid-cols-2 gap-2">
               <Input
-                label="Duration"
+                label="Длительность"
                 type="number"
                 value={durationValue}
                 onChange={e => setDurationValue(e.target.value)}
@@ -96,7 +96,7 @@ export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: Offe
                 min="1"
               />
               <Select
-                label="Unit"
+                label="Ед."
                 options={durationUnitOptions}
                 value={durationUnit}
                 onChange={e => setDurationUnit(e.target.value as Offer['durationUnit'])}
@@ -104,20 +104,20 @@ export function OfferForm({ offer, onSubmit, onCancel, initialResourceId }: Offe
             </div>
           </div>
           <Textarea
-            label="Description (optional)"
+            label="Описание (необязательно)"
             value={description}
             onChange={e => setDescription(e.target.value)}
             rows={3}
-            placeholder="What's included, key highlights..."
+            placeholder="Что включено, основные детали..."
           />
         </div>
       </Card>
 
       <div className="flex gap-2">
         <Button variant="primary" onClick={handleSubmit}>
-          {offer ? 'Save Changes' : 'Create Offer'}
+          {offer ? 'Сохранить изменения' : 'Создать оффер'}
         </Button>
-        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button variant="secondary" onClick={onCancel}>Отмена</Button>
       </div>
     </div>
   );

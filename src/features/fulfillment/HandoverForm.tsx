@@ -29,21 +29,21 @@ export function HandoverForm({ item, onSuccess, onCancel }: HandoverFormProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-5 space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-900">Record Handover</h3>
-        <p className="text-xs text-gray-500 mt-0.5">Confirm equipment has been handed to the customer.</p>
+        <h3 className="text-sm font-semibold text-gray-900">Зафиксировать выдачу</h3>
+        <p className="text-xs text-gray-500 mt-0.5">Подтвердите, что оборудование передано клиенту.</p>
       </div>
 
       <div className="bg-blue-50 border border-blue-100 rounded-md px-4 py-3">
         <p className="text-xs text-blue-800">
-          Handover time will be recorded as <strong>{new Date().toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</strong>
+          Время выдачи будет записано как <strong>{new Date().toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</strong>
         </p>
       </div>
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Checklist</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Чеклист</label>
           <div className="space-y-2">
-            {['Equipment inspected and clean', 'Customer ID verified', 'Waiver signed', 'Equipment serial noted'].map(item => (
+            {['Оборудование осмотрено и чистое', 'Документ клиента проверен', 'Согласие подписано', 'Серийный номер оборудования записан'].map(item => (
               <label key={item} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                 <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked />
                 {item}
@@ -53,20 +53,20 @@ export function HandoverForm({ item, onSuccess, onCancel }: HandoverFormProps) {
         </div>
 
         <Textarea
-          label="Handover notes (optional)"
+          label="Заметки по выдаче (необязательно)"
           value={notes}
           onChange={e => setNotes(e.target.value)}
           rows={3}
-          placeholder="Condition notes, accessories included, etc."
+          placeholder="Состояние, выданные аксессуары и другие детали..."
         />
       </div>
 
       <div className="flex gap-2 pt-2">
         <Button variant="primary" onClick={handleSubmit} loading={loading}>
-          Confirm Handover
+          Подтвердить выдачу
         </Button>
         <Button variant="secondary" onClick={onCancel} disabled={loading}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </div>

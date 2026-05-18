@@ -32,13 +32,13 @@ export function AvailabilityPage() {
   return (
     <div className="p-6 space-y-5 max-w-4xl">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Availability Configuration</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Manage booking horizons, capacity, and scheduling rules per resource.</p>
+        <h2 className="text-sm font-semibold text-gray-900">Настройка доступности</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Управляйте горизонтом бронирования, вместимостью и расписанием по ресурсам.</p>
       </div>
 
       <PrototypeBanner
-        label="read_only_for_now"
-        message="Availability profile reads are live. Deeper scheduling (slots, calendar blackouts) is pending API support."
+        label="только чтение"
+        message="Чтение профилей доступности уже работает. Слоты, календарь и блокировки ожидают поддержки API."
       />
 
       <div className="space-y-4">
@@ -51,47 +51,47 @@ export function AvailabilityPage() {
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">{p.resourceTitle}</h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Updated {new Date(p.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    Обновлено {new Date(p.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
                 {isEditing ? (
                   <div className="flex gap-2">
-                    <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Save</Button>
+                    <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Сохранить</Button>
                     <Button size="sm" variant="ghost" onClick={cancelEdit}><X size={12} /></Button>
                   </div>
                 ) : (
                   <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
-                    <Edit2 size={12} /> Edit
+                    <Edit2 size={12} /> Редактировать
                   </Button>
                 )}
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <ProfileField
-                  label="Booking Horizon"
+                  label="Горизонт"
                   value={String(d.bookingHorizonDays)}
-                  suffix="days"
+                  suffix="дн."
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, bookingHorizonDays: parseInt(v) || 0 }))}
                 />
                 <ProfileField
-                  label="Min Advance"
+                  label="Мин. заранее"
                   value={String(d.minAdvanceBookingHours)}
-                  suffix="hours"
+                  suffix="ч"
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, minAdvanceBookingHours: parseInt(v) || 0 }))}
                 />
                 <ProfileField
-                  label="Max Advance"
+                  label="Макс. заранее"
                   value={String(d.maxAdvanceBookingDays)}
-                  suffix="days"
+                  suffix="дн."
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, maxAdvanceBookingDays: parseInt(v) || 0 }))}
                 />
                 <ProfileField
-                  label="Default Capacity"
+                  label="Вместимость"
                   value={String(d.defaultCapacity)}
-                  suffix="units"
+                  suffix="ед."
                   editing={isEditing}
                   onChange={v => setEditData(prev => ({ ...prev, defaultCapacity: parseInt(v) || 0 }))}
                 />
@@ -101,11 +101,11 @@ export function AvailabilityPage() {
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-2 mb-3">
                     <CalendarDays size={13} className="text-gray-400" />
-                    <span className="text-xs font-medium text-gray-600">Calendar & Exceptions</span>
-                    <Badge variant="yellow">pending_api</Badge>
+                    <span className="text-xs font-medium text-gray-600">Календарь и исключения</span>
+                    <Badge variant="yellow">ожидает API</Badge>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Blackout dates, slot configuration, and exception management will be available when the scheduling API is ready.
+                    Блокировки дат, настройка слотов и исключения появятся после готовности API расписания.
                   </p>
                 </div>
               )}
@@ -115,12 +115,12 @@ export function AvailabilityPage() {
 
         {unconfigured.length > 0 && (
           <Card>
-            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Resources without availability profile</h3>
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Ресурсы без профиля доступности</h3>
             <div className="space-y-2">
               {unconfigured.map(r => (
                 <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
                   <span className="text-xs font-medium text-gray-900">{r.title}</span>
-                  <Badge variant="yellow">Not configured</Badge>
+                  <Badge variant="yellow">Не настроено</Badge>
                 </div>
               ))}
             </div>

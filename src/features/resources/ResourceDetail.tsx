@@ -1,23 +1,26 @@
-import { Archive, CalendarDays, CreditCard as Edit2, Package, Tag, TrendingUp } from 'lucide-react';
+import { Archive, CalendarDays, CreditCard as Edit2, Package, Tag, Trash2, TrendingUp } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import type { Booking, Offer, Resource, ResourceStatus, ResourceVariant } from '../../types';
 
 const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
-  active: { label: 'Active', variant: 'green' },
-  draft: { label: 'Draft', variant: 'yellow' },
-  inactive: { label: 'Inactive', variant: 'gray' },
-  archived: { label: 'Archived', variant: 'gray' },
+  active: { label: 'Активен', variant: 'green' },
+  draft: { label: 'Черновик', variant: 'yellow' },
+  inactive: { label: 'Отключен', variant: 'gray' },
+  archived: { label: 'В архиве', variant: 'gray' },
 };
 
 interface ResourceDetailProps {
   resource: Resource;
   onEdit: () => void;
   onArchive: () => void;
+  onRemove: () => void;
+  removing?: boolean;
+  removeError?: string;
 }
 
-export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailProps) {
+export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing = false, removeError = '' }: ResourceDetailProps) {
   const status = statusBadge[resource.status];
   const variants: ResourceVariant[] = [];
   const offers: Offer[] = [];
@@ -38,38 +41,37 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
             <h2 className="text-lg font-semibold text-gray-900">{resource.title}</h2>
             <Badge variant={status.variant} size="md">{status.label}</Badge>
           </div>
-          <p className="mt-1 text-xs font-mono text-gray-500">{resource.slug}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" onClick={onEdit}>
-            <Edit2 size={13} /> Edit
+            <Edit2 size={13} /> Редактировать
           </Button>
           {resource.status !== 'archived' && (
             <Button size="sm" variant="ghost" onClick={onArchive}>
-              <Archive size={13} /> Archive
+              <Archive size={13} /> В архив
             </Button>
           )}
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <DetailMetric label="Variants" value={String(variants.length)} />
-        <DetailMetric label="Base price" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Missing'} />
-        <DetailMetric label="Available stock" value={String(totalStock)} />
-        <DetailMetric label="Bookings / revenue" value={`${bookings.length} / ${totalRevenue.toLocaleString()} RUB`} />
+        <DetailMetric label="Варианты" value={String(variants.length)} />
+        <DetailMetric label="Базовая цена" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Не задана'} />
+        <DetailMetric label="Доступный остаток" value={String(totalStock)} />
+        <DetailMetric label="Брони / выручка" value={`${bookings.length} / ${totalRevenue.toLocaleString()} RUB`} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <div className="mb-4 flex items-center gap-2">
             <Package size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Resource overview</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Обзор ресурса</h3>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Row label="Category" value={resource.categoryName ?? resource.resourceType} />
-            <Row label="Created" value={resource.createdAt ? new Date(resource.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'} />
-            <Row label="Updated" value={new Date(resource.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} />
-            <Row label="Offers" value={String(offers.length)} />
+            <Row label="Категория" value={resource.categoryName ?? resource.resourceType} />
+            <Row label="Создан" value={resource.createdAt ? new Date(resource.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Неизвестно'} />
+            <Row label="Обновлен" value={new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })} />
+            <Row label="Предложения" value={String(offers.length)} />
           </div>
           {resource.description && (
             <p className="mt-4 text-sm text-gray-700">{resource.description}</p>
@@ -79,10 +81,10 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
         <Card className="overflow-hidden">
           <div className="mb-4 flex items-center gap-2">
             <CalendarDays size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Availability preview</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Превью доступности</h3>
           </div>
           <div className="grid grid-cols-7 gap-2 text-center text-[11px]">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+            {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
               <div key={day} className="bg-gray-50 px-2 py-2 text-gray-500">{day}</div>
             ))}
             {Array.from({ length: 14 }, (_, index) => (
@@ -92,12 +94,12 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
                   index % 5 === 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
                 }`}
               >
-                {index % 5 === 0 ? 'Busy' : 'Open'}
+                {index % 5 === 0 ? 'Занято' : 'Свободно'}
               </div>
             ))}
           </div>
           <p className="mt-3 text-xs text-gray-500">
-            Placeholder calendar block for future live availability and booking load overlays.
+            Временный календарь для будущей живой доступности и нагрузки по броням.
           </p>
         </Card>
       </div>
@@ -106,19 +108,19 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
         <Card>
           <div className="mb-4 flex items-center gap-2">
             <Tag size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Variants</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Варианты</h3>
           </div>
           {variants.length === 0 ? (
-            <p className="text-sm text-gray-500">No variants configured yet.</p>
+            <p className="text-sm text-gray-500">Варианты пока не настроены.</p>
           ) : (
             <div className="overflow-hidden border border-gray-100">
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Variant</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Stock</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Price</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Status</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Вариант</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Остаток</th>
+                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Цена</th>
+                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Статус</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,11 +132,11 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
                       </td>
                       <td className="px-3 py-2.5 text-right text-sm text-gray-700">{variant.stock ?? 0}</td>
                       <td className="px-3 py-2.5 text-right text-sm text-gray-700">
-                        {basePrice ? `${basePrice.toLocaleString()} RUB` : 'Pending'}
+                        {basePrice ? `${basePrice.toLocaleString()} RUB` : 'Ожидает'}
                       </td>
                       <td className="px-3 py-2.5">
                         <Badge variant={variant.status === 'active' ? 'green' : 'gray'}>
-                          {variant.status === 'active' ? 'Active' : 'Inactive'}
+                          {variant.status === 'active' ? 'Активен' : 'Отключен'}
                         </Badge>
                       </td>
                     </tr>
@@ -148,16 +150,38 @@ export function ResourceDetail({ resource, onEdit, onArchive }: ResourceDetailPr
         <Card>
           <div className="mb-4 flex items-center gap-2">
             <TrendingUp size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Pricing & performance</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Цены и показатели</h3>
           </div>
           <div className="space-y-3">
-            <Row label="Base price" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Missing pricing'} />
-            <Row label="Active offers" value={String(offers.filter(offer => offer.status === 'active').length)} />
-            <Row label="Total bookings" value={String(bookings.length)} />
-            <Row label="Total revenue" value={`${totalRevenue.toLocaleString()} RUB`} />
+            <Row label="Базовая цена" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Цена не задана'} />
+            <Row label="Активные предложения" value={String(offers.filter(offer => offer.status === 'active').length)} />
+            <Row label="Всего броней" value={String(bookings.length)} />
+            <Row label="Всего выручки" value={`${totalRevenue.toLocaleString()} RUB`} />
           </div>
         </Card>
       </div>
+
+      <Card className="border-red-200 bg-red-50/50">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-red-950">Опасная зона</h3>
+            <p className="mt-1 text-xs text-red-700">
+              Удаление доступно только для ресурсов без офферов, броней и записей выдачи.
+            </p>
+            {removeError && <p className="mt-2 text-xs font-medium text-red-700">{removeError}</p>}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {removeError && resource.status !== 'archived' && (
+              <Button size="sm" variant="secondary" onClick={onArchive}>
+                <Archive size={13} /> Архивировать
+              </Button>
+            )}
+            <Button size="sm" variant="danger" onClick={onRemove} loading={removing}>
+              <Trash2 size={13} /> Удалить
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
