@@ -30,6 +30,7 @@ API routes:
 - Dev email outbox: `/api/v1/development/emails`
 - Provider onboarding options: `/api/v1/provider-onboarding/options`
 - Current provider onboarding: `/api/v1/provider-onboarding/current`
+- Provider activity options: `/api/v1/provider/activity-options`
 - Provider locations: `/api/v1/provider/locations`
 - Provider resources: `/api/v1/provider/resources`
 - Provider availability profile: `/api/v1/provider/resources/{resourceId}/availability-profile`
@@ -40,6 +41,7 @@ API routes:
 - Provider resource pricing diagnostics: `/api/v1/provider/resources/{resourceId}/pricing-diagnostics`
 - Provider offer pricing policy: `/api/v1/provider/offers/{offerId}/pricing-policy`
 - Provider offer pricing summary preview: `/api/v1/provider/offers/{offerId}/pricing-summary-preview`
+- Provider offer visibility: `/api/v1/provider/offers/{offerId}/visibility`
 - Provider pricing quote preview: `/api/v1/provider/pricing/quote-preview`
 - Provider default policy profile: `/api/v1/provider/policy-profile`
 - Provider resource policy override: `/api/v1/provider/resources/{resourceId}/policy`
@@ -256,6 +258,7 @@ GET /api/v1/provider/resource-categories
 Query params:
 
 - `resourceType`: optional, for example `equipment`
+- `activity`: optional, for example `water_sports`
 - `locale`: optional, for example `ru-RU`
 
 Response item:
@@ -270,11 +273,132 @@ Response item:
     "ru-RU": "Велосипед",
     "en-US": "Bicycle"
   },
+  "activities": [
+    {
+      "slug": "cycling",
+      "title": "Велоспорт",
+      "titles": {
+        "ru-RU": "Велоспорт",
+        "en-US": "Cycling"
+      },
+      "isPrimary": true,
+      "sortOrder": 10
+    },
+    {
+      "slug": "active_leisure",
+      "title": "Активный отдых",
+      "titles": {
+        "ru-RU": "Активный отдых",
+        "en-US": "Active leisure"
+      },
+      "isPrimary": false,
+      "sortOrder": 20
+    }
+  ],
   "capacityMode": "inventory",
   "status": "active",
   "sortOrder": 10
 }
 ```
+
+### Activity Domains
+
+Activity is the customer/provider-facing sphere of use. It is better product language than `categoryGroup` for marketplace and provider navigation.
+
+Do not use `activity` as a replacement for category. Category still owns the attribute schema and operational setup:
+
+- `resourceType`: technical resource kind, for example `equipment`
+- `category`: concrete schema, for example `sup_board`, `bicycle`, `tent`
+- `activity`: discovery/navigation context, for example `water_sports`, `cycling`, `camping`
+- `capacityMode`: execution mode, for example `inventory` or `scheduled_slot`
+
+One category may belong to multiple activities, so model activity as a facet rather than a strict tree. For example:
+
+- `sup_board`: `water_sports`, `beach_leisure`, `tourism`
+- `bicycle`: `cycling`, `active_leisure`, `tourism`
+- `tent`: `camping`, `hiking_trekking`, `tourism`
+- `skis`: `winter_sports`, `tourism`
+- `fishing_rod`: `fishing`, `tourism`
+- `yoga_mat`: `yoga`, `fitness`
+
+Seeded activity slugs:
+
+- `water_sports`
+- `cycling`
+- `fishing`
+- `camping`
+- `hiking_trekking`
+- `extreme_sports`
+- `active_leisure`
+- `winter_sports`
+- `fitness`
+- `yoga`
+- `beach_leisure`
+- `tourism`
+- `kids_active_leisure`
+- `motorsports`
+- `equestrian`
+- `golf`
+- `climbing`
+
+Current API shape:
+
+```http
+GET /api/v1/provider/activity-options?resourceType=equipment&locale=ru-RU
+GET /api/v1/provider/resource-categories?resourceType=equipment&activity=water_sports&locale=ru-RU
+```
+
+Activity options response:
+
+```json
+[
+  {
+    "activityId": "0b1c1c1e-0000-4000-8000-000000010001",
+    "slug": "water_sports",
+    "title": "Водный спорт",
+    "titles": {
+      "ru-RU": "Водный спорт",
+      "en-US": "Water sports"
+    },
+    "status": "active",
+    "sortOrder": 10
+  }
+]
+```
+
+Category response with activities:
+
+```json
+{
+  "categoryId": "0b1c1c1e-0000-4000-8000-000000000002",
+  "resourceType": "equipment",
+  "slug": "sup_board",
+  "title": "SUP-доска",
+  "activities": [
+    {
+      "slug": "water_sports",
+      "title": "Водный спорт",
+      "isPrimary": true
+    },
+    {
+      "slug": "beach_leisure",
+      "title": "Пляжный отдых",
+      "isPrimary": false
+    }
+  ],
+  "capacityMode": "inventory",
+  "status": "active",
+  "sortOrder": 20
+}
+```
+
+Frontend behavior:
+
+- use activity as the first-step navigation/filter when creating a resource
+- after activity is selected, show matching categories
+- still load the category attribute schema from `/resource-categories/{resourceType}/{categorySlug}/attributes`
+- do not hardcode a single activity per category; use `isPrimary` only for default grouping/display
+- load activities from `/api/v1/provider/activity-options`; do not maintain a frontend-only activity-to-category map
 
 ### Category Attributes
 
@@ -291,6 +415,8 @@ Important frontend rule:
 - do not store category per variant in frontend state
 - keep resource-level fields separate from variant attributes
 - create, update, and read variants with an `attributes` object shaped as `{ "attribute_key": "value" }`; do not use legacy `normalizedAttributes` arrays in new provider web code
+- current API create/update validation does not yet reject unknown attribute keys, missing schema fields, wrong enum values, or wrong value types
+- frontend should still validate variant attributes from the category schema and submit category-shaped data; backend schema enforcement is intentionally deferred and should not be treated as permanently absent
 
 Variant create request:
 
@@ -365,6 +491,36 @@ Frontend behavior:
 - send attribute filters as `attributes.frame_size=m`, not as a JSON body
 - if no sort is selected, API returns variants by `sortOrder`, then `label`
 - filtering and sorting are scoped to variants under the selected `resourceId`
+
+SUP board category is seeded as `sup_board` with the same resource model:
+
+```http
+GET /api/v1/provider/resource-categories/equipment/sup_board/attributes?locale=ru-RU
+```
+
+Expected SUP variant fields:
+
+| Название | Key | Type | Usage |
+| --- | --- | --- | --- |
+| Бренд | `brand` | `reference` | filter |
+| Модель | `model` | `string` | search |
+| Тип сапборда | `sup_type` | `enum` | filter |
+| Длина | `board_length_ft` | `decimal` | filter |
+| Грузоподъемность | `max_rider_weight_kg` | `integer` | filter |
+| Конструкция | `construction_type` | `enum` | filter |
+| Вес доски | `board_weight_kg` | `decimal` | compare |
+| Подходит новичкам | `beginner_friendly` | `boolean` | filter |
+| С сиденьем | `kayak_seat_supported` | `boolean` | filter |
+| Электро SUP | `has_motor` | `boolean` | filter |
+
+Additional seeded equipment category schemas:
+
+| Category | Seeded variant fields |
+| --- | --- |
+| `tent` | `brand`, `model`, `tent_type`, `capacity_persons`, `season_rating`, `tent_weight_kg`, `waterproof_rating_mm`, `packed_size` |
+| `skis` | `brand`, `model`, `ski_type`, `ski_length_cm`, `rider_height_min_cm`, `rider_height_max_cm`, `boot_size_min_eu`, `boot_size_max_eu`, `skill_level` |
+| `fishing_rod` | `brand`, `model`, `rod_type`, `rod_length_m`, `casting_weight_min_g`, `casting_weight_max_g`, `rod_action`, `sections_count` |
+| `yoga_mat` | `brand`, `model`, `mat_thickness_mm`, `mat_material`, `mat_length_cm`, `mat_width_cm`, `non_slip`, `travel_friendly` |
 
 ### Resource Responses
 
@@ -912,7 +1068,9 @@ Frontend behavior:
 
 ## Provider Policy
 
-Policy is the provider-authored business rules layer for rental/booking conditions. It answers questions such as minimum age, cancellation window, no-show charge, deposit percent, lead time, helmet requirement, weather exception, and check-in grace period.
+Policy is the provider-authored business rules layer for rental/booking conditions. It answers questions such as minimum age, cancellation window, no-show charge, deposit percent, lead time, weather exception, and check-in grace period.
+
+Current policy data is typed API data, not a dynamic category attribute schema. Fields such as `helmetRequired` are nullable typed policy facts. If a field does not apply to a category, omit it or keep it `null`; do not show irrelevant category-specific controls in the UI.
 
 Do not treat `policySummary`, offer cards, or diagnostics as policy truth. Policy truth is authored through the policy endpoints. Offer/customer-facing summaries are projections, and booking-time allow/block validation still happens in checkout.
 
@@ -922,7 +1080,7 @@ Current inheritance model:
 2. Resource policy override specializes the baseline for one operational resource, for example bicycles.
 3. Offer policy override specializes the chain for one commercial offer, for example a promo or special package.
 
-For MVP bicycle rental, the frontend should first make sure the provider default policy exists and is active. Resource or offer overrides are optional and should only be shown when rules differ from the provider default.
+For MVP bicycle rental, the frontend should first make sure the provider default policy exists and is active. Resource or offer overrides are optional and should only be shown when rules differ from the provider default. Category-specific rules, such as helmet requirements for bicycles, should normally be configured as a resource override unless the provider only operates that category and wants the rule as a global default.
 
 ### Provider Default Policy Profile
 
@@ -948,7 +1106,6 @@ Create or update request:
   "assuranceMode": "none",
   "weatherException": false,
   "minimumAge": 18,
-  "helmetRequired": true,
   "status": "active"
 }
 ```
@@ -970,7 +1127,7 @@ Policy profile response:
   "assuranceMode": "none",
   "weatherException": false,
   "minimumAge": 18,
-  "helmetRequired": true,
+  "helmetRequired": null,
   "status": "active",
   "readiness": {
     "authoringStatus": "configured",
@@ -1013,7 +1170,6 @@ Frontend behavior:
 Suggested MVP fields for a simple provider form:
 
 - `minimumAge`: “Минимальный возраст”
-- `helmetRequired`: “Шлем обязателен”
 - `leadTimeHours`: “За сколько часов можно забронировать”
 - `cancellationWindowHours`: “За сколько часов можно отменить”
 - `isCancellationAllowed`: “Отмена разрешена”
@@ -1021,6 +1177,10 @@ Suggested MVP fields for a simple provider form:
 - `depositPercent`: “Залог, %”
 - `weatherException`: “Исключение из-за погоды”
 - `checkInGraceMinutes`: “Допустимое опоздание, минут”
+
+Category-specific fields should be shown only when applicable:
+
+- `helmetRequired`: “Шлем обязателен” for bicycle-like categories, usually as a resource override
 
 ### Resource Policy Override
 
@@ -1136,46 +1296,6 @@ Frontend behavior:
 
 Current API does not expose a policy options endpoint. For the MVP, frontend may use the documented enum values above and conservative defaults for the bicycle rental form.
 
-An options endpoint would still be useful before this UI becomes broader than the bicycle rental MVP, because the frontend needs localized labels, field descriptions, allowed scopes, statuses, and recommended defaults without hardcoding product policy choices.
-
-Recommended future endpoint:
-
-```http
-GET /api/v1/provider/policy-options
-Authorization: Bearer <access_token>
-```
-
-Recommended response shape:
-
-```json
-{
-  "policyScopes": [
-    { "value": "default", "title": "Общие правила", "isDefault": true }
-  ],
-  "overrideScopes": [
-    { "value": "eligibility", "title": "Ограничения и требования" }
-  ],
-  "statuses": [
-    { "value": "active", "title": "Активно", "isDefault": true }
-  ],
-  "fields": [
-    {
-      "key": "minimumAge",
-      "title": "Минимальный возраст",
-      "inputType": "number",
-      "min": 0,
-      "recommendedValue": 18
-    }
-  ],
-  "defaults": {
-    "policyScope": "default",
-    "status": "active",
-    "leadTimeHours": 2,
-    "cancellationWindowHours": 24
-  }
-}
-```
-
 Until this endpoint exists, do not call it from the frontend. Keep policy labels/defaults local to the provider web app and revisit after policy requirements grow.
 
 ## Provider Offers
@@ -1249,9 +1369,46 @@ Content-Type: application/json
   "variantExposureMode": "all_active_variants",
   "title": "Прокат велосипеда Stels Miss 6500",
   "description": null,
-  "locationRef": null
+  "location": null
 }
 ```
+
+`location` can point to a reusable provider location or store an offer-specific inline place.
+
+Reusable provider location:
+
+```json
+{
+  "type": "provider_location",
+  "providerLocationId": "edededed-eded-eded-eded-ededededed11"
+}
+```
+
+Inline place:
+
+```json
+{
+  "type": "inline_place",
+  "cityId": "edededed-eded-eded-eded-ededededed01",
+  "title": "Пляж Солнечный",
+  "address": "Пляж Солнечный, причал 2",
+  "latitude": 56.852,
+  "longitude": 60.612,
+  "timezone": "Asia/Yekaterinburg"
+}
+```
+
+Location frontend behavior:
+
+- provider locations are optional reusable places
+- use `provider_location` when many offers share the same pickup or meeting point
+- use `inline_place` for one-off or activity-specific starts
+- when using `provider_location`, send only the provider location id; the API validates ownership and snapshots display fields
+- when using `inline_place`, send at least `title` or `address`
+- send `cityId` from `/api/v1/catalog/cities` when available; address suggestions must not create platform cities
+- coordinates may come from Dadata or another address/geocoding UI
+- treat `location` as display/discovery data, not booking availability or execution truth
+- checkout must still validate and snapshot the concrete pickup or meeting point at booking time
 
 To create an offer that exposes only specific variants, load variants first:
 
@@ -1295,6 +1452,67 @@ Frontend rules:
 - default from `defaults` or `resourceCompatibility.defaultOfferType`
 - do not invent values such as `bike`, `equipment`, or `inventory`
 - if API returns `Unsupported offer_type`, refresh authoring options and block submit until a supported value is selected
+
+### Offer Visibility
+
+Offer visibility controls marketplace display for a commercial offer. It is not availability and not booking execution truth.
+
+```http
+GET /api/v1/provider/offers/{offerId}/visibility
+PUT /api/v1/provider/offers/{offerId}/visibility
+Authorization: Bearer <access_token>
+```
+
+If no visibility row exists, the API returns an `always_visible` default projection.
+
+Upsert request:
+
+```json
+{
+  "visibilityMode": "seasonal",
+  "visibleFrom": "2026-06-01",
+  "visibleUntil": "2026-08-31",
+  "status": "active"
+}
+```
+
+Response:
+
+```json
+{
+  "offerId": "40000000-0000-4000-8000-000000000001",
+  "visibilityMode": "seasonal",
+  "visibleFrom": "2026-06-01",
+  "visibleUntil": "2026-08-31",
+  "status": "active",
+  "derivedSeasonId": "summer",
+  "derivedSeasonTitle": "Лето",
+  "seasonAlignment": "single_season",
+  "updatedAt": "2026-05-18T00:00:00Z"
+}
+```
+
+Accepted `visibilityMode` values:
+
+- `always_visible`
+- `seasonal`
+- `hidden`
+
+Accepted `status` values:
+
+- `active`
+- `inactive`
+
+Frontend behavior:
+
+- let the provider choose concrete dates for seasonal visibility; do not require season selection
+- show `derivedSeasonTitle` as the API-derived season label when useful
+- when `seasonAlignment` is `multi_season`, show that the date window crosses seasons rather than blocking save
+- do not send `seasonId`; the API derives it from `visibleFrom` and `visibleUntil`
+- city is not part of the seasonality model
+- `hidden` removes the offer from marketplace discovery without archiving it
+- default seeded demo offer visibility uses the summer period `2026-06-01` through `2026-08-31`
+- checkout must still validate availability, inventory or slots, pricing, and policy at booking time
 
 ### Delete Resource
 
