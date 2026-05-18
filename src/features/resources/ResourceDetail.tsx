@@ -1,8 +1,14 @@
-import { Archive, CalendarDays, CreditCard as Edit2, Package, Tag, Trash2, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CalendarDays, CreditCard as Edit2, Package } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ResourceImagesSection } from './ResourceImagesSection';
+import { ResourceParkTab } from './ResourceParkTab';
+import { ResourceActionsMenu } from './ResourceActionsMenu';
+import { ResourceOffersTab } from './ResourceOffersTab';
+import { ResourceAvailabilityTab } from './ResourceAvailabilityTab';
+import { ResourceModelsTab } from './ResourceModelsTab';
 import type { Booking, Offer, Resource, ResourceStatus, ResourceVariant } from '../../types';
 
 const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
@@ -19,9 +25,44 @@ interface ResourceDetailProps {
   onRemove: () => void;
   removing?: boolean;
   removeError?: string;
+  onNavigate?: (path: string) => void;
 }
 
-export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing = false, removeError = '' }: ResourceDetailProps) {
+type DetailTab = 'overview' | 'models' | 'park' | 'offers' | 'availability' | 'photos';
+
+const detailTabs: Array<{ value: DetailTab; label: string }> = [
+  { value: 'overview', label: 'Обзор' },
+  { value: 'models', label: 'Модели' },
+  { value: 'park', label: 'Инвентарь' },
+  { value: 'offers', label: 'Предложения' },
+  { value: 'availability', label: 'Доступность' },
+  { value: 'photos', label: 'Фото' },
+];
+
+function readTabFromUrl(): DetailTab {
+  const value = new URLSearchParams(window.location.search).get('tab');
+  return detailTabs.some(tab => tab.value === value) ? value as DetailTab : 'overview';
+}
+
+function writeResourceTabToUrl(tab: DetailTab, resetNested = false) {
+  const params = new URLSearchParams(window.location.search);
+  if (tab === 'overview') {
+    params.delete('tab');
+  } else {
+    params.set('tab', tab);
+  }
+  if (resetNested) {
+    params.delete('view');
+    params.delete('offerId');
+  }
+  const query = params.toString();
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+  window.history.pushState({}, '', nextUrl);
+}
+
+export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing = false, removeError = '', onNavigate }: ResourceDetailProps) {
+  const [activeTab, setActiveTab] = useState<DetailTab>(() => readTabFromUrl());
+  const [tabResetKey, setTabResetKey] = useState(0);
   const status = statusBadge[resource.status];
   const variants: ResourceVariant[] = [];
   const offers: Offer[] = [];
@@ -34,39 +75,84 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
   const basePrice = offerPrices.length > 0 ? Math.min(...offerPrices) : null;
   const totalRevenue = bookings.reduce((sum, booking) => sum + booking.totalAmount, 0);
 
+  useEffect(() => {
+    const syncFromHistory = () => {
+      setActiveTab(readTabFromUrl());
+      setTabResetKey(current => current + 1);
+    };
+    window.addEventListener('popstate', syncFromHistory);
+    return () => window.removeEventListener('popstate', syncFromHistory);
+  }, []);
+
   return (
     <div className="max-w-6xl space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">{resource.title}</h2>
-            <Badge variant={status.variant} size="md">{status.label}</Badge>
-          </div>
-        </div>
+      <div className="flex items-start justify-end gap-4">
         <div className="flex items-center gap-2">
+          <Badge variant={status.variant} size="md">{status.label}</Badge>
           <Button size="sm" variant="secondary" onClick={onEdit}>
             <Edit2 size={13} /> Редактировать
           </Button>
-          {resource.status !== 'archived' && (
-            <Button size="sm" variant="ghost" onClick={onArchive}>
-              <Archive size={13} /> В архив
-            </Button>
-          )}
+          <ResourceActionsMenu
+            resource={resource}
+            onEdit={onEdit}
+            onArchive={onArchive}
+            onRemove={onRemove}
+            removing={removing}
+            showEdit={false}
+          />
         </div>
       </div>
 
+      {removeError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {removeError}
+          {resource.status !== 'archived' && (
+            <button type="button" className="ml-2 font-semibold underline underline-offset-2" onClick={onArchive}>
+              Архивировать вместо удаления
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
-        <DetailMetric label="Варианты" value={String(variants.length)} />
+        <DetailMetric label="Модели" value={String(variants.length)} />
         <DetailMetric label="Базовая цена" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Не задана'} />
         <DetailMetric label="Доступный остаток" value={String(totalStock)} />
         <DetailMetric label="Брони / выручка" value={`${bookings.length} / ${totalRevenue.toLocaleString()} RUB`} />
       </div>
 
+      <div className="flex flex-wrap gap-1 border-b border-gray-200">
+        {detailTabs.map(tab => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => {
+              if (tab.value === activeTab) {
+                writeResourceTabToUrl(tab.value, true);
+                setTabResetKey(current => current + 1);
+                return;
+              }
+              writeResourceTabToUrl(tab.value, true);
+              setActiveTab(tab.value);
+            }}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+              activeTab === tab.value
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+        <>
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <Card>
           <div className="mb-4 flex items-center gap-2">
             <Package size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Обзор ресурса</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Обзор позиции</h3>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Row label="Категория" value={resource.categoryName ?? resource.resourceType} />
@@ -78,8 +164,6 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
             <p className="mt-4 text-sm text-gray-700">{resource.description}</p>
           )}
         </Card>
-
-        <ResourceImagesSection resourceId={resource.resourceId} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -108,85 +192,24 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
           </p>
         </Card>
       </div>
+        </>
+      )}
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card>
-          <div className="mb-4 flex items-center gap-2">
-            <Tag size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Варианты</h3>
-          </div>
-          {variants.length === 0 ? (
-            <p className="text-sm text-gray-500">Варианты пока не настроены.</p>
-          ) : (
-            <div className="overflow-hidden border border-gray-100">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Вариант</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Остаток</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Цена</th>
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Статус</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {variants.map((variant, index) => (
-                    <tr key={variant.id} className={index === variants.length - 1 ? '' : 'border-b border-gray-100'}>
-                      <td className="px-3 py-2.5">
-                        <p className="text-sm font-medium text-gray-900">{variant.title}</p>
-                        {variant.sku && <p className="text-[11px] font-mono text-gray-500">{variant.sku}</p>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-sm text-gray-700">{variant.stock ?? 0}</td>
-                      <td className="px-3 py-2.5 text-right text-sm text-gray-700">
-                        {basePrice ? `${basePrice.toLocaleString()} RUB` : 'Ожидает'}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge variant={variant.status === 'active' ? 'green' : 'gray'}>
-                          {variant.status === 'active' ? 'Активен' : 'Отключен'}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+      {activeTab === 'models' && (
+        <ResourceModelsTab key={`models-${tabResetKey}`} resource={resource} onNavigate={onNavigate} />
+      )}
 
-        <Card>
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Цены и показатели</h3>
-          </div>
-          <div className="space-y-3">
-            <Row label="Базовая цена" value={basePrice ? `${basePrice.toLocaleString()} RUB` : 'Цена не задана'} />
-            <Row label="Активные предложения" value={String(offers.filter(offer => offer.status === 'active').length)} />
-            <Row label="Всего броней" value={String(bookings.length)} />
-            <Row label="Всего выручки" value={`${totalRevenue.toLocaleString()} RUB`} />
-          </div>
-        </Card>
-      </div>
+      {activeTab === 'park' && <ResourceParkTab key={`park-${tabResetKey}`} resource={resource} onNavigate={onNavigate} />}
 
-      <Card className="border-red-200 bg-red-50/50">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-red-950">Опасная зона</h3>
-            <p className="mt-1 text-xs text-red-700">
-              Удаление доступно только для ресурсов без офферов, броней и записей выдачи.
-            </p>
-            {removeError && <p className="mt-2 text-xs font-medium text-red-700">{removeError}</p>}
-          </div>
-          <div className="flex shrink-0 gap-2">
-            {removeError && resource.status !== 'archived' && (
-              <Button size="sm" variant="secondary" onClick={onArchive}>
-                <Archive size={13} /> Архивировать
-              </Button>
-            )}
-            <Button size="sm" variant="danger" onClick={onRemove} loading={removing}>
-              <Trash2 size={13} /> Удалить
-            </Button>
-          </div>
-        </div>
-      </Card>
+      {activeTab === 'offers' && (
+        <ResourceOffersTab key={`offers-${tabResetKey}`} resource={resource} onNavigate={onNavigate} />
+      )}
+
+      {activeTab === 'availability' && (
+        <ResourceAvailabilityTab key={`availability-${tabResetKey}`} resource={resource} />
+      )}
+
+      {activeTab === 'photos' && <ResourceImagesSection key={`photos-${tabResetKey}`} resourceId={resource.resourceId} />}
     </div>
   );
 }

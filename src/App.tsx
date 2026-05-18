@@ -14,11 +14,14 @@ import {
 import { OnboardingPage } from './features/onboarding/OnboardingPage';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import type { HeaderBreadcrumb } from './components/layout/Header';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { BookingsPage } from './features/bookings/BookingPage';
 import { FulfillmentPage } from './features/fulfillment/FulfillmentPage';
 import { ResourcesPage } from './features/resources/ResourcePage';
 import { ResourceCreatePage } from './features/resources/ResourceCreatePage';
+import { ResourceDetailPage } from './features/resources/ResourceDetailPage';
+import { ResourceEditPage } from './features/resources/ResourceEditPage';
 import { VariantsPage } from './features/variants/VariantsPage';
 import { OffersPage } from './features/offers/OffersPage';
 import { AvailabilityPage } from './features/availability/AvailabilityPage';
@@ -30,17 +33,17 @@ const pageConfig: Record<string, { title: string; subtitle?: string }> = {
   '/': { title: 'Дашборд', subtitle: 'Обзор партнера' },
   '/bookings': { title: 'Бронирования', subtitle: 'Все бронирования партнера' },
   '/fulfillment': { title: 'Выдача и возврат', subtitle: 'Выдачи, возвраты и обращения' },
-  '/resources': { title: 'Ресурсы', subtitle: 'Управление каталогом инвентаря' },
-  '/resources/create': { title: 'Создать ресурс', subtitle: 'Создайте ресурс и комплектации в каталоге.' },
-  '/variants': { title: 'Варианты', subtitle: 'Управление вариантами ресурсов' },
-  '/offers': { title: 'Офферы', subtitle: 'Предложения для клиентов' },
+  '/resources': { title: 'Каталог', subtitle: 'Прокатные позиции, модели и инвентарь' },
+  '/resources/create': { title: 'Добавить позицию', subtitle: 'Добавьте позицию в каталог.' },
+  '/variants': { title: 'Модели', subtitle: 'Модели и комплектации каталога' },
+  '/offers': { title: 'Предложения', subtitle: 'Пакеты и условия проката для клиентов' },
   '/availability': { title: 'Доступность', subtitle: 'Горизонты бронирования и вместимость' },
   '/pricing': { title: 'Цены', subtitle: 'Правила ценообразования и корректировки' },
   '/policy': { title: 'Правила', subtitle: 'Отмена, депозиты и условия' },
   '/reports': { title: 'Отчеты', subtitle: 'Показатели и аналитика' },
 };
 
-type HeaderContent = { title: string; subtitle?: string } | null;
+type HeaderContent = { title: string; subtitle?: string; breadcrumbs?: HeaderBreadcrumb[] } | null;
 
 function AppShell() {
   const { user, memberships, loading } = useAuth();
@@ -67,7 +70,7 @@ function AppShell() {
   };
 
   const navigateTo = (nextPath: string) => {
-    const safePath = knownPaths.has(nextPath) ? nextPath : '/';
+    const safePath = knownPaths.has(nextPath) || nextPath.startsWith('/resources/') ? nextPath : '/';
     const nextUrl = safePath === '/bookings' ? `/bookings${window.location.search}` : safePath;
     if (window.location.pathname !== safePath || window.location.search !== (safePath === '/bookings' ? window.location.search : '')) {
       window.history.pushState({}, '', nextUrl);
@@ -129,8 +132,13 @@ function AppShell() {
     return <OnboardingPage />;
   }
 
-  const appPath = knownPaths.has(currentPath) ? currentPath : '/';
-  const page = pageConfig[appPath] || { title: 'Кабинет партнера' };
+  const resourceDetailMatch = currentPath.match(/^\/resources\/([^/]+)$/);
+  const resourceEditMatch = currentPath.match(/^\/resources\/([^/]+)\/edit$/);
+  const appPath = knownPaths.has(currentPath) || resourceDetailMatch || resourceEditMatch ? currentPath : '/';
+  const page =
+    resourceEditMatch ? { title: 'Редактировать позицию', subtitle: 'Изменение позиции инвентаря' } :
+    resourceDetailMatch ? { title: 'Позиция' } :
+    pageConfig[appPath] || { title: 'Кабинет партнера' };
   const headerPage = headerContent ?? page;
 
   const renderPage = () => {
@@ -140,11 +148,13 @@ function AppShell() {
     }
     if (appPath === '/fulfillment') return <FulfillmentPage />;
     if (appPath === '/resources') return <ResourcesPage onHeaderContentChange={setHeaderContent} onNavigate={navigateTo} />;
-    if (appPath === '/resources/create') return <ResourceCreatePage onNavigate={navigateTo} />;
+    if (appPath === '/resources/create') return <ResourceCreatePage onNavigate={navigateTo} onHeaderContentChange={setHeaderContent} />;
+    if (resourceEditMatch) return <ResourceEditPage resourceId={resourceEditMatch[1]} onNavigate={navigateTo} onHeaderContentChange={setHeaderContent} />;
+    if (resourceDetailMatch) return <ResourceDetailPage resourceId={resourceDetailMatch[1]} onNavigate={navigateTo} onHeaderContentChange={setHeaderContent} />;
     if (appPath === '/variants') return <VariantsPage />;
     if (appPath === '/offers') return <OffersPage />;
-    if (appPath === '/availability') return <AvailabilityPage />;
-    if (appPath === '/pricing') return <PricingPage />;
+    if (appPath === '/availability') return <AvailabilityPage onNavigate={navigateTo} />;
+    if (appPath === '/pricing') return <PricingPage onNavigate={navigateTo} />;
     if (appPath === '/policy') return <PolicyPage />;
     if (appPath === '/reports') return <ReportsPage />;
     return <DashboardPage onNavigate={navigateTo} />;
@@ -159,7 +169,13 @@ function AppShell() {
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/30">
-        <Header title={headerPage.title} subtitle={headerPage.subtitle} actions={headerActions} />
+        <Header
+          title={headerPage.title}
+          subtitle={headerPage.subtitle}
+          breadcrumbs={headerPage.breadcrumbs}
+          onNavigate={navigateTo}
+          actions={headerActions}
+        />
         <main className={`relative min-h-0 flex-1 ${appPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {renderPage()}
         </main>

@@ -1,26 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ChevronRight,
   Plus,
   Search,
   ChevronDown,
   AlertTriangle,
-  CreditCard as Edit2,
   ImageOff,
-  Trash2,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { ResourceDeleteDialog } from './ResourceDeleteDialog';
-import { ResourceDetail } from './ResourceDetail';
-import { ResourceForm, type ResourceFormData } from './ResourceForm';
+import { ResourceError } from './ResourcePageChrome';
 import { mockBookings, mockOffers, mockVariants } from '../../lib/mock-data';
-import { ApiError, equipmentApi, resourcesApi, type EquipmentCategory } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, type ResourceCategory } from '../../lib/api-client';
 import type { Resource, ResourceStatus } from '../../types';
 
 
 type QuickTab = 'all' | 'active' | 'draft' | 'needs_attention' | 'out_of_stock';
-type View = 'list' | 'detail' | 'edit';
 type AvailabilityState = 'available' | 'partially_booked' | 'fully_booked' | 'no_stock';
 type HealthState = 'ready' | 'needs_attention';
 type SortColumn = 'title' | 'price' | 'stock' | 'bookings' | 'revenue' | 'updated' | null;
@@ -61,7 +55,7 @@ const statusBadge: Record<ResourceStatus, { label: string; variant: 'green' | 'y
 
 const healthIssueLabel: Record<string, string> = {
   'Missing pricing': 'Нет цены',
-  'Missing variants': 'Нет вариантов',
+  'Missing variants': 'Нет моделей',
   Draft: 'Черновик',
 };
 
@@ -74,27 +68,23 @@ const availabilityLabel: Record<AvailabilityState, string> = {
 
 export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPageProps) {
   const [resources, setResources] = useState<Resource[]>([]);
-  const [categories, setCategories] = useState<EquipmentCategory[]>([]);
+  const [categories, setCategories] = useState<ResourceCategory[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState('');
   const [categoriesError, setCategoriesError] = useState('');
-  const [removeError, setRemoveError] = useState('');
-  const [removeTarget, setRemoveTarget] = useState<Resource | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState('');
   const [healthFilter, setHealthFilter] = useState('');
   const [quickTab] = useState<QuickTab>('all');
-  const [view, setView] = useState<View>('list');
-  const [selected, setSelected] = useState<Resource | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [flyoutState, setFlyoutState] = useState<ColumnFlyoutState>({ column: null, position: null });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const loadResources = async () => {
     setError('');
@@ -105,7 +95,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
     } catch (err) {
       setError(err instanceof ApiError && err.status === 403
         ? 'Для этого аккаунта недоступен доступ партнера.'
-        : 'Не удалось загрузить ресурсы из API.');
+        : 'Не удалось загрузить каталог из API.');
     } finally {
       setLoading(false);
     }
@@ -113,9 +103,8 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
 
   const loadCategories = async () => {
     setCategoriesError('');
-    setCategoriesLoading(true);
     try {
-      const nextCategories = await equipmentApi.categories();
+      const nextCategories = await equipmentApi.resourceCategories('equipment');
       setCategories(
         nextCategories
           .filter(category => category.status === 'active')
@@ -126,8 +115,6 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
       setCategoriesError(err instanceof ApiError
         ? `Не удалось загрузить категории оборудования из API: ${err.message}`
         : 'Не удалось загрузить категории оборудования из API.');
-    } finally {
-      setCategoriesLoading(false);
     }
   };
 
@@ -139,22 +126,10 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
   useEffect(() => {
     if (!onHeaderContentChange) return undefined;
 
-    if (view === 'edit') {
-      onHeaderContentChange({
-        title: 'Редактировать ресурс',
-        subtitle: selected?.title,
-      });
-    } else if (view === 'detail') {
-      onHeaderContentChange({
-        title: selected?.title ?? 'Ресурс',
-        subtitle: selected?.categoryName ?? 'Просмотр ресурса',
-      });
-    } else {
-      onHeaderContentChange(null);
-    }
+    onHeaderContentChange(null);
 
     return () => onHeaderContentChange(null);
-  }, [onHeaderContentChange, selected, view]);
+  }, [onHeaderContentChange]);
 
   const rows = useMemo<ResourceTableRow[]>(() => {
     return resources.map(resource => {
@@ -223,7 +198,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
   }, [rows]);
 
   const categoryFilterOptions = useMemo(
-    () => categories.map(category => ({ value: category.label, label: category.label })),
+    () => categories.map(category => ({ value: category.title, label: category.title })),
     [categories]
   );
 
@@ -300,68 +275,13 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
     return result;
   }, [filtered, sortColumn, sortOrder]);
 
-  const handleUpdate = async (data: ResourceFormData) => {
-    if (!selected) return;
-    setError('');
-    setSaving(true);
-    try {
-      const nextResource = await resourcesApi.patch(selected.resourceId, {
-        title: data.title,
-      });
-      setResources(prev =>
-        prev.map(resource => (resource.id === selected.id ? nextResource : resource))
-      );
-      setView('list');
-      setSelected(null);
-    } catch {
-      setError('Не удалось обновить ресурс в API.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const handleArchive = async (resource: Resource) => {
-    setError('');
-    setRemoveError('');
-    try {
-      const nextResource = await resourcesApi.archive(resource.resourceId, 'provider_requested');
-      setResources(prev =>
-        prev.map(item => (item.id === resource.id ? nextResource : item))
-      );
-    } catch {
-      setError('Не удалось архивировать ресурс в API.');
-    }
-  };
-
-  const requestRemove = (resource: Resource) => {
-    setRemoveError('');
-    setRemoveTarget(resource);
-  };
-
-  const handleRemove = async (resource: Resource) => {
-    setError('');
-    setRemoveError('');
-
-    setRemoving(true);
-    try {
-      await resourcesApi.remove(resource.resourceId);
-      setResources(prev => prev.filter(item => item.id !== resource.id));
-      setSelectedIds(prev => prev.filter(id => id !== resource.id));
-      setView('list');
-      setSelected(null);
-      setRemoveTarget(null);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setRemoveError('Ресурс уже связан с офферами, бронями или выдачей. Удаление недоступно, используйте архивирование.');
-      } else if (err instanceof ApiError && err.status === 404) {
-        setRemoveError('Ресурс не найден или недоступен для текущего партнера.');
-      } else {
-        setRemoveError('Не удалось удалить ресурс.');
-      }
-    } finally {
-      setRemoving(false);
-    }
-  };
+  useEffect(() => {
+    setPage(1);
+  }, [availabilityFilter, categoryFilter, healthFilter, pageSize, quickTab, search, sortColumn, sortOrder, statusFilter]);
 
   const handleBulkStatus = async (status: ResourceStatus) => {
     setError('');
@@ -375,7 +295,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
       setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
       setSelectedIds([]);
     } catch {
-      setError('Не удалось обновить выбранные ресурсы в API.');
+      setError('Не удалось обновить выбранные позиции в API.');
     } finally {
       setSaving(false);
     }
@@ -393,7 +313,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
       setResources(prev => prev.map(resource => updatedById.get(resource.id) ?? resource));
       setSelectedIds([]);
     } catch {
-      setError('Не удалось архивировать выбранные ресурсы в API.');
+      setError('Не удалось архивировать выбранные позиции в API.');
     } finally {
       setSaving(false);
     }
@@ -408,91 +328,8 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
   };
 
   const openDetail = (resource: Resource) => {
-    setSelected(resource);
-    setView('detail');
+    onNavigate(`/resources/${resource.resourceId}`);
   };
-
-  const openEdit = (resource: Resource) => {
-    setSelected(resource);
-    setView('edit');
-  };
-
-  const returnToList = () => {
-    setView('list');
-    setSelected(null);
-  };
-
-  const closeRemoveDialog = () => {
-    setRemoveTarget(null);
-    setRemoveError('');
-  };
-
-  const removeDialog = (
-    <ResourceDeleteDialog
-      resource={removeTarget}
-      removing={removing}
-      error={removeError}
-      onClose={closeRemoveDialog}
-      onConfirm={resource => void handleRemove(resource)}
-      onArchive={resource => {
-        void handleArchive(resource);
-        closeRemoveDialog();
-      }}
-    />
-  );
-
-  // Detail view
-  if (view === 'detail' && selected) {
-    return (
-      <>
-        <div className="flex h-screen flex-col bg-gray-50">
-          <ResourceBreadcrumb current={selected.title} onBack={returnToList} />
-          <div className="flex-1 overflow-auto">
-            <div className="p-6">
-              <ResourceDetail
-                resource={selected}
-                onEdit={() => setView('edit')}
-                onArchive={() => {
-                  void handleArchive(selected);
-                  setView('list');
-                  setSelected(null);
-                }}
-                onRemove={() => requestRemove(selected)}
-                removing={removing}
-                removeError={removeError}
-              />
-            </div>
-          </div>
-        </div>
-        {removeDialog}
-      </>
-    );
-  }
-
-  // Edit view
-  if (view === 'edit' && selected) {
-    return (
-      <div className="flex h-screen flex-col bg-gray-50">
-        <ResourceBreadcrumb current="Редактирование" onBack={returnToList} />
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
-            {categoriesError && <ResourceError message={categoriesError} />}
-            <ResourceForm
-              resource={selected}
-              categories={categories}
-              loadingCategories={categoriesLoading}
-              onSubmit={handleUpdate}
-              onCancel={() => {
-                setView('list');
-                setSelected(null);
-              }}
-              submitting={saving}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const handleColumnOpen = (e: React.MouseEvent, column: string) => {
     e.stopPropagation();
@@ -511,15 +348,15 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
   };
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
+    <div className="flex h-full min-h-0 flex-col bg-gray-50">
       {/* Compact Navbar */}
       <nav className="border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between px-6 py-3">
           {/* Left: Title & Stats */}
           <div>
-            <h1 className="text-sm font-semibold text-gray-900">Ресурсы</h1>
+            <h1 className="text-sm font-semibold text-gray-900">Каталог</h1>
             <p className="text-xs text-gray-500">
-              {loading ? 'Загружаем ресурсы...' : `${filtered.length} из ${resources.length} · проблем: ${stats.needsAttention}`}
+              {loading ? 'Загружаем каталог...' : `${filtered.length} из ${resources.length} · проблем: ${stats.needsAttention}`}
             </p>
           </div>
 
@@ -530,7 +367,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
               type="text"
               value={search}
               onChange={event => setSearch(event.target.value)}
-              placeholder="Поиск ресурсов..."
+              placeholder="Поиск по каталогу..."
               className="w-full rounded border border-gray-300 bg-white px-8 py-2 text-sm text-gray-900 transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
@@ -561,26 +398,38 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
       </nav>
 
       {/* Table Area */}
-      <div className="flex-1 overflow-auto relative bg-white">
+      <div className="relative flex min-h-0 flex-1 flex-col bg-white">
         {error && <ResourceError message={error} />}
         {categoriesError && <ResourceError message={categoriesError} />}
         {loading ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-            <p className="mt-3 text-sm font-medium text-gray-900">Загружаем ресурсы...</p>
+            <p className="mt-3 text-sm font-medium text-gray-900">Загружаем каталог...</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <table className="min-w-[1264px] w-full table-fixed border-collapse text-sm">
+              <colgroup>
+                <col className="w-64" />
+                <col className="w-36" />
+                <col className="w-24" />
+                <col className="w-20" />
+                <col className="w-36" />
+                <col className="w-32" />
+                <col className="w-28" />
+                <col className="w-20" />
+                <col className="w-28" />
+                <col className="w-28" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
                   {/* Resource column (fixed) */}
-                  <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-56 relative">
+                  <th className="sticky left-0 z-20 bg-gray-50 border-r border-gray-200 px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'resource')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700 relative"
                     >
-                      Ресурс
+                      Позиция
                       <ChevronDown size={13} className={sortColumn === 'title' ? 'text-blue-600' : 'text-gray-400'} />
                     </button>
                     <ColumnFlyout
@@ -596,7 +445,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Category */}
-                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'category')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -617,7 +466,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Price */}
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'price')}
                       className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -638,7 +487,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Stock */}
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'stock')}
                       className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -659,7 +508,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Availability */}
-                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-32 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'availability')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -679,7 +528,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Health */}
-                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-28 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'health')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -699,7 +548,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Status */}
-                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'status')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -719,7 +568,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Bookings */}
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'bookings')}
                       className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -740,7 +589,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Revenue */}
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'revenue')}
                       className="flex items-center justify-end gap-1 ml-auto px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -761,7 +610,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                   </th>
 
                   {/* Updated */}
-                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 min-w-24 relative">
+                  <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 relative">
                     <button
                       onClick={(e) => handleColumnOpen(e, 'updated')}
                       className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-gray-200 transition text-gray-700"
@@ -781,25 +630,20 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                     />
                   </th>
 
-                  {/* Actions */}
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700 min-w-20">
-                    Действия
-                  </th>
-
                 </tr>
               </thead>
               <tbody>
                 {sorted.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-14 text-center">
+                    <td colSpan={10} className="px-4 py-14 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <AlertTriangle size={40} className="text-gray-300" />
-                        <p className="mt-3 text-sm font-medium text-gray-900">Ресурсов нет</p>
-                        <p className="text-xs text-gray-500">Измените фильтры или создайте новый ресурс</p>
+                        <p className="mt-3 text-sm font-medium text-gray-900">Позиции не найдены</p>
+                        <p className="text-xs text-gray-500">Измените фильтры или добавьте позицию</p>
                       </div>
                     </td>
                   </tr>
-                ) : sorted.map(row => {
+                ) : paginated.map(row => {
                   const { resource } = row;
                   const status = statusBadge[resource.status];
                   const isSelected = selectedIds.includes(resource.id);
@@ -836,7 +680,7 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                       </td>
 
                       {/* Category */}
-                      <td className="px-4 py-3 text-sm text-gray-700">{resource.categoryName}</td>
+                      <td className="truncate px-4 py-3 text-sm text-gray-700">{resource.categoryName}</td>
 
                       {/* Price */}
                       <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">
@@ -884,36 +728,6 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
                         {new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                       </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation();
-                              openEdit(resource);
-                            }}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
-                            title="Редактировать ресурс"
-                            aria-label={`Редактировать ресурс ${resource.title}`}
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={event => {
-                              event.stopPropagation();
-                              requestRemove(resource);
-                            }}
-                            disabled={removing}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Удалить ресурс"
-                            aria-label={`Удалить ресурс ${resource.title}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })}
@@ -921,6 +735,46 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
             </table>
           </div>
         )}
+        <div className="flex shrink-0 flex-col gap-3 border-t border-gray-100 bg-white px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-gray-500">
+            {loading
+              ? 'Загружаем строки...'
+              : sorted.length === 0
+                ? 'Нет строк'
+                : `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, sorted.length)} из ${sorted.length}`}
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <select
+              value={pageSize}
+              onChange={event => setPageSize(Number(event.target.value))}
+              className="h-8 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value={10}>10 строк</option>
+              <option value={25}>25 строк</option>
+              <option value={50}>50 строк</option>
+              <option value={100}>100 строк</option>
+            </select>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setPage(value => Math.max(1, value - 1))}
+              disabled={loading || currentPage === 1}
+            >
+              Назад
+            </Button>
+            <span className="min-w-16 text-center text-xs text-gray-500">
+              {currentPage}/{pageCount}
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setPage(value => Math.min(pageCount, value + 1))}
+              disabled={loading || currentPage === pageCount}
+            >
+              Далее
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Backdrop to close flyout */}
@@ -930,34 +784,6 @@ export function ResourcesPage({ onHeaderContentChange, onNavigate }: ResourcesPa
           onClick={() => setFlyoutState({ column: null, position: null })}
         />
       )}
-      {removeDialog}
-    </div>
-  );
-}
-
-function ResourceBreadcrumb({ current, onBack }: { current: string; onBack: () => void }) {
-  return (
-    <div className="border-b border-gray-200 bg-white px-6 py-3">
-      <div className="flex min-w-0 items-center gap-2 text-sm">
-        <button
-          type="button"
-          onClick={onBack}
-          className="font-medium text-gray-600 transition-colors hover:text-gray-950"
-        >
-          Ресурсы
-        </button>
-        <ChevronRight size={14} className="shrink-0 text-gray-400" />
-        <span className="truncate font-semibold text-gray-950">{current}</span>
-      </div>
-    </div>
-  );
-}
-
-function ResourceError({ message }: { message: string }) {
-  return (
-    <div className="m-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-      <AlertTriangle size={14} className="shrink-0 text-red-600" />
-      <p className="text-xs text-red-700">{message}</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ImageOff, ImagePlus, Trash2, Upload } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { GripVertical, ImageOff, ImagePlus, Trash2, Upload } from 'lucide-react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
@@ -18,6 +18,15 @@ interface ResourceImageDraftSectionProps {
 }
 
 const MAX_RESOURCE_IMAGES = 10;
+
+function reorderList<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return items;
+
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, moved);
+  return next;
+}
 
 export function ResourceImagesSection({ resourceId, compact = false }: ResourceImagesSectionProps) {
   const [images, setImages] = useState<ResourceImage[]>([]);
@@ -84,11 +93,22 @@ export function ResourceImagesSection({ resourceId, compact = false }: ResourceI
           className="flex aspect-video w-full flex-col items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 text-center transition hover:border-blue-300 hover:bg-blue-50"
         >
           <ImageOff size={28} className="text-gray-400" />
-          <span className="mt-2 text-sm font-medium text-gray-700">Добавьте фото ресурса</span>
+          <span className="mt-2 text-sm font-medium text-gray-700">Добавьте фото позиции</span>
           <span className="mt-1 text-xs text-gray-500">JPEG, PNG или WebP до 5 МБ</span>
         </button>
       ) : (
-        <UploadedImageGrid images={images} onUploadClick={() => setUploadOpen(true)} />
+        <UploadedImageGrid
+          images={images}
+          onUploadClick={() => setUploadOpen(true)}
+          onReorder={(fromIndex, toIndex) => {
+            setImages(current =>
+              reorderList(current, fromIndex, toIndex).map((image, index) => ({
+                ...image,
+                sortOrder: index + 1,
+              }))
+            );
+          }}
+        />
       )}
 
       {imagesError && <p className="mt-3 text-xs text-red-600">{imagesError}</p>}
@@ -162,6 +182,10 @@ export function ResourceImageDraftSection({
     onChange(files.filter((_, fileIndex) => fileIndex !== index));
   };
 
+  const reorderFile = (fromIndex: number, toIndex: number) => {
+    onChange(reorderList(files, fromIndex, toIndex));
+  };
+
   return (
     <Card className="overflow-hidden p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -204,35 +228,22 @@ export function ResourceImageDraftSection({
           }
 
           return (
-            <div
+            <DraggableImageTile
               key={`${preview.file.name}-${preview.file.size}-${index}`}
-              className="group relative aspect-square overflow-hidden rounded-md border border-gray-200 bg-gray-50"
-            >
-              <img src={preview.url} alt={preview.file.name} className="h-full w-full object-cover" />
-              {isMain && (
-                <span className="absolute left-2 top-2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 shadow-sm">
-                  Главное
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                disabled={disabled}
-                className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-gray-700 shadow-sm transition hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
-                aria-label={`Удалить фото ${index + 1}`}
-              >
-                <Trash2 size={13} />
-              </button>
-              <div className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[11px] text-white opacity-0 transition group-hover:opacity-100">
-                <p className="truncate">{preview.file.name}</p>
-              </div>
-            </div>
+              index={index}
+              src={preview.url}
+              title={preview.file.name}
+              main={isMain}
+              disabled={disabled}
+              onRemove={() => removeFile(index)}
+              onReorder={reorderFile}
+            />
           );
         })}
       </div>
 
       <p className="mt-2 text-xs text-gray-500">
-        Файлы сохранятся после создания ресурса. JPEG, PNG или WebP до 5 МБ.
+        Файлы сохранятся после создания позиции. JPEG, PNG или WebP до 5 МБ.
       </p>
 
       <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Добавить фото" size="sm">
@@ -253,9 +264,11 @@ export function ResourceImageDraftSection({
 function UploadedImageGrid({
   images,
   onUploadClick,
+  onReorder,
 }: {
   images: ResourceImage[];
   onUploadClick: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
 }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -280,25 +293,123 @@ function UploadedImageGrid({
         }
 
         return (
-          <button
+          <DraggableImageTile
             key={image.imageId}
-            type="button"
-            onClick={onUploadClick}
-            className="group relative aspect-square overflow-hidden rounded-md border border-gray-200 bg-gray-50"
+            index={index}
+            src={image.url}
             title={image.originalFileName}
-          >
-            <img src={image.url} alt={image.originalFileName} className="h-full w-full object-cover transition group-hover:scale-105" />
-            {isMain && (
-              <span className="absolute left-2 top-2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 shadow-sm">
-                Главное
-              </span>
-            )}
-            <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-left text-[11px] text-white opacity-0 transition group-hover:opacity-100">
-              {image.originalFileName}
-            </span>
-          </button>
+            main={isMain}
+            onOpen={onUploadClick}
+            onReorder={onReorder}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function DraggableImageTile({
+  index,
+  src,
+  title,
+  main,
+  disabled = false,
+  onOpen,
+  onRemove,
+  onReorder,
+}: {
+  index: number;
+  src: string;
+  title: string;
+  main: boolean;
+  disabled?: boolean;
+  onOpen?: () => void;
+  onRemove?: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+}) {
+  const suppressClickRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragStart = (event: DragEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+    suppressClickRef.current = true;
+    setDragging(true);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragOver(false);
+
+    const fromIndex = Number(event.dataTransfer.getData('text/plain'));
+    if (Number.isNaN(fromIndex)) return;
+    onReorder(fromIndex, index);
+  };
+
+  return (
+    <div
+      draggable={!disabled}
+      onClick={() => {
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          return;
+        }
+        onOpen?.();
+      }}
+      onDragStart={handleDragStart}
+      onDragEnd={() => {
+        setDragging(false);
+        setDragOver(false);
+      }}
+      onDragOver={event => {
+        if (disabled) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      className={`group relative aspect-square overflow-hidden rounded-md border bg-gray-50 transition ${
+        dragOver ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'
+      } ${dragging ? 'opacity-50' : ''} ${disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+      title={title}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={event => {
+        if (onOpen && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+    >
+      <img src={src} alt={title} className="h-full w-full object-cover transition group-hover:scale-105" />
+      {main && (
+        <span className="absolute left-2 top-2 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-800 shadow-sm">
+          Главное
+        </span>
+      )}
+      <span className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-gray-600 opacity-0 shadow-sm transition group-hover:opacity-100">
+        <GripVertical size={14} />
+      </span>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={event => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          disabled={disabled}
+          className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/90 text-gray-700 shadow-sm transition hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+          aria-label={`Удалить фото ${index + 1}`}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
+      <div className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[11px] text-white opacity-0 transition group-hover:opacity-100">
+        <p className="truncate pl-8">{title}</p>
+      </div>
     </div>
   );
 }

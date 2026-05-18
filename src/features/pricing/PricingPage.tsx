@@ -1,166 +1,94 @@
-import { useState } from 'react';
-import { Plus, Trash2, CreditCard as Edit2, Save, X } from 'lucide-react';
-import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
+import { useEffect, useState } from 'react';
+import { ArrowRight, CreditCard } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
-import { PrototypeBanner } from '../../components/ui/PrototypeBanner';
-import type { PricingPolicy, PricingAdjustment } from '../../types';
+import { Card, CardHeader } from '../../components/ui/Card';
+import { ApiError, resourcesApi } from '../../lib/api-client';
+import type { Resource } from '../../types';
 
-export function PricingPage() {
-  const [policies, setPolicies] = useState<PricingPolicy[]>([]);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<PricingPolicy>>({});
+interface PricingPageProps {
+  onNavigate?: (path: string) => void;
+}
 
-  const startEdit = (p: PricingPolicy) => {
-    setEditId(p.id);
-    setEditData({ ...p, adjustments: [...p.adjustments] });
-  };
-  const cancelEdit = () => { setEditId(null); setEditData({}); };
-  const saveEdit = () => {
-    setPolicies(prev => prev.map(p => p.id === editId ? { ...p, ...editData, updatedAt: new Date().toISOString() } : p));
-    cancelEdit();
-  };
+export function PricingPage({ onNavigate }: PricingPageProps) {
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const addAdjustment = () => {
-    const adj: PricingAdjustment = {
-      id: `adj-${Date.now()}`,
-      type: 'percentage',
-      amount: -10,
-      condition: '',
-      label: 'Новая корректировка',
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    resourcesApi.list()
+      .then(nextResources => {
+        if (!cancelled) setResources(nextResources);
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setError(err instanceof ApiError ? `Не удалось загрузить каталог: ${err.message}` : 'Не удалось загрузить каталог.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    setEditData(prev => ({ ...prev, adjustments: [...(prev.adjustments || []), adj] }));
-  };
-
-  const removeAdjustment = (id: string) => {
-    setEditData(prev => ({ ...prev, adjustments: (prev.adjustments || []).filter(a => a.id !== id) }));
-  };
-
-  const updateAdjustment = (id: string, field: keyof PricingAdjustment, value: string | number) => {
-    setEditData(prev => ({
-      ...prev,
-      adjustments: (prev.adjustments || []).map(a => a.id === id ? { ...a, [field]: value } : a),
-    }));
-  };
+  }, []);
 
   return (
-    <div className="p-6 space-y-5 max-w-4xl">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900">Настройка цен</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Настройте базовые цены и корректировки для офферов.</p>
-      </div>
-
-      <PrototypeBanner label="ожидает API" message="Запись цен пока работает только в прототипе. Поддержка API будет подключена позже." />
-
-      <div className="space-y-4">
-        {policies.map(p => {
-          const isEditing = editId === p.id;
-          const d = isEditing ? editData : p;
-          return (
-            <Card key={p.id}>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">{p.label}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Обновлено {new Date(p.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                </div>
-                {isEditing ? (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="primary" onClick={saveEdit}><Save size={12} /> Сохранить</Button>
-                    <Button size="sm" variant="ghost" onClick={cancelEdit}><X size={12} /></Button>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="secondary" onClick={() => startEdit(p)}>
-                    <Edit2 size={12} /> Редактировать
-                  </Button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-1">Базовая цена</p>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      value={String(d.basePrice)}
-                      onChange={e => setEditData(prev => ({ ...prev, basePrice: Number(e.target.value) }))}
-                    />
-                  ) : (
-                    <p className="text-lg font-bold text-gray-900">{p.basePrice.toLocaleString()} <span className="text-sm font-normal text-gray-500">{p.currency}</span></p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Корректировки</p>
-                  {isEditing && (
-                    <Button size="sm" variant="ghost" onClick={addAdjustment}>
-                      <Plus size={12} /> Добавить
-                    </Button>
-                  )}
-                </div>
-                {(d.adjustments || []).length === 0 ? (
-                  <p className="text-xs text-gray-500">Корректировки не настроены.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(d.adjustments || []).map(adj => (
-                      <div key={adj.id} className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-md">
-                        {isEditing ? (
-                          <>
-                            <Input
-                              value={adj.label}
-                              onChange={e => updateAdjustment(adj.id, 'label', e.target.value)}
-                              className="flex-1"
-                              placeholder="Название"
-                            />
-                            <Select
-                              options={[{ value: 'percentage', label: '%' }, { value: 'fixed', label: 'Фикс.' }]}
-                              value={adj.type}
-                              onChange={e => updateAdjustment(adj.id, 'type', e.target.value)}
-                              className="w-24"
-                            />
-                            <Input
-                              type="number"
-                              value={String(adj.amount)}
-                              onChange={e => updateAdjustment(adj.id, 'amount', Number(e.target.value))}
-                              className="w-24"
-                            />
-                            <button onClick={() => removeAdjustment(adj.id)} className="text-red-400 hover:text-red-600">
-                              <Trash2 size={14} />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex-1">
-                              <p className="text-xs font-medium text-gray-900">{adj.label}</p>
-                              <p className="text-[11px] text-gray-500">{adj.condition}</p>
-                            </div>
-                            <Badge variant={adj.amount < 0 ? 'green' : 'yellow'}>
-                              {adj.type === 'percentage' ? `${adj.amount > 0 ? '+' : ''}${adj.amount}%` : `${adj.amount > 0 ? '+' : ''}${adj.amount} RUB`}
-                            </Badge>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Card>
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Предпросмотр расчета</h3>
-          <Badge variant="yellow">ожидает API</Badge>
+    <div className="p-6">
+      <div className="mx-auto max-w-5xl space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Цены</h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Базовая цена настраивается в карточке позиции каталога. Для велосипедов это обычно цена за час.
+          </p>
         </div>
-        <p className="text-xs text-gray-500">
-          Предпросмотр расчета станет доступен после подключения API ценообразования. Можно будет проверять итоговые цены для разных дат и длительностей.
-        </p>
-      </Card>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+        )}
+
+        <Card>
+          <CardHeader
+            title="Где настраивать цену"
+            subtitle="Откройте позицию каталога и перейдите во вкладку “Цены”. Эта настройка закрывает предупреждение перед публикацией предложения."
+          />
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-500">Загружаем каталог...</div>
+          ) : resources.length === 0 ? (
+            <div className="rounded-md border border-dashed border-gray-200 px-3 py-10 text-center">
+              <p className="text-sm font-medium text-gray-900">Позиции пока не созданы.</p>
+              <Button className="mt-4" size="sm" variant="primary" onClick={() => onNavigate?.('/resources/create')}>
+                Добавить позицию
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {resources.map(resource => (
+                <button
+                  key={resource.resourceId}
+                  type="button"
+                  onClick={() => onNavigate?.(`/resources/${resource.resourceId}`)}
+                  className="flex w-full items-center justify-between gap-3 rounded-md border border-gray-100 px-3 py-2 text-left transition hover:bg-gray-50"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <CreditCard size={15} className="shrink-0 text-gray-400" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-gray-900">{resource.title}</span>
+                      <span className="block text-xs text-gray-500">{resource.categoryName ?? resource.resourceType}</span>
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-blue-700">
+                    Открыть цены <ArrowRight size={13} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

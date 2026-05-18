@@ -49,9 +49,9 @@ export function BookingDetail({ booking }: BookingDetailProps) {
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Выбор</h3>
           </div>
           <div className="space-y-2">
-            <DetailRow label="Оффер" value={booking.selection.offerTitle} />
-            <DetailRow label="Ресурс" value={booking.selection.resourceTitle} />
-            {booking.selection.variantTitle && <DetailRow label="Вариант" value={booking.selection.variantTitle} />}
+            <DetailRow label="Предложение" value={booking.selection.offerTitle} />
+            <DetailRow label="Инвентарь" value={booking.selection.resourceTitle} />
+            {booking.selection.variantTitle && <DetailRow label="Модель" value={booking.selection.variantTitle} />}
             <DetailRow label="Количество" value={String(booking.selection.quantity)} />
           </div>
         </Card>

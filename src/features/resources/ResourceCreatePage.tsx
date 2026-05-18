@@ -1,19 +1,33 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { ResourceForm, type ResourceFormData } from './ResourceForm';
-import { ApiError, equipmentApi, resourcesApi, variantsApi, type EquipmentCategory } from '../../lib/api-client';
+import { ApiError, equipmentApi, resourcesApi, variantsApi, type ResourceCategory } from '../../lib/api-client';
 
 interface ResourceCreatePageProps {
   onNavigate: (path: string) => void;
+  onHeaderContentChange?: (content: { title: string; subtitle?: string; breadcrumbs?: { label: string; path?: string }[] } | null) => void;
 }
 
-export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
-  const [categories, setCategories] = useState<EquipmentCategory[]>([]);
+export function ResourceCreatePage({ onNavigate, onHeaderContentChange }: ResourceCreatePageProps) {
+  const [categories, setCategories] = useState<ResourceCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [categoriesError, setCategoriesError] = useState('');
   const createInFlightRef = useRef(false);
+
+  useEffect(() => {
+    onHeaderContentChange?.({
+      title: 'Создание',
+      subtitle: 'Добавьте позицию в каталог.',
+      breadcrumbs: [
+        { label: 'Каталог', path: '/resources' },
+        { label: 'Создание' },
+      ],
+    });
+
+    return () => onHeaderContentChange?.(null);
+  }, [onHeaderContentChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +36,7 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
       setCategoriesError('');
       setCategoriesLoading(true);
       try {
-        const nextCategories = await equipmentApi.categories();
+        const nextCategories = await equipmentApi.resourceCategories('equipment');
         if (!cancelled) {
           setCategories(
             nextCategories
@@ -58,6 +72,7 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
       const newResource = await resourcesApi.create({
         resourceType: data.resourceType,
         capacityMode: data.capacityMode,
+        category: data.categorySlug,
         title: data.title,
       });
 
@@ -65,7 +80,7 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
       await Promise.all(variants.map((variant, index) =>
         variantsApi.create(newResource.resourceId, {
           ...variant,
-          normalizedAttributes: variant.normalizedAttributes,
+          attributes: variant.attributes,
           sortOrder: index + 1,
         })
       ));
@@ -77,10 +92,10 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
       onNavigate('/resources');
     } catch (err) {
       setError(err instanceof ApiError
-        ? `Не удалось создать ресурс в API: ${err.message}`
+        ? `Не удалось создать позицию в API: ${err.message}`
         : err instanceof Error
           ? err.message
-          : 'Не удалось создать ресурс в API.');
+          : 'Не удалось создать позицию в API.');
     } finally {
       setSaving(false);
       createInFlightRef.current = false;
@@ -89,7 +104,6 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
 
   return (
     <div className="flex h-screen flex-col bg-gray-50">
-      <ResourceCreateBreadcrumb onBack={() => onNavigate('/resources')} />
       <div className="flex-1 overflow-auto">
         <div className="p-6">
           {error && <ResourceCreateError message={error} />}
@@ -102,24 +116,6 @@ export function ResourceCreatePage({ onNavigate }: ResourceCreatePageProps) {
             submitting={saving}
           />
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ResourceCreateBreadcrumb({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="border-b border-gray-200 bg-white px-6 py-3">
-      <div className="flex min-w-0 items-center gap-2 text-sm">
-        <button
-          type="button"
-          onClick={onBack}
-          className="font-medium text-gray-600 transition-colors hover:text-gray-950"
-        >
-          Ресурсы
-        </button>
-        <ChevronRight size={14} className="shrink-0 text-gray-400" />
-        <span className="truncate font-semibold text-gray-950">Создание</span>
       </div>
     </div>
   );

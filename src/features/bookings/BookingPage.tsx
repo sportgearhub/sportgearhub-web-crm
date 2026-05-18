@@ -111,7 +111,7 @@ const zoomItems: Array<{ value: ZoomLevel; label: string }> = [
 
 const groupByItems: Array<{ value: GroupByMode; label: string }> = [
   { value: 'activity', label: 'Активность' },
-  { value: 'resource', label: 'Ресурс' },
+  { value: 'resource', label: 'Инвентарь' },
   { value: 'sku', label: 'SKU' },
 ];
 
@@ -573,7 +573,7 @@ export function BookingsPage({ onHeaderActionsChange }: BookingsPageProps) {
             bookingCount: categoryBookings.length,
             utilization: computeUtilization(categoryBookings, rangeStart.getTime(), rangeEnd.getTime()),
             isBookable: false,
-            meta: `Ресурсов: ${resources.length}`,
+            meta: `Позиций: ${resources.length}`,
             capacity: resources.length,
           };
         })
@@ -1770,7 +1770,7 @@ function TimelineScheduler({
               <div className="relative flex items-center justify-between" ref={resourceFlyoutRef}>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6b7a90]">
-                    Ресурсы
+                    Инвентарь
                   </p>
                 </div>
                 <button
@@ -1790,7 +1790,7 @@ function TimelineScheduler({
                         type="text"
                         value={resourceFlyoutSearch}
                         onChange={event => setResourceFlyoutSearch(event.target.value)}
-                        placeholder="Фильтр ресурсов"
+                        placeholder="Фильтр инвентаря"
                         className="w-full rounded-md border border-[#cbd5e1] bg-white px-8 py-2 text-xs text-[#0f172a] outline-none transition focus:border-[#86b7fe] focus:ring-2 focus:ring-[#9ec5fe]"
                       />
                     </div>
@@ -1845,7 +1845,7 @@ function TimelineScheduler({
                         );
                       })}
                       {filteredResourceOptions.length === 0 ? (
-                        <p className="px-2 py-4 text-center text-[11px] text-[#94a3b8]">Подходящих ресурсов нет</p>
+                        <p className="px-2 py-4 text-center text-[11px] text-[#94a3b8]">Подходящих позиций нет</p>
                       ) : null}
                     </div>
                   </div>
@@ -2483,7 +2483,7 @@ function FilterPanel({
       <Select options={locationOptions} value={locationFilter} onChange={event => onLocationChange(event.target.value)} />
       <Select options={statusOptions} value={statusFilter} onChange={event => onStatusChange(event.target.value)} />
       <label className="flex items-center justify-between rounded-md border border-[#d7e0ea] bg-[#f8fbff] px-3 py-2 text-sm text-[#334155]">
-        <span>Показывать только активные ресурсы</span>
+        <span>Показывать только активный инвентарь</span>
         <input
           type="checkbox"
           checked={activeOnly}
@@ -2492,7 +2492,7 @@ function FilterPanel({
         />
       </label>
       <label className="flex items-center justify-between rounded-md border border-[#d7e0ea] bg-[#f8fbff] px-3 py-2 text-sm text-[#334155]">
-        <span>Скрывать пустые ресурсы</span>
+        <span>Скрывать позиции без остатка</span>
         <input
           type="checkbox"
           checked={hideEmptyResources}
@@ -2549,7 +2549,7 @@ function CreateBookingForm({
       </div>
       <div className="grid gap-3 rounded-lg border border-[#d7e0ea] bg-[#f8fbff] p-4 text-sm text-[#334155]">
         <div className="flex justify-between gap-4">
-          <span className="text-xs text-[#64748b]">Ресурс</span>
+          <span className="text-xs text-[#64748b]">Инвентарь</span>
           <span className="text-right font-medium">
             {resource?.title}
             {variant ? ` · ${variant.title}` : ''}

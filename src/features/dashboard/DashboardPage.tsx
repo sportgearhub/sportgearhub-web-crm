@@ -169,7 +169,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             />
           </div>
           <Button size="sm" variant="ghost" className="w-full justify-center" onClick={() => onNavigate('/resources')}>
-            Управлять ресурсами
+            Управлять инвентарем
           </Button>
         </Card>
 
@@ -203,9 +203,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           <div className="space-y-1">
             {[
               { label: 'Инвентарь', path: '/resources' },
-              { label: 'Офферы', path: '/offers' },
-              { label: 'Доступность', path: '/availability' },
-              { label: 'Цены', path: '/pricing' },
+              { label: 'Модели', path: '/variants' },
+              { label: 'Предложения и цены', path: '/resources' },
               { label: 'Правила', path: '/policy' },
             ].map(link => (
               <button

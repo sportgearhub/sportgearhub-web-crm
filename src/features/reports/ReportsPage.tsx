@@ -63,7 +63,7 @@ export function ReportsPage() {
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Лучшие офферы</h3>
+            <h3 className="text-sm font-semibold text-gray-900">Лучшие предложения</h3>
           </div>
           <div className="space-y-3">
             {[

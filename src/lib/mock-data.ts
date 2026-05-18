@@ -751,7 +751,7 @@ export const mockOffers: Offer[] = [
     durationUnit: 'day',
     durationValue: 1,
     isPublishable: false,
-    publishabilityIssues: ['Ресурс отключен', 'Профиль доступности не настроен'],
+    publishabilityIssues: ['Позиция отключена', 'Профиль доступности не настроен'],
     createdAt: '2024-03-20T10:00:00Z',
     updatedAt: '2024-03-20T10:00:00Z',
   },

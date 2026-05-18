@@ -10,6 +10,8 @@ import type {
   AvailabilityCalendar,
   CapacitySlot,
   AvailabilityDiagnostics,
+  ResourceInventorySummary,
+  ResourceUnit,
   ResourceVariant,
   VariantAllocation,
   PricingPolicy,
@@ -21,6 +23,7 @@ import type {
   OfferVariantExposure,
   OfferRoutability,
   OfferPublishability,
+  OfferAuthoringOptions,
   BookingListItem,
   BookingDetail,
   BookingStatus,
@@ -72,6 +75,10 @@ type ApiResource = {
   resourceType?: string;
   status?: string;
   capacityMode?: string;
+  category?: {
+    slug?: string | null;
+    title?: string | null;
+  } | null;
   title?: string | null;
   readiness?: unknown;
   publishabilityImpact?: unknown;
@@ -79,15 +86,39 @@ type ApiResource = {
   updatedAt?: string;
 };
 
-export type EquipmentCategory = {
+type ApiOffer = {
+  offerId?: string;
+  offerType?: string;
+  status?: string;
+  primaryResourceId?: string;
+  bookingFlowType?: string;
+  variantExposureMode?: string;
+  title?: string | null;
+  description?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  mediaPreviewUrl?: string | null;
+  canonicalOfferId?: string | null;
+  publishability?: OfferPublishability | null;
+  executionLink?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ResourceCategory = {
   categoryId: string;
   slug: string;
-  label: string;
-  labels: Record<string, string>;
+  title: string;
+  titles: Record<string, string>;
   resourceType: string;
   capacityMode: string;
   status: string;
   sortOrder: number;
+};
+
+export type EquipmentCategory = ResourceCategory & {
+  label: string;
+  labels: Record<string, string>;
 };
 
 export type EquipmentAttributeAllowedValue = {
@@ -127,7 +158,7 @@ export type EquipmentAttribute = {
 };
 
 export type EquipmentAttributeSchema = {
-  category: EquipmentCategory;
+  category: EquipmentCategory | ResourceCategory;
   attributes: EquipmentAttribute[];
 };
 
@@ -281,12 +312,19 @@ function normalizeResource(resource: ApiResource): Resource {
     : 'draft';
   const updatedAt = resource.updatedAt ?? new Date().toISOString();
   const resourceType = resource.resourceType ?? 'equipment';
+  const category = resource.category?.slug
+    ? {
+      slug: resource.category.slug,
+      title: resource.category.title ?? resource.category.slug,
+    }
+    : null;
 
   return {
     resourceId,
     providerId: resource.providerId,
     resourceType,
     capacityMode: resource.capacityMode,
+    category,
     status,
     title,
     readiness: (resource.readiness ?? {
@@ -306,8 +344,49 @@ function normalizeResource(resource: ApiResource): Resource {
     updatedAt,
     id: resourceId,
     slug: resourceId,
-    categoryName: resourceType === 'equipment' ? 'Equipment' : resourceType,
+    categoryName: category?.title ?? (resourceType === 'equipment' ? 'Equipment' : resourceType),
     variantCount: 0,
+  };
+}
+
+function normalizeOffer(offer: ApiOffer): Offer {
+  const offerId = offer.offerId ?? '';
+  const status = ['active', 'inactive', 'archived', 'draft'].includes(offer.status ?? '')
+    ? offer.status as OfferStatus
+    : 'draft';
+  const title = offer.title ?? 'Новое предложение';
+  const publishability = offer.publishability ?? {
+    status: 'not_publishable',
+    reason: 'publishability_not_checked',
+  };
+  const price = typeof offer.price === 'number' ? offer.price : undefined;
+
+  return {
+    offerId,
+    offerType: offer.offerType ?? 'equipment_rental',
+    status,
+    primaryResourceId: offer.primaryResourceId ?? '',
+    bookingFlowType: offer.bookingFlowType ?? 'standard_rental',
+    variantExposureMode: offer.variantExposureMode,
+    title,
+    description: offer.description ?? undefined,
+    price: offer.price ?? null,
+    currency: offer.currency ?? 'RUB',
+    mediaPreviewUrl: offer.mediaPreviewUrl ?? null,
+    canonicalOfferId: offer.canonicalOfferId ?? undefined,
+    publishability,
+    executionLink: offer.executionLink ?? undefined,
+    createdAt: offer.createdAt,
+    updatedAt: offer.updatedAt ?? new Date().toISOString(),
+    id: offerId,
+    slug: offerId,
+    resourceId: offer.primaryResourceId ?? '',
+    resourceTitle: offer.primaryResourceId ?? '',
+    basePrice: price,
+    durationUnit: 'day',
+    durationValue: 1,
+    isPublishable: publishability.status === 'publishable',
+    publishabilityIssues: publishability.status === 'publishable' ? [] : [publishability.reason].filter(Boolean),
   };
 }
 
@@ -621,6 +700,7 @@ export const resourcesApi = {
   create: (data: {
     resourceType: string;
     capacityMode: string;
+    category?: string;
     title: string;
   }) => providerRequest<ApiResource>('/resources', { method: 'POST', body: JSON.stringify(data) }).then(normalizeResource),
 
@@ -628,7 +708,7 @@ export const resourcesApi = {
 
   patch: (
     resourceId: string,
-    data: { status?: ResourceStatus; title?: string }
+    data: { status?: ResourceStatus; title?: string; category?: string }
   ) =>
     providerRequest<ApiResource>(`/resources/${resourceId}`, {
       method: 'PATCH',
@@ -673,6 +753,17 @@ export const resourcesApi = {
 };
 
 export const equipmentApi = {
+  resourceCategories: (resourceType?: string, locale = 'ru-RU') => {
+    const params = new URLSearchParams({ locale });
+    if (resourceType) params.set('resourceType', resourceType);
+    return providerRequest<ResourceCategory[]>(`/resource-categories?${params.toString()}`);
+  },
+
+  resourceCategoryAttributes: (resourceType: string, categorySlug: string, locale = 'ru-RU') =>
+    providerRequest<EquipmentAttributeSchema>(
+      `/resource-categories/${encodeURIComponent(resourceType)}/${encodeURIComponent(categorySlug)}/attributes?locale=${encodeURIComponent(locale)}`
+    ),
+
   categories: (locale = 'ru-RU') =>
     providerRequest<EquipmentCategory[]>(`/equipment-categories?locale=${encodeURIComponent(locale)}`),
 
@@ -733,11 +824,12 @@ export const availabilityApi = {
 
   listSlots: (
     resourceId: string,
-    params: { dateFrom?: string; dateTo?: string; status?: string }
+    params: { dateFrom?: string; dateTo?: string; status?: string } = {}
   ) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && qs.set(k, v));
-    return providerRequest<CapacitySlot[]>(`/resources/${resourceId}/capacity-slots?${qs}`);
+    const suffix = qs.size > 0 ? `?${qs.toString()}` : '';
+    return providerRequest<CapacitySlot[]>(`/resources/${resourceId}/slots${suffix}`);
   },
 
   createSlot: (
@@ -747,27 +839,63 @@ export const availabilityApi = {
       endsAt: string;
       totalCapacity: number;
       status: string;
+      title?: string | null;
+      meetingPoint?: string | null;
       bookingSubjectRef?: CapacitySlot['bookingSubjectRef'];
     }
   ) =>
-    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots`, {
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/slots`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   patchSlot: (resourceId: string, slotId: string, data: Partial<CapacitySlot>) =>
-    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}`, {
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/slots/${slotId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 
-  closeSlot: (resourceId: string, slotId: string) =>
-    providerRequest<CapacitySlot>(`/resources/${resourceId}/capacity-slots/${slotId}/close`, {
+  closeSlot: (resourceId: string, slotId: string, reasonCode?: string | null) =>
+    providerRequest<CapacitySlot>(`/resources/${resourceId}/slots/${slotId}/close`, {
       method: 'POST',
+      body: JSON.stringify({ reasonCode: reasonCode || null }),
     }),
 
   getDiagnostics: (resourceId: string) =>
     providerRequest<AvailabilityDiagnostics>(`/resources/${resourceId}/availability-diagnostics`),
+
+  getInventorySummary: (resourceId: string) =>
+    providerRequest<ResourceInventorySummary>(`/resources/${resourceId}/inventory-summary`),
+
+  listUnits: (resourceId: string) =>
+    providerRequest<ResourceUnit[]>(`/resources/${resourceId}/units`),
+
+  createUnit: (
+    resourceId: string,
+    data: {
+      resourceVariantId?: string | null;
+      inventoryCode?: string | null;
+      displayName?: string | null;
+      status?: string | null;
+      conditionStatus?: string | null;
+      externalReferenceCode?: string | null;
+    }
+  ) => providerRequest<ResourceUnit>(`/resources/${resourceId}/units`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+
+  patchUnit: (resourceId: string, unitId: string, data: Partial<ResourceUnit>) =>
+    providerRequest<ResourceUnit>(`/resources/${resourceId}/units/${unitId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  archiveUnit: (resourceId: string, unitId: string, reasonCode = 'provider_archived') =>
+    providerRequest<ResourceUnit>(`/resources/${resourceId}/units/${unitId}/archive`, {
+      method: 'POST',
+      body: JSON.stringify({ reasonCode }),
+    }),
 };
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
@@ -781,7 +909,7 @@ export const variantsApi = {
     data: {
       variantKey: string;
       label: string;
-      normalizedAttributes: ResourceVariant['normalizedAttributes'];
+      attributes: ResourceVariant['attributes'];
       sortOrder: number;
       status: string;
     }
@@ -797,7 +925,7 @@ export const variantsApi = {
   patch: (
     resourceId: string,
     variantId: string,
-    data: Partial<Pick<ResourceVariant, 'label' | 'variantKey' | 'normalizedAttributes' | 'sortOrder' | 'status'>>
+    data: Partial<Pick<ResourceVariant, 'label' | 'variantKey' | 'attributes' | 'sortOrder' | 'status'>>
   ) =>
     providerRequest<ResourceVariant>(`/resources/${resourceId}/variants/${variantId}`, {
       method: 'PATCH',
@@ -835,7 +963,7 @@ export const pricingApi = {
     data: {
       pricingMode: string;
       currency: string;
-      unitRules: PricingPolicy['unitRules'];
+      baseAmount?: number | null;
       adjustmentRules: PricingPolicy['adjustmentRules'];
       status: string;
     }
@@ -870,7 +998,7 @@ export const pricingApi = {
     data: {
       pricingMode: string;
       currency: string;
-      unitRules: PricingPolicy['unitRules'];
+      baseAmount?: number | null;
       adjustmentRules: PricingPolicy['adjustmentRules'];
       status: string;
     }
@@ -945,7 +1073,14 @@ export const policyApi = {
 // ─── Offers ───────────────────────────────────────────────────────────────────
 
 export const offersApi = {
-  list: () => providerRequest<Offer[]>('/offers'),
+  list: async () => (await providerRequest<ApiOffer[]>('/offers')).map(normalizeOffer),
+
+  authoringOptions: (primaryResourceId?: string) => {
+    const params = new URLSearchParams();
+    if (primaryResourceId) params.set('primaryResourceId', primaryResourceId);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    return providerRequest<OfferAuthoringOptions>(`/offers/authoring-options${suffix}`);
+  },
 
   create: (data: {
     primaryResourceId: string;
@@ -955,25 +1090,19 @@ export const offersApi = {
     subtitle?: string;
     description?: string;
     locationRef?: Offer['locationRef'];
-    includedItems?: Offer['includedItems'];
-    requiredItems?: Offer['requiredItems'];
-    mediaRefs?: Offer['mediaRefs'];
-  }) => providerRequest<Offer>('/offers', { method: 'POST', body: JSON.stringify(data) }),
+    variantExposureMode?: string | null;
+  }) => providerRequest<ApiOffer>('/offers', { method: 'POST', body: JSON.stringify(data) }).then(normalizeOffer),
 
-  get: (offerId: string) => providerRequest<Offer>(`/offers/${offerId}`),
+  get: (offerId: string) => providerRequest<ApiOffer>(`/offers/${offerId}`).then(normalizeOffer),
 
   patch: (
     offerId: string,
     data: {
       title?: string;
-      subtitle?: string;
       description?: string;
       locationRef?: Offer['locationRef'];
-      includedItems?: Offer['includedItems'];
-      requiredItems?: Offer['requiredItems'];
-      mediaRefs?: Offer['mediaRefs'];
     }
-  ) => providerRequest<Offer>(`/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  ) => providerRequest<ApiOffer>(`/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify(data) }).then(normalizeOffer),
 
   checkPublishability: (offerId: string) =>
     providerRequest<OfferPublishability>(`/offers/${offerId}/check-publishability`, {
@@ -981,22 +1110,32 @@ export const offersApi = {
     }),
 
   activate: (offerId: string) =>
-    providerRequest<Offer>(`/offers/${offerId}/activate`, { method: 'POST' }),
+    providerRequest<ApiOffer>(`/offers/${offerId}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ reasonCode: 'provider_requested' }),
+    }).then(normalizeOffer),
 
   deactivate: (offerId: string) =>
-    providerRequest<Offer>(`/offers/${offerId}/deactivate`, { method: 'POST' }),
+    providerRequest<ApiOffer>(`/offers/${offerId}/deactivate`, {
+      method: 'POST',
+      body: JSON.stringify({ reasonCode: 'provider_requested' }),
+    }).then(normalizeOffer),
 
   archive: (offerId: string, reasonCode: string) =>
-    providerRequest<Offer>(`/offers/${offerId}/archive`, {
+    providerRequest<ApiOffer>(`/offers/${offerId}/archive`, {
       method: 'POST',
       body: JSON.stringify({ reasonCode }),
-    }),
+    }).then(normalizeOffer),
 
   getVariantExposure: (offerId: string) =>
-    providerRequest<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`),
+    providerRequest<OfferVariantExposure[]>(`/offers/${offerId}/variant-exposure`),
 
-  putVariantExposure: (offerId: string, data: OfferVariantExposure) =>
-    providerRequest<OfferVariantExposure>(`/offers/${offerId}/variant-exposure`, {
+  putVariantExposure: (
+    offerId: string,
+    variantId: string,
+    data: Pick<OfferVariantExposure, 'isRequiredForBooking' | 'displayLabelOverride' | 'visibilityStatus' | 'sortOrder'>
+  ) =>
+    providerRequest<OfferVariantExposure>(`/offers/${offerId}/variants/${variantId}/exposure`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),

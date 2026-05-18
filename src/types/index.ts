@@ -137,6 +137,10 @@ export interface Resource {
   resourceId: string;
   resourceType: string;
   capacityMode?: string;
+  category?: {
+    slug: string;
+    title: string;
+  } | null;
   status: ResourceStatus;
   title: string;
   readiness: ResourceReadiness;
@@ -172,7 +176,7 @@ export interface AvailabilityProfile {
   resourceId: string;
   availabilityMode: string;
   timezone: string;
-  bookingHorizonDays: number;
+  bookingHorizonDays: number | null;
   status: string;
   readiness?: Record<string, unknown>;
   publishabilityImpact?: Record<string, unknown>;
@@ -186,23 +190,33 @@ export interface AvailabilityProfile {
 }
 
 export interface RecurringRule {
-  dayOfWeek: string;
-  startsAtLocal: string;
-  endsAtLocal: string;
-  capacity: number;
+  dayOfWeek: string | null;
+  startsAtLocal: string | null;
+  endsAtLocal: string | null;
+  capacity: number | null;
 }
 
 export interface BlockedPeriod {
-  startsAt: string;
-  endsAt: string;
-  reasonCode: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  reasonCode: string | null;
+}
+
+export interface AvailabilityException {
+  date?: string | null;
+  isClosed?: boolean | null;
+  opensAtLocal?: string | null;
+  closesAtLocal?: string | null;
+  capacity?: number | null;
 }
 
 export interface AvailabilityCalendar {
+  calendarId?: string;
+  resourceId?: string;
   timezone: string;
   recurringRules: RecurringRule[];
   blockedPeriods: BlockedPeriod[];
-  exceptions: unknown[];
+  exceptions: AvailabilityException[];
   updatedAt: string;
 }
 
@@ -215,6 +229,9 @@ export interface CapacitySlot {
   reservedCapacity: number;
   availableCapacity: number;
   status: string;
+  title?: string | null;
+  meetingPoint?: string | null;
+  createdAt?: string;
   bookingSubjectRef?: {
     resourceId: string;
     resourceType: string;
@@ -224,13 +241,56 @@ export interface CapacitySlot {
 }
 
 export interface AvailabilityDiagnostics {
+  resourceId?: string;
   availabilityReady: boolean;
   bookingRoutable: boolean;
   modeValid: boolean;
   errors: string[];
   warnings: string[];
-  publishabilityImpact: PublishabilityImpact;
-  checkedAt: string;
+  publishabilityImpact?: PublishabilityImpact | Array<{ key: string; value: string | null }>;
+  checkedAt?: string;
+}
+
+export interface ResourceUnit {
+  unitId: string;
+  resourceId: string;
+  resourceVariantId?: string | null;
+  inventoryCode: string;
+  displayName?: string | null;
+  status: string;
+  conditionStatus?: string | null;
+  externalReferenceCode?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResourceVariantInventorySummary {
+  resourceVariantId: string;
+  variantKey: string;
+  label: string;
+  status: string;
+  totalUnits: number;
+  activeUnits: number;
+  readyUnits: number;
+  maintenanceUnits: number;
+  damagedUnits: number;
+  updatedAt: string;
+}
+
+export interface ResourceInventorySummary {
+  resourceId: string;
+  totalUnits: number;
+  activeUnits: number;
+  readyUnits: number;
+  maintenanceUnits: number;
+  damagedUnits: number;
+  inactiveUnits: number;
+  retiredUnits: number;
+  lostUnits: number;
+  classifiedUnits: number;
+  unclassifiedUnits: number;
+  variants: ResourceVariantInventorySummary[];
+  updatedAt: string;
 }
 
 // ─── Variants ─────────────────────────────────────────────────────────────────
@@ -246,14 +306,14 @@ export interface ResourceVariant {
   variantKey: string;
   label: string;
   status: 'active' | 'inactive' | 'archived';
-  normalizedAttributes: NormalizedAttribute[];
+  attributes: Record<string, string>;
+  normalizedAttributes?: NormalizedAttribute[];
   sortOrder: number;
   updatedAt: string;
   /** kept for backward-compat with existing UI */
   id: string;
   title: string;
   sku?: string;
-  attributes?: Record<string, string>;
   stock?: number;
   createdAt?: string;
 }
@@ -279,30 +339,32 @@ export interface UnitRules {
 }
 
 export interface AdjustmentRule {
-  code: string;
-  type: 'percent' | 'fixed';
-  percent?: number;
-  amount?: number;
-  appliesWhen: string;
-  isRequired: boolean;
+  code?: string | null;
+  type?: string | null;
+  percent?: number | null;
+  amount?: number | null;
+  appliesWhen?: string | null;
+  isRequired?: boolean | null;
 }
 
 export interface PricingPolicy {
-  pricingMode: string;
-  currency: string;
-  unitRules: UnitRules;
-  adjustmentRules: AdjustmentRule[];
+  pricingPolicyId?: string;
+  pricingMode?: string;
+  currency?: string;
+  baseAmount?: number | null;
+  unitRules?: UnitRules;
+  adjustmentRules?: AdjustmentRule[];
   status: string;
   readiness?: Record<string, unknown>;
-  publishabilityImpact?: PublishabilityImpact;
+  publishabilityImpact?: PublishabilityImpact | { status?: string; reason?: string };
   /** kept for backward-compat with existing UI */
-  id: string;
+  id?: string;
   resourceId?: string;
   offerId?: string;
-  label: string;
-  basePrice: number;
-  adjustments: PricingAdjustment[];
-  updatedAt: string;
+  label?: string;
+  basePrice?: number;
+  adjustments?: PricingAdjustment[];
+  updatedAt?: string;
 }
 
 export interface PricingAdjustment {
@@ -326,12 +388,15 @@ export interface PricingQuotePreview {
 }
 
 export interface PricingDiagnostics {
+  resourceId?: string;
+  offerId?: string | null;
   pricingReady: boolean;
   quoteable: boolean;
   summaryReady: boolean;
   errors: string[];
   warnings: string[];
-  publishabilityImpact: PublishabilityImpact;
+  publishabilityImpact?: PublishabilityImpact | Array<{ key: string; value: string | null }>;
+  checkedAt?: string;
 }
 
 // ─── Policy ───────────────────────────────────────────────────────────────────
@@ -378,8 +443,12 @@ export interface PolicyDiagnostics {
 export type OfferStatus = 'draft' | 'active' | 'inactive' | 'archived';
 
 export interface LocationRef {
-  city: string;
-  countryCode: string;
+  city?: string | null;
+  countryCode?: string | null;
+  country?: string | null;
+  region?: string | null;
+  address?: string | null;
+  house?: string | null;
 }
 
 export interface IncludedItem {
@@ -392,7 +461,7 @@ export interface MediaRefs {
 }
 
 export interface OfferPublishability {
-  status: 'publishable' | 'not_publishable';
+  status: 'publishable' | 'not_publishable' | 'blocked' | string;
   reason: string;
 }
 
@@ -402,6 +471,7 @@ export interface Offer {
   status: OfferStatus;
   primaryResourceId: string;
   bookingFlowType: string;
+  variantExposureMode?: string;
   title: string;
   subtitle?: string;
   description?: string;
@@ -412,6 +482,8 @@ export interface Offer {
   pricingSummary?: Record<string, unknown>;
   policySummary?: Record<string, unknown>;
   canonicalOfferId?: string;
+  price?: number | null;
+  mediaPreviewUrl?: string | null;
   publishability: OfferPublishability;
   executionLink?: Record<string, unknown>;
   updatedAt: string;
@@ -430,10 +502,12 @@ export interface Offer {
 }
 
 export interface OfferVariantExposure {
+  offerId?: string;
+  resourceVariantId?: string;
   isRequiredForBooking: boolean;
-  displayLabelOverride?: string;
+  displayLabelOverride?: string | null;
   visibilityStatus: string;
-  sortOrder: number;
+  sortOrder?: number | null;
 }
 
 export interface OfferRoutability {
@@ -451,6 +525,32 @@ export interface OfferRoutability {
   warnings: string[];
   issues: string[];
   checkedAt: string;
+}
+
+export interface OfferAuthoringOption {
+  value: string;
+  title: string;
+  description: string | null;
+  isDefault: boolean;
+  isActive?: boolean;
+}
+
+export interface OfferAuthoringOptions {
+  offerTypes: OfferAuthoringOption[];
+  bookingFlowTypes: OfferAuthoringOption[];
+  variantExposureModes: OfferAuthoringOption[];
+  defaults: {
+    offerType: string;
+    bookingFlowType: string;
+    variantExposureMode: string;
+  };
+  resourceCompatibility: {
+    resourceId: string;
+    resourceType: string;
+    capacityMode: string;
+    recommendedOfferTypes: string[];
+    defaultOfferType: string;
+  } | null;
 }
 
 // ─── Bookings ─────────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ export function ResourceDeleteDialog({
       onClose={() => {
         if (!removing) onClose();
       }}
-      title="Удалить ресурс"
+      title="Удалить позицию"
       size="sm"
     >
       {resource && (
@@ -36,7 +36,7 @@ export function ResourceDeleteDialog({
             <div>
               <p className="text-sm font-medium text-red-950">Удалить "{resource.title}"?</p>
               <p className="mt-1 text-xs leading-5 text-red-700">
-                Это действие нельзя отменить. Удаление доступно только для ресурсов без офферов,
+                Это действие нельзя отменить. Удаление доступно только для позиций без предложений,
                 броней и записей выдачи.
               </p>
             </div>

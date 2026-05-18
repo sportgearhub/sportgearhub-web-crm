@@ -1,30 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   CreditCard as Edit2,
   PackagePlus,
-  Search,
   ToggleLeft,
   ToggleRight,
 } from 'lucide-react';
-import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
-import { Modal } from '../../components/ui/Modal';
-import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { VariantFormModal, type VariantFormData } from './VariantFormModal';
 import { ApiError, resourcesApi, variantsApi } from '../../lib/api-client';
-import type { NormalizedAttribute, Resource, ResourceVariant } from '../../types';
+import type { Resource, ResourceVariant } from '../../types';
 
-type VariantFormData = {
-  resourceId: string;
-  variantKey: string;
-  label: string;
-  status: 'active' | 'inactive';
-  normalizedAttributes: NormalizedAttribute[];
-};
+type SortColumn = 'variant' | 'resource' | 'key' | 'status' | 'order' | null;
+type SortOrder = 'asc' | 'desc';
+
+interface ColumnFlyoutState {
+  column: string | null;
+  position: { top: number; left: number } | null;
+}
 
 const statusOptions = [
   { value: '', label: 'Все статусы' },
@@ -40,31 +38,16 @@ function variantTitle(variant: ResourceVariant) {
   return variant.label || variant.title || variant.variantKey;
 }
 
-function attributesRecord(attributes: NormalizedAttribute[] | undefined) {
-  return Object.fromEntries((attributes ?? []).map(attribute => [attribute.key, attribute.value]));
-}
-
-function toVariantFormData(
-  variant: ResourceVariant | null,
-  initialResourceId: string,
-  fallbackSortOrder: number
-): VariantFormData & { sortOrder: number } {
-  return {
-    resourceId: variant?.resourceId || initialResourceId,
-    variantKey: variant?.variantKey || '',
-    label: variant?.label || variant?.title || '',
-    status: variant?.status === 'inactive' ? 'inactive' : 'active',
-    normalizedAttributes: variant?.normalizedAttributes ?? [],
-    sortOrder: variant?.sortOrder ?? fallbackSortOrder,
-  };
-}
-
 export function VariantsPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [variants, setVariants] = useState<ResourceVariant[]>([]);
   const [resourceFilter, setResourceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [query, setQuery] = useState('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('resource');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [flyoutState, setFlyoutState] = useState<ColumnFlyoutState>({ column: null, position: null });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<ResourceVariant | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +57,7 @@ export function VariantsPage() {
 
   const resourceOptions = useMemo(
     () => [
-      { value: '', label: 'Все ресурсы' },
+      { value: '', label: 'Весь инвентарь' },
       ...resources.map(resource => ({ value: resource.resourceId, label: resource.title })),
     ],
     [resources]
@@ -100,8 +83,8 @@ export function VariantsPage() {
       setVariants(variantGroups.flat());
     } catch (err) {
       setError(err instanceof ApiError
-        ? `Не удалось загрузить варианты из API: ${err.message}`
-        : 'Не удалось загрузить варианты из API.');
+        ? `Не удалось загрузить модели из API: ${err.message}`
+        : 'Не удалось загрузить модели из API.');
     } finally {
       setLoading(false);
     }
@@ -111,19 +94,62 @@ export function VariantsPage() {
     void loadData();
   }, []);
 
-  const filtered = variants.filter(variant => {
+  const filtered = useMemo(() => variants.filter(variant => {
     const matchesResource = !resourceFilter || variant.resourceId === resourceFilter;
     const matchesStatus = !statusFilter || variant.status === statusFilter;
     const resourceTitle = resourceById.get(variant.resourceId)?.title ?? '';
-    const haystack = [
-      variantTitle(variant),
-      variant.variantKey,
-      resourceTitle,
-      ...variant.normalizedAttributes.flatMap(attribute => [attribute.key, attribute.value]),
-    ].join(' ').toLowerCase();
-    const matchesQuery = !query || haystack.includes(query.toLowerCase());
-    return matchesResource && matchesStatus && matchesQuery;
-  });
+    return matchesResource && matchesStatus;
+  }), [resourceById, resourceFilter, statusFilter, variants]);
+
+  const sorted = useMemo(() => {
+    const result = [...filtered];
+
+    if (sortColumn) {
+      result.sort((a, b) => {
+        let left: number | string = 0;
+        let right: number | string = 0;
+
+        switch (sortColumn) {
+          case 'variant':
+            left = variantTitle(a);
+            right = variantTitle(b);
+            break;
+          case 'resource':
+            left = resourceById.get(a.resourceId)?.title ?? '';
+            right = resourceById.get(b.resourceId)?.title ?? '';
+            break;
+          case 'key':
+            left = a.variantKey ?? '';
+            right = b.variantKey ?? '';
+            break;
+          case 'status':
+            left = a.status;
+            right = b.status;
+            break;
+          case 'order':
+            left = a.sortOrder;
+            right = b.sortOrder;
+            break;
+        }
+
+        if (typeof left === 'string' && typeof right === 'string') {
+          return sortOrder === 'asc' ? left.localeCompare(right) : right.localeCompare(left);
+        }
+
+        return sortOrder === 'asc' ? (left as number) - (right as number) : (right as number) - (left as number);
+      });
+    }
+
+    return result;
+  }, [filtered, resourceById, sortColumn, sortOrder]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize, resourceFilter, sortColumn, sortOrder, statusFilter]);
 
   const resourceOf = (id: string) => resourceById.get(id)?.title || id || 'Не выбран';
 
@@ -184,10 +210,26 @@ export function VariantsPage() {
     }
   };
 
+  const handleColumnOpen = (event: MouseEvent, column: string) => {
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const left = Math.min(rect.left, window.innerWidth - 240);
+    setFlyoutState({
+      column,
+      position: { top: rect.bottom + 6, left: Math.max(8, left) },
+    });
+  };
+
+  const handleSort = (column: SortColumn, order?: SortOrder) => {
+    setSortColumn(column);
+    setSortOrder(order ?? (sortColumn === column && sortOrder === 'asc' ? 'desc' : 'asc'));
+    setFlyoutState({ column: null, position: null });
+  };
+
   const handleSave = async (data: VariantFormData) => {
     if (mutationInFlightRef.current) return;
     if (!data.resourceId) {
-      setError('Выберите ресурс для варианта.');
+      setError('Выберите позицию для модели.');
       return;
     }
 
@@ -200,7 +242,7 @@ export function VariantsPage() {
           variantKey: data.variantKey,
           label: data.label,
           status: data.status,
-          normalizedAttributes: data.normalizedAttributes,
+          attributes: data.attributes,
         });
         updateVariantInState(nextVariant);
       } else {
@@ -208,7 +250,7 @@ export function VariantsPage() {
         const nextVariant = await variantsApi.create(data.resourceId, {
           variantKey: data.variantKey,
           label: data.label,
-          normalizedAttributes: data.normalizedAttributes,
+          attributes: data.attributes,
           sortOrder,
           status: data.status,
         });
@@ -219,8 +261,8 @@ export function VariantsPage() {
       setEditTarget(null);
     } catch (err) {
       setError(err instanceof ApiError
-        ? `Не удалось сохранить вариант: ${err.message}`
-        : 'Не удалось сохранить вариант.');
+        ? `Не удалось сохранить модель: ${err.message}`
+        : 'Не удалось сохранить модель.');
     } finally {
       setSaving(false);
       mutationInFlightRef.current = false;
@@ -228,11 +270,11 @@ export function VariantsPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="mx-auto max-w-7xl space-y-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="flex h-screen flex-col bg-gray-50">
+      <nav className="border-b border-gray-200 bg-white">
+        <div className="flex items-center justify-between px-6 py-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Варианты</h2>
+            <h1 className="text-sm font-semibold text-gray-900">Модели</h1>
             <p className="text-xs text-gray-500">
               Строк: {filtered.length} · всего: {variants.length}
             </p>
@@ -250,50 +292,131 @@ export function VariantsPage() {
             <PackagePlus size={13} /> Добавить
           </Button>
         </div>
+      </nav>
 
+      <div className="relative flex-1 overflow-auto bg-white">
         {error && <VariantsError message={error} />}
 
-        <Card className="p-3">
-          <div className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_180px_180px]">
-            <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="Поиск по названию, ключу, ресурсу, атрибуту..."
-                className="w-full rounded-xl border border-gray-200 bg-white px-9 py-2.5 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
-              />
-            </div>
-            <Select options={resourceOptions} value={resourceFilter} onChange={event => setResourceFilter(event.target.value)} />
-            <Select options={statusOptions} value={statusFilter} onChange={event => setStatusFilter(event.target.value)} />
-          </div>
-        </Card>
-
-        <Card padding={false} className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-[1040px] w-full border-separate border-spacing-0">
+            <table className="w-[1120px] table-fixed border-separate border-spacing-0">
+              <colgroup>
+                <col className="w-64" />
+                <col className="w-56" />
+                <col className="w-48" />
+                <col className="w-72" />
+                <col className="w-28" />
+                <col className="w-28" />
+                <col className="w-24" />
+              </colgroup>
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="sticky left-0 z-10 border-b border-r border-gray-100 bg-gray-50 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                    Вариант
+                  <th className="sticky left-0 z-10 border-b border-r border-gray-100 bg-gray-50 px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={event => handleColumnOpen(event, 'variant')}
+                      className="flex items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-200"
+                    >
+                      Модель
+                      <ChevronDown size={13} className={sortColumn === 'variant' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'variant'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сортировать А-Я', value: 'asc' },
+                        { label: 'Сортировать Я-А', value: 'desc' },
+                      ]}
+                      activeOrder={sortColumn === 'variant' ? sortOrder : null}
+                      onSort={order => handleSort('variant', order)}
+                    />
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                    Ресурс
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={event => handleColumnOpen(event, 'resource')}
+                      className="flex items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-200"
+                    >
+                      Инвентарь
+                      <ChevronDown size={13} className={resourceFilter || sortColumn === 'resource' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <ResourceFilterFlyout
+                      isOpen={flyoutState.column === 'resource'}
+                      position={flyoutState.position}
+                      value={resourceFilter}
+                      options={resourceOptions}
+                      activeOrder={sortColumn === 'resource' ? sortOrder : null}
+                      onChange={value => {
+                        setResourceFilter(value);
+                        setFlyoutState({ column: null, position: null });
+                      }}
+                      onSort={order => handleSort('resource', order)}
+                    />
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                    Ключ
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={event => handleColumnOpen(event, 'key')}
+                      className="flex items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-200"
+                    >
+                      Ключ
+                      <ChevronDown size={13} className={sortColumn === 'key' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'key'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сортировать А-Я', value: 'asc' },
+                        { label: 'Сортировать Я-А', value: 'desc' },
+                      ]}
+                      activeOrder={sortColumn === 'key' ? sortOrder : null}
+                      onSort={order => handleSort('key', order)}
+                    />
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
                     Атрибуты
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                    Статус
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={event => handleColumnOpen(event, 'status')}
+                      className="flex items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-200"
+                    >
+                      Статус
+                      <ChevronDown size={13} className={statusFilter || sortColumn === 'status' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <StatusFilterFlyout
+                      isOpen={flyoutState.column === 'status'}
+                      position={flyoutState.position}
+                      value={statusFilter}
+                      activeOrder={sortColumn === 'status' ? sortOrder : null}
+                      onChange={value => {
+                        setStatusFilter(value);
+                        setFlyoutState({ column: null, position: null });
+                      }}
+                      onSort={order => handleSort('status', order)}
+                    />
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                    Порядок
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-center text-xs font-semibold text-gray-700">
+                    <button
+                      type="button"
+                      onClick={event => handleColumnOpen(event, 'order')}
+                      className="mx-auto flex items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-200"
+                    >
+                      Порядок
+                      <ChevronDown size={13} className={sortColumn === 'order' ? 'text-blue-600' : 'text-gray-400'} />
+                    </button>
+                    <ColumnFlyout
+                      isOpen={flyoutState.column === 'order'}
+                      position={flyoutState.position}
+                      options={[
+                        { label: 'Сначала меньше', value: 'asc' },
+                        { label: 'Сначала больше', value: 'desc' },
+                      ]}
+                      activeOrder={sortColumn === 'order' ? sortOrder : null}
+                      onSort={order => handleSort('order', order)}
+                    />
                   </th>
-                  <th className="border-b border-gray-100 px-3 py-1.5 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  <th className="border-b border-gray-100 px-2 py-1.5 text-right text-xs font-semibold text-gray-700">
                     Действия
                   </th>
                 </tr>
@@ -302,32 +425,34 @@ export function VariantsPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Загружаем варианты...
+                      Загружаем модели...
                     </td>
                   </tr>
-                ) : filtered.length === 0 ? (
+                ) : sorted.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
-                      Варианты не найдены.
+                      Модели не найдены.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map(variant => {
-                    const siblings = filtered.filter(item => item.resourceId === variant.resourceId);
+                  paginated.map(variant => {
+                    const siblings = variants
+                      .filter(item => item.resourceId === variant.resourceId)
+                      .sort((a, b) => a.sortOrder - b.sortOrder);
                     const siblingIndex = siblings.findIndex(item => variantId(item) === variantId(variant));
-                    const attrs = attributesRecord(variant.normalizedAttributes);
+                    const attrs = variant.attributes ?? Object.fromEntries((variant.normalizedAttributes ?? []).map(attribute => [attribute.key, attribute.value]));
                     return (
                       <tr key={variantId(variant)} className="hover:bg-gray-50/70">
                         <td className="sticky left-0 z-[1] border-b border-r border-gray-100 bg-white px-4 py-2.5">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{variantTitle(variant)}</p>
-                            <p className="text-[11px] text-gray-500">#{variantId(variant)}</p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900">{variantTitle(variant)}</p>
+                            <p className="truncate text-[11px] text-gray-500">#{variantId(variant)}</p>
                           </div>
                         </td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
+                        <td className="truncate border-b border-gray-100 px-4 py-2.5 text-sm text-gray-700">
                           {resourceOf(variant.resourceId)}
                         </td>
-                        <td className="border-b border-gray-100 px-4 py-2.5 text-xs font-mono text-gray-600">
+                        <td className="truncate border-b border-gray-100 px-4 py-2.5 text-xs font-mono text-gray-600">
                           {variant.variantKey || '—'}
                         </td>
                         <td className="border-b border-gray-100 px-4 py-2.5">
@@ -397,108 +522,64 @@ export function VariantsPage() {
               </tbody>
             </table>
           </div>
-        </Card>
-
-        <VariantFormModal
-          open={showForm}
-          variant={editTarget}
-          resources={resources}
-          initialResourceId={resourceFilter}
-          saving={saving}
-          onSave={handleSave}
-          onClose={() => {
-            setShowForm(false);
-            setEditTarget(null);
-          }}
-        />
+          <div className="flex flex-col gap-3 border-t border-gray-100 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-gray-500">
+              {sorted.length === 0
+                ? 'Нет строк'
+                : `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, sorted.length)} из ${sorted.length}`}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Select
+                value={String(pageSize)}
+                onChange={event => setPageSize(Number(event.target.value))}
+                options={[
+                  { value: '10', label: '10 строк' },
+                  { value: '25', label: '25 строк' },
+                  { value: '50', label: '50 строк' },
+                ]}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setPage(value => Math.max(1, value - 1))}
+                disabled={currentPage === 1}
+              >
+                Назад
+              </Button>
+              <span className="min-w-16 text-center text-xs text-gray-500">
+                {currentPage}/{pageCount}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setPage(value => Math.min(pageCount, value + 1))}
+                disabled={currentPage === pageCount}
+              >
+                Далее
+              </Button>
+            </div>
+          </div>
       </div>
+
+      <VariantFormModal
+        open={showForm}
+        variant={editTarget}
+        resources={resources}
+        initialResourceId={resourceFilter}
+        saving={saving}
+        onSave={handleSave}
+        onClose={() => {
+          setShowForm(false);
+          setEditTarget(null);
+        }}
+      />
+      {flyoutState.column && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setFlyoutState({ column: null, position: null })}
+        />
+      )}
     </div>
-  );
-}
-
-function VariantFormModal({
-  open,
-  variant,
-  resources,
-  initialResourceId,
-  saving,
-  onSave,
-  onClose,
-}: {
-  open: boolean;
-  variant: ResourceVariant | null;
-  resources: Resource[];
-  initialResourceId: string;
-  saving: boolean;
-  onSave: (data: VariantFormData) => void;
-  onClose: () => void;
-}) {
-  const [resourceId, setResourceId] = useState('');
-  const [variantKey, setVariantKey] = useState('');
-  const [label, setLabel] = useState('');
-  const [status, setStatus] = useState<'active' | 'inactive'>('active');
-  const [attrKey, setAttrKey] = useState('');
-  const [attrValue, setAttrValue] = useState('');
-
-  const resourceOptions = [
-    { value: '', label: 'Выберите ресурс' },
-    ...resources.map(resource => ({ value: resource.resourceId, label: resource.title })),
-  ];
-
-  useEffect(() => {
-    const initial = toVariantFormData(variant, initialResourceId, 1);
-    setResourceId(initial.resourceId);
-    setVariantKey(initial.variantKey);
-    setLabel(initial.label);
-    setStatus(initial.status);
-    setAttrKey(initial.normalizedAttributes[0]?.key ?? '');
-    setAttrValue(initial.normalizedAttributes[0]?.value ?? '');
-  }, [variant, initialResourceId, open]);
-
-  const handleSave = () => {
-    const normalizedAttributes = attrKey && attrValue
-      ? [{ key: attrKey.trim(), value: attrValue.trim() }]
-      : [];
-
-    onSave({
-      resourceId,
-      variantKey: variantKey.trim(),
-      label: label.trim(),
-      status,
-      normalizedAttributes,
-    });
-  };
-
-  return (
-    <Modal open={open} onClose={onClose} title={variant ? 'Редактировать вариант' : 'Добавить вариант'}>
-      <div className="space-y-3">
-        <Select
-          label="Ресурс"
-          options={resourceOptions}
-          value={resourceId}
-          onChange={event => setResourceId(event.target.value)}
-        />
-        <Input label="Ключ" value={variantKey} onChange={event => setVariantKey(event.target.value)} placeholder="TREK-MARLIN-M" />
-        <Input label="Название" value={label} onChange={event => setLabel(event.target.value)} placeholder="Trek Marlin / M" />
-        <Select
-          label="Статус"
-          options={[
-            { value: 'active', label: 'Активно' },
-            { value: 'inactive', label: 'Неактивно' },
-          ]}
-          value={status}
-          onChange={event => setStatus(event.target.value as 'active' | 'inactive')}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <Input label="Атрибут" value={attrKey} onChange={event => setAttrKey(event.target.value)} placeholder="frame_size" />
-          <Input label="Значение" value={attrValue} onChange={event => setAttrValue(event.target.value)} placeholder="M" />
-        </div>
-        <div className="flex gap-2 pt-2">
-          <Button variant="primary" onClick={handleSave} loading={saving}>{variant ? 'Сохранить' : 'Создать'}</Button>
-          <Button variant="secondary" onClick={onClose}>Отмена</Button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -507,6 +588,171 @@ function VariantsError({ message }: { message: string }) {
     <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
       <AlertTriangle size={14} className="shrink-0 text-red-600" />
       <p className="text-xs text-red-700">{message}</p>
+    </div>
+  );
+}
+
+function ColumnFlyout({
+  isOpen,
+  position,
+  options,
+  activeOrder,
+  onSort,
+}: {
+  isOpen: boolean;
+  position: { top: number; left: number } | null;
+  options: Array<{ label: string; value: SortOrder }>;
+  activeOrder: SortOrder | null;
+  onSort: (order: SortOrder) => void;
+}) {
+  if (!isOpen || !position) return null;
+
+  return (
+    <div
+      className="fixed z-[80] w-44 rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+      onClick={event => event.stopPropagation()}
+    >
+      <div className="space-y-1">
+        {options.map(option => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSort(option.value)}
+            className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+              activeOrder === option.value
+                ? 'bg-blue-50 font-medium text-blue-700'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResourceFilterFlyout({
+  isOpen,
+  position,
+  value,
+  options,
+  activeOrder,
+  onChange,
+  onSort,
+}: {
+  isOpen: boolean;
+  position: { top: number; left: number } | null;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  activeOrder: SortOrder | null;
+  onChange: (value: string) => void;
+  onSort: (order: SortOrder) => void;
+}) {
+  if (!isOpen || !position) return null;
+
+  return (
+    <div
+      className="fixed z-[80] w-64 rounded-lg border border-gray-200 bg-white shadow-xl"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+      onClick={event => event.stopPropagation()}
+    >
+      <div className="border-b border-gray-100 p-2">
+        <button
+          type="button"
+          onClick={() => onSort('asc')}
+          className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+            activeOrder === 'asc' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          Сортировать А-Я
+        </button>
+        <button
+          type="button"
+          onClick={() => onSort('desc')}
+          className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+            activeOrder === 'desc' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          Сортировать Я-А
+        </button>
+      </div>
+      <div className="max-h-56 overflow-y-auto p-2">
+        {options.map(option => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+              value === option.value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <span className="block truncate">{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatusFilterFlyout({
+  isOpen,
+  position,
+  value,
+  activeOrder,
+  onChange,
+  onSort,
+}: {
+  isOpen: boolean;
+  position: { top: number; left: number } | null;
+  value: string;
+  activeOrder: SortOrder | null;
+  onChange: (value: string) => void;
+  onSort: (order: SortOrder) => void;
+}) {
+  if (!isOpen || !position) return null;
+
+  return (
+    <div
+      className="fixed z-[80] w-48 rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
+      onClick={event => event.stopPropagation()}
+    >
+      <div className="border-b border-gray-100 pb-2">
+        <button
+          type="button"
+          onClick={() => onSort('asc')}
+          className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+            activeOrder === 'asc' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          Сначала активные
+        </button>
+        <button
+          type="button"
+          onClick={() => onSort('desc')}
+          className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+            activeOrder === 'desc' ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          Сначала неактивные
+        </button>
+      </div>
+      <div className="pt-2">
+        {statusOptions.map(option => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`w-full rounded px-3 py-2 text-left text-sm transition ${
+              value === option.value ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

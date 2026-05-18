@@ -30,23 +30,12 @@ const navItems: NavItem[] = [
   { label: 'Дашборд', icon: LayoutDashboard, path: '/' },
   { label: 'Бронирования', icon: ShoppingBag, path: '/bookings' },
   { label: 'Выдача', icon: CheckSquare, path: '/fulfillment', badge: '8' },
-  {
-    label: 'Каталог',
-    icon: Package,
-    path: '/resources',
-    children: [
-      { label: 'Ресурсы', path: '/resources' },
-      { label: 'Варианты', path: '/variants' },
-      { label: 'Офферы', path: '/offers' },
-    ],
-  },
+  { label: 'Каталог', icon: Package, path: '/resources' },
   {
     label: 'Настройки',
     icon: CalendarDays,
-    path: '/availability',
+    path: '/policy',
     children: [
-      { label: 'Доступность', path: '/availability' },
-      { label: 'Цены', path: '/pricing' },
       { label: 'Правила', path: '/policy' },
     ],
   },
@@ -62,7 +51,7 @@ interface SidebarProps {
 
 export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
   const { user } = useAuth();
-  const [expanded, setExpanded] = useState<string[]>(['Каталог', 'Настройки']);
+  const [expanded, setExpanded] = useState<string[]>(['Настройки']);
 
   const toggleExpand = (label: string) => {
     setExpanded(prev =>

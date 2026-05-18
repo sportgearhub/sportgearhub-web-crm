@@ -9,11 +9,16 @@ import type { Resource } from '../../types';
 import {
   ApiError,
   equipmentApi,
-  type EquipmentAttribute,
   type EquipmentAttributeSchema,
   type EquipmentBrandSuggestion,
-  type EquipmentCategory,
+  type ResourceCategory,
 } from '../../lib/api-client';
+import {
+  fixedVariantAttributeKeys,
+  pruneHiddenVariantAttributes,
+  VariantAttributeBuilder,
+  visibleVariantAttributes,
+} from '../variants/VariantAttributeBuilder';
 
 export type ResourceFormData = {
   title: string;
@@ -28,20 +33,20 @@ export type ResourceFormData = {
   variant?: {
     variantKey: string;
     label: string;
-    normalizedAttributes: Array<{ key: string; value: string }>;
+    attributes: Record<string, string>;
     status: string;
   };
   variants?: Array<{
     variantKey: string;
     label: string;
-    normalizedAttributes: Array<{ key: string; value: string }>;
+    attributes: Record<string, string>;
     status: string;
   }>;
 };
 
 interface ResourceFormProps {
   resource?: Resource;
-  categories: EquipmentCategory[];
+  categories: ResourceCategory[];
   onSubmit: (data: ResourceFormData) => void | Promise<void>;
   onCancel: () => void;
   submitting?: boolean;
@@ -58,18 +63,6 @@ type DraftVariant = {
   id: string;
   attributeValues: Record<string, string>;
 };
-
-function optionsForField(field: EquipmentAttribute | undefined) {
-  if (!field?.allowedValues.length) return [{ value: '', label: 'Выберите значение' }];
-
-  return [
-    { value: '', label: 'Выберите значение' },
-    ...field.allowedValues
-      .slice()
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map(option => ({ value: option.valueKey, label: option.label })),
-  ];
-}
 
 function textValue(value: unknown) {
   return String(value ?? '').trim();
@@ -110,8 +103,6 @@ function makeResourceTitle(categoryLabel: string, brandName: string, model: stri
   return `${categoryLabel} ${product}`.trim();
 }
 
-const fixedAttributeKeys = new Set(['brand', 'brand_id', 'brand_name', 'model']);
-
 function makeVariantLabel(form: BikeFormState, attributeValues: Record<string, string>) {
   return [
     [form.brandName, form.model].map(textValue).filter(Boolean).join(' '),
@@ -127,37 +118,6 @@ function newDraftVariant(): DraftVariant {
   };
 }
 
-function isAttributeVisible(attribute: EquipmentAttribute, values: Record<string, string>) {
-  if (attribute.visibleWhen.length === 0) return true;
-
-  return attribute.visibleWhen.every(condition => {
-    const selectedValue = values[condition.attributeKey];
-    return selectedValue ? condition.allowedValueKeys.includes(selectedValue) : false;
-  });
-}
-
-function visibleSchemaAttributes(schema: EquipmentAttributeSchema | null, attributeValues: Record<string, string>) {
-  return schema?.attributes
-    .filter(attribute =>
-      attribute.appliesTo.includes('variant') &&
-      !fixedAttributeKeys.has(attribute.key) &&
-      isAttributeVisible(attribute, attributeValues)
-    )
-    .slice()
-    .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
-}
-
-function pruneHiddenAttributeValues(schema: EquipmentAttributeSchema | null, values: Record<string, string>) {
-  if (!schema) return values;
-
-  const visibleKeys = new Set(visibleSchemaAttributes(schema, values).map(attribute => attribute.key));
-  const next = Object.fromEntries(
-    Object.entries(values).filter(([key]) => visibleKeys.has(key))
-  );
-
-  return next;
-}
-
 function buildAttributes(form: BikeFormState, schema: EquipmentAttributeSchema, attributeValues: Record<string, string>) {
   const values: Record<string, string> = {
     brand: form.brandId,
@@ -170,7 +130,7 @@ function buildAttributes(form: BikeFormState, schema: EquipmentAttributeSchema, 
   return schema.attributes
     .filter(attribute =>
       attribute.appliesTo.includes('variant') &&
-      (fixedAttributeKeys.has(attribute.key) || isAttributeVisible(attribute, attributeValues))
+      (fixedVariantAttributeKeys.has(attribute.key) || visibleVariantAttributes(schema, attributeValues, { hideFixed: false }).some(item => item.key === attribute.key))
     )
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map(attribute => ({ key: attribute.key, value: values[attribute.key] ?? '' }))
@@ -205,15 +165,15 @@ export function ResourceForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedCategory = categories.find(category => category.slug === categorySlug);
-  const categoryOptions = categories.map(category => ({ value: category.slug, label: category.label }));
+  const categoryOptions = categories.map(category => ({ value: category.slug, label: category.title }));
   const previewTitle = selectedCategory
-    ? makeResourceTitle(selectedCategory.label, form.brandName, form.model, titleOverride)
+    ? makeResourceTitle(selectedCategory.title, form.brandName, form.model, titleOverride)
     : titleOverride || 'Велосипеды';
   const showGeneratedFields = Boolean(selectedCategory && schema && !schemaLoading);
   const activeVariant = variants.find(variant => variant.id === activeVariantId) ?? variants[0];
   const activeAttributeValues = activeVariant?.attributeValues ?? {};
   const generatedAttributes = useMemo(
-    () => visibleSchemaAttributes(schema, activeAttributeValues),
+    () => visibleVariantAttributes(schema, activeAttributeValues),
     [activeAttributeValues, schema]
   );
 
@@ -224,10 +184,11 @@ export function ResourceForm({
   useEffect(() => {
     if (!resource || categorySlug || categories.length === 0) return;
 
-    const matchingCategory = categories.find(category =>
-      category.resourceType === resource.resourceType &&
-      category.capacityMode === resource.capacityMode
-    );
+    const matchingCategory = categories.find(category => category.slug === resource.category?.slug) ??
+      categories.find(category =>
+        category.resourceType === resource.resourceType &&
+        category.capacityMode === resource.capacityMode
+      );
 
     if (matchingCategory) setCategorySlug(matchingCategory.slug);
   }, [categories, categorySlug, resource]);
@@ -248,7 +209,7 @@ export function ResourceForm({
     setSchemaError('');
     setSchema(null);
 
-    equipmentApi.categoryAttributes(categorySlug)
+    equipmentApi.resourceCategoryAttributes(selectedCategory?.resourceType ?? 'equipment', categorySlug)
       .then(nextSchema => {
         if (!cancelled) setSchema(nextSchema);
       })
@@ -266,7 +227,7 @@ export function ResourceForm({
     return () => {
       cancelled = true;
     };
-  }, [categorySlug]);
+  }, [categorySlug, selectedCategory?.resourceType]);
 
   const updateForm = (key: keyof BikeFormState, value: string) => {
     setForm(current => ({ ...current, [key]: value }));
@@ -288,7 +249,7 @@ export function ResourceForm({
 
       return {
         ...variant,
-        attributeValues: pruneHiddenAttributeValues(schema, {
+        attributeValues: pruneHiddenVariantAttributes(schema, {
           ...variant.attributeValues,
           [key]: value,
         }),
@@ -343,15 +304,15 @@ export function ResourceForm({
 
     if (!isEdit && schema) {
       if (variants.length === 0) {
-        nextErrors.variants = 'Добавьте хотя бы одну комплектацию.';
+        nextErrors.variants = 'Добавьте хотя бы одну модель.';
       }
 
       variants.forEach((variant, index) => {
-        visibleSchemaAttributes(schema, variant.attributeValues)
+        visibleVariantAttributes(schema, variant.attributeValues)
           .filter(attribute => attribute.requiredOn.includes('create'))
           .forEach(attribute => {
             if (!textValue(variant.attributeValues[attribute.key] ?? '')) {
-              nextErrors[`${variant.id}:${attribute.key}`] = `Заполните поле в комплектации ${index + 1}.`;
+              nextErrors[`${variant.id}:${attribute.key}`] = `Заполните поле в модели ${index + 1}.`;
             }
           });
       });
@@ -359,7 +320,7 @@ export function ResourceForm({
 
     if (!isEdit && schemaLoading) nextErrors.schema = 'Дождитесь загрузки схемы категории.';
     if (!isEdit && selectedCategory && !schema && !schemaLoading) {
-      nextErrors.schema = schemaError || 'Не удалось загрузить поля комплектации.';
+      nextErrors.schema = schemaError || 'Не удалось загрузить поля модели.';
     }
 
     return nextErrors;
@@ -409,9 +370,9 @@ export function ResourceForm({
         brandId: resolvedBrand.brandId,
       };
       if (!isEdit && !schema) return;
-      const title = makeResourceTitle(selectedCategory.label, nextForm.brandName, nextForm.model, titleOverride);
+      const title = makeResourceTitle(selectedCategory.title, nextForm.brandName, nextForm.model, titleOverride);
       const nextVariants = variants.map((variant, index) => {
-        const variantLabel = makeVariantLabel(nextForm, variant.attributeValues) || `Комплектация ${index + 1}`;
+        const variantLabel = makeVariantLabel(nextForm, variant.attributeValues) || `Модель ${index + 1}`;
 
         return {
           variantKey: makeKey([
@@ -422,7 +383,7 @@ export function ResourceForm({
             String(index + 1),
           ]),
           label: variantLabel,
-          normalizedAttributes: buildAttributes(nextForm, schema, variant.attributeValues),
+          attributes: Object.fromEntries(buildAttributes(nextForm, schema, variant.attributeValues).map(attribute => [attribute.key, attribute.value])),
           status: 'active',
         };
       });
@@ -432,7 +393,7 @@ export function ResourceForm({
         categorySlug: selectedCategory.slug,
         resourceType: selectedCategory.resourceType,
         capacityMode: selectedCategory.capacityMode,
-        categoryName: selectedCategory.label,
+        categoryName: selectedCategory.title,
         description,
         imageFiles: isEdit ? undefined : imageFiles,
         status: 'draft',
@@ -504,7 +465,7 @@ export function ResourceForm({
 
           <Card className="p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <CardHeader title="Комплектации" />
+              <CardHeader title="Модели" />
               <button
                 type="button"
                 onClick={addVariant}
@@ -528,7 +489,7 @@ export function ResourceForm({
                         : 'border-[#d7e0ea] bg-white text-[#5c6b7c] hover:bg-[#f8fafc]'
                     }`}
                   >
-                    Комплектация {index + 1}
+                    Модель {index + 1}
                     {variants.length > 1 && (
                       <span
                         role="button"
@@ -554,17 +515,14 @@ export function ResourceForm({
               })}
             </div>
             {errors.variants && <p className="mb-2 text-xs text-red-600">{errors.variants}</p>}
-            <div className="grid gap-3 md:grid-cols-2">
-              {generatedAttributes.map(attribute => (
-                <AttributeField
-                  key={attribute.key}
-                  attribute={attribute}
-                  value={activeAttributeValues[attribute.key] ?? ''}
-                  error={activeVariant ? errors[`${activeVariant.id}:${attribute.key}`] : undefined}
-                  onChange={value => activeVariant && updateAttribute(activeVariant.id, attribute.key, value)}
-                />
-              ))}
-            </div>
+            <VariantAttributeBuilder
+              attributes={generatedAttributes}
+              values={activeAttributeValues}
+              errors={activeVariant
+                ? Object.fromEntries(generatedAttributes.map(attribute => [attribute.key, errors[`${activeVariant.id}:${attribute.key}`]]))
+                : {}}
+              onChange={(key, value) => activeVariant && updateAttribute(activeVariant.id, key, value)}
+            />
           </Card>
 
           <Card className="p-3">
@@ -821,46 +779,6 @@ function FancySelect({
   );
 }
 
-function AttributeField({
-  attribute,
-  value,
-  error,
-  onChange,
-}: {
-  attribute: EquipmentAttribute;
-  value: string;
-  error?: string;
-  onChange: (value: string) => void;
-}) {
-  const label = attribute.unitLabel
-    ? `${attribute.label}, ${attribute.unitLabel}`
-    : attribute.unit
-      ? `${attribute.label}, ${attribute.unit}`
-      : attribute.label;
-
-  if (attribute.allowedValues.length > 0) {
-    return (
-      <FancySelect
-        label={label}
-        value={value}
-        onChange={onChange}
-        options={optionsForField(attribute)}
-        error={error}
-      />
-    );
-  }
-
-  return (
-    <Input
-      label={label}
-      type={attribute.valueType === 'integer' || attribute.valueType === 'decimal' ? 'number' : 'text'}
-      value={value}
-      onChange={event => onChange(event.target.value)}
-      error={error}
-    />
-  );
-}
-
 function CategorySchemaPanel({
   loading,
   error,
@@ -874,7 +792,7 @@ function CategorySchemaPanel({
 
   return (
     <div className="mt-2 text-xs">
-      {loading && <p className="text-[#5c6b7c]">Загружаем поля комплектации...</p>}
+      {loading && <p className="text-[#5c6b7c]">Загружаем поля модели...</p>}
       {error && <p className="text-red-600">{error}</p>}
     </div>
   );
