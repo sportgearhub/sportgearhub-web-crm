@@ -1,86 +1,201 @@
 # Sportgearhub Web Provider Console API Integration
 
-This file is the working integration plan for `sportgearhub-web-provider-console`.
+This is the provider-console integration contract for `sportgearhub-web-provider-console`.
 
-Use `sportgearhub-web-provider-console-prototype.md` as the product brief. Use this file for implementation order, endpoint wiring, and current checklist status.
+Use the API repo docs as the source for product intent and deeper contracts:
 
-## Current API Base Assumptions
+- `docs/provider-console-api-surface.v1.md`
+- `docs/provider-resource-api.v1.md`
+- `docs/provider-variant-api.v1.md`
+- `docs/provider-availability-api.v1.md`
+- `docs/provider-pricing-api.v1.md`
+- `docs/provider-policy-api.v1.md`
+- `docs/provider-routability-api.v1.md`
+- `docs/provider-booking-operations-api.v1.md`
+- `docs/provider-fulfillment-api.v1.md`
+- `docs/flows/sign-in-provider-onboarding.md`
 
-- API authority is configured per environment by the web app.
-- Provider web origin is configured per environment by the web app.
-- Provider OIDC client id: `sportgearhub-provider`.
-- Provider callback route: `/auth/callback`.
-- Provider scopes: `openid profile email offline_access roles provider_api`.
-- Cookie-based API calls must use browser credentials.
-- Bearer-token API calls must use the OIDC access token.
+## Core Rules
 
-API routes:
+- `ProviderResource` is the provider-owned operational root.
+- `Offer` is commercial packaging and discovery, not execution truth.
+- Inventory units are the operational truth for physical equipment rental.
+- Availability, pricing, and policy are resource-first setup modules.
+- Offer activation is not the same as runtime booking readiness.
+- Routability is diagnostics, not booking-time availability truth.
+- The provider console must not call internal/admin API routes.
 
-- Swagger: `/swagger`
-- Health: `/health`
-- Cities: `/api/v1/catalog/cities`
-- Email auth start: `/api/v1/auth/email/start`
-- Registration invitation context: `/api/v1/auth/registration-invitations/{token}`
-- Register: `/api/v1/auth/register`
-- Magic sign-in: `/api/v1/auth/magic-sign-in`
-- Session login: `/api/v1/auth/session-login`
-- Token/password grant login: `/api/v1/auth/login`
-- Current user: `/api/v1/auth/me`
-- Current provider memberships: `/api/v1/auth/provider-memberships`
-- Dev email outbox: `/api/v1/development/emails`
-- Provider onboarding options: `/api/v1/provider-onboarding/options`
-- Current provider onboarding: `/api/v1/provider-onboarding/current`
-- Provider activity options: `/api/v1/provider/activity-options`
-- Provider locations: `/api/v1/provider/locations`
-- Provider resources: `/api/v1/provider/resources`
-- Provider availability profile: `/api/v1/provider/resources/{resourceId}/availability-profile`
-- Provider availability calendar: `/api/v1/provider/resources/{resourceId}/availability-calendar`
-- Provider availability diagnostics: `/api/v1/provider/resources/{resourceId}/availability-diagnostics`
-- Provider resource slots: `/api/v1/provider/resources/{resourceId}/slots`
-- Provider resource pricing policy: `/api/v1/provider/resources/{resourceId}/pricing-policy`
-- Provider resource pricing diagnostics: `/api/v1/provider/resources/{resourceId}/pricing-diagnostics`
-- Provider offer pricing policy: `/api/v1/provider/offers/{offerId}/pricing-policy`
-- Provider offer pricing summary preview: `/api/v1/provider/offers/{offerId}/pricing-summary-preview`
-- Provider offer visibility: `/api/v1/provider/offers/{offerId}/visibility`
-- Provider pricing quote preview: `/api/v1/provider/pricing/quote-preview`
-- Provider default policy profile: `/api/v1/provider/policy-profile`
-- Provider resource policy override: `/api/v1/provider/resources/{resourceId}/policy`
-- Provider resource policy diagnostics: `/api/v1/provider/resources/{resourceId}/policy-diagnostics`
-- Provider offer policy override: `/api/v1/provider/offers/{offerId}/policy`
-- Provider offer policy summary preview: `/api/v1/provider/offers/{offerId}/policy-summary-preview`
-- Provider effective policy preview: `/api/v1/provider/policy/effective-preview`
-- OIDC authorize: `/connect/authorize`
-- OIDC token: `/connect/token`
-- OIDC userinfo: `/connect/userinfo`
+## Environment And Auth
 
-Route prefix rule:
+Configure per environment:
 
-- Canonical frontend-facing API endpoints use `/api/v1/*`.
-- Local auth endpoints use `/api/v1/auth/*`.
-- Current provider memberships use `/api/v1/auth/provider-memberships`.
-- Development helper endpoints use `/api/v1/development/*`.
-- Provider onboarding endpoints use `/api/v1/provider-onboarding/*`.
-- Provider console endpoints use `/api/v1/provider/*`.
-- Legacy `/api/auth/*`, `/api/development/*`, and `/api/provider-console/*` aliases may exist temporarily, but new web code should not use them.
+- API authority
+- web origin
+- OIDC client id: `sportgearhub-provider`
+- callback route: `/auth/callback`
+- scopes: `openid profile email offline_access roles provider_api`
 
-## Auth Model
+Provider API calls may use either:
 
-The provider console has two user phases:
+- cookie session calls with `credentials: "include"`
+- bearer calls with `Authorization: Bearer <access_token>`
 
-- pre-provider user: can register, verify email, sign in, and work through `/api/v1/provider-onboarding/*`
-- provider member: can use `/api/v1/provider/*` after internal approval creates `Provider` and `ProviderMembership`
+New web code must use `/api/v1/*` routes. Do not add new calls to legacy `/api/auth/*`, `/api/development/*`, or `/api/provider-console/*` aliases.
 
-Do not grant provider access in frontend state. The API decides access from authenticated user, roles, scopes, and provider membership.
+## Route Index
 
-Use `/api/v1/auth/me` for signed-in user identity only. Use `/api/v1/auth/provider-memberships` to decide whether the user can enter a provider workspace or needs provider onboarding.
+### Platform
 
-## API Error Contract
+```http
+GET /health
+GET /swagger
+GET /api/v1/catalog/cities
+GET /api/v1/addresses/ru/suggestions
+POST /api/v1/addresses/ru/geolocate
+GET /api/v1/payment-reference/sbp-members
+```
 
-Most API-level business and auth failures return `application/problem+json`-style JSON with a stable `code` extension. The API is RU-first for now, so `title` and `detail` are localized Russian messages that can be shown in the frontend.
+### Auth
 
-Frontend code should still branch on `code`, not on localized text or HTTP status alone.
+```http
+POST /api/v1/auth/email/start
+GET  /api/v1/auth/registration-invitations/{token}
+POST /api/v1/auth/register
+POST /api/v1/auth/magic-sign-in
+POST /api/v1/auth/session-login
+POST /api/v1/auth/login
+GET  /api/v1/auth/me
+GET  /api/v1/auth/provider-memberships
+POST /api/v1/auth/signout
+POST /api/v1/auth/email/verify
+POST /api/v1/auth/email/verification
+POST /api/v1/auth/password/forgot
+POST /api/v1/auth/password/reset
+GET  /api/v1/development/emails
+GET  /connect/authorize
+POST /connect/token
+GET  /connect/userinfo
+```
 
-Shape:
+### Provider Onboarding
+
+```http
+GET   /api/v1/provider-onboarding/options
+GET   /api/v1/provider-onboarding/current
+POST  /api/v1/provider-onboarding/current
+PATCH /api/v1/provider-onboarding/current/profile
+POST  /api/v1/provider-onboarding/current/submit
+GET   /api/v1/provider-onboarding/banks/ru/lookup
+```
+
+### Provider Console
+
+```http
+GET   /api/v1/provider/activity-options
+GET   /api/v1/provider/fulfillment-locations
+POST  /api/v1/provider/fulfillment-locations
+PATCH /api/v1/provider/fulfillment-locations/{fulfillmentLocationId}
+
+GET    /api/v1/provider/resource-categories
+GET    /api/v1/provider/resource-categories/{resourceType}/{categorySlug}/attributes
+GET    /api/v1/provider/resources
+POST   /api/v1/provider/resources
+GET    /api/v1/provider/resources/{resourceId}
+PATCH  /api/v1/provider/resources/{resourceId}
+POST   /api/v1/provider/resources/{resourceId}/archive
+DELETE /api/v1/provider/resources/{resourceId}
+GET    /api/v1/provider/resources/{resourceId}/images
+POST   /api/v1/provider/resources/{resourceId}/images
+
+GET   /api/v1/provider/resources/{resourceId}/variants
+POST  /api/v1/provider/resources/{resourceId}/variants
+GET   /api/v1/provider/resources/{resourceId}/variants/{variantId}
+PATCH /api/v1/provider/resources/{resourceId}/variants/{variantId}
+POST  /api/v1/provider/resources/{resourceId}/variants/{variantId}/archive
+GET   /api/v1/provider/resources/{resourceId}/variants/{variantId}/allocation
+PUT   /api/v1/provider/resources/{resourceId}/variants/{variantId}/allocation
+GET   /api/v1/provider/resources/{resourceId}/variants/{variantId}/diagnostics
+
+GET   /api/v1/provider/resources/{resourceId}/inventory-summary
+GET   /api/v1/provider/resources/{resourceId}/units
+POST  /api/v1/provider/resources/{resourceId}/units
+PATCH /api/v1/provider/resources/{resourceId}/units/{unitId}
+POST  /api/v1/provider/resources/{resourceId}/units/{unitId}/archive
+
+GET  /api/v1/provider/resources/{resourceId}/availability-profile
+PUT  /api/v1/provider/resources/{resourceId}/availability-profile
+GET  /api/v1/provider/resources/{resourceId}/availability-calendar
+PUT  /api/v1/provider/resources/{resourceId}/availability-calendar
+GET  /api/v1/provider/resources/{resourceId}/availability-diagnostics
+GET  /api/v1/provider/resources/{resourceId}/slots
+POST /api/v1/provider/resources/{resourceId}/slots
+PATCH /api/v1/provider/resources/{resourceId}/slots/{slotId}
+POST /api/v1/provider/resources/{resourceId}/slots/{slotId}/close
+
+GET  /api/v1/provider/resources/{resourceId}/pricing-policy
+PUT  /api/v1/provider/resources/{resourceId}/pricing-policy
+GET  /api/v1/provider/resources/{resourceId}/pricing-diagnostics
+POST /api/v1/provider/pricing/quote-preview
+
+GET  /api/v1/provider/policy-profile
+PUT  /api/v1/provider/policy-profile
+GET  /api/v1/provider/resources/{resourceId}/policy
+PUT  /api/v1/provider/resources/{resourceId}/policy
+GET  /api/v1/provider/resources/{resourceId}/policy-diagnostics
+POST /api/v1/provider/policy/effective-preview
+
+GET  /api/v1/provider/offers
+POST /api/v1/provider/offers
+GET  /api/v1/provider/offers/authoring-options
+GET  /api/v1/provider/offers/{offerId}
+GET  /api/v1/provider/offers/{offerId}/readiness
+PATCH /api/v1/provider/offers/{offerId}
+POST /api/v1/provider/offers/{offerId}/activate
+POST /api/v1/provider/offers/{offerId}/deactivate
+POST /api/v1/provider/offers/{offerId}/archive
+GET  /api/v1/provider/offers/{offerId}/visibility
+PUT  /api/v1/provider/offers/{offerId}/visibility
+GET  /api/v1/provider/offers/{offerId}/pricing-policy
+PUT  /api/v1/provider/offers/{offerId}/pricing-policy
+POST /api/v1/provider/offers/{offerId}/pricing-summary-preview
+GET  /api/v1/provider/offers/{offerId}/policy
+PUT  /api/v1/provider/offers/{offerId}/policy
+POST /api/v1/provider/offers/{offerId}/policy-summary-preview
+GET  /api/v1/provider/offers/{offerId}/variant-exposure
+PUT  /api/v1/provider/offers/{offerId}/variants/{variantId}/exposure
+PUT  /api/v1/provider/offers/{offerId}/variant-exposure-mode
+GET  /api/v1/provider/offers/{offerId}/routability
+GET  /api/v1/provider/offers/routability
+GET  /api/v1/provider/resources/{resourceId}/routability-impact
+
+GET  /api/v1/provider/acquiring-connections
+POST /api/v1/provider/acquiring-connections
+GET  /api/v1/provider/acquiring-connections/{connectionId}
+POST /api/v1/provider/acquiring-connections/{connectionId}/submit-onboarding
+GET  /api/v1/provider/acquiring-connections/{connectionId}/recipient-routes
+GET  /api/v1/provider/acquiring-connections/{connectionId}/deal-binding
+GET  /api/v1/provider/acquiring-connections/{connectionId}/routability
+
+GET  /api/v1/provider/bookings
+GET  /api/v1/provider/bookings/{bookingId}
+GET  /api/v1/provider/fulfillment
+GET  /api/v1/provider/bookings/{bookingId}/fulfillment
+POST /api/v1/provider/bookings/{bookingId}/handover
+POST /api/v1/provider/bookings/{bookingId}/return
+POST /api/v1/provider/bookings/{bookingId}/complete
+POST /api/v1/provider/bookings/{bookingId}/report-issue
+
+GET    /api/v1/provider/providers/{providerId}/members
+GET    /api/v1/provider/providers/{providerId}/members/options
+POST   /api/v1/provider/providers/{providerId}/members/invitations
+GET    /api/v1/provider/providers/{providerId}/members/invitations
+PUT    /api/v1/provider/providers/{providerId}/members/{membershipId}/role
+DELETE /api/v1/provider/providers/{providerId}/members/{membershipId}
+```
+
+## Error Contract
+
+Most API business/auth failures return problem JSON with a stable `code`.
 
 ```json
 {
@@ -93,64 +208,537 @@ Shape:
 }
 ```
 
-Frontend normalization:
+Frontend rules:
 
-- keep `status`, `title`, `detail`, and `code`
-- show `title` or `detail` directly when the UI has no better field-level copy
-- use `code` for field-specific UI states
-- show generic copy for security-sensitive flows where this document says to do so
-- keep the raw response only for logs/diagnostics, not for UI branching
+- branch on `code`, not localized text
+- keep `status`, `title`, `detail`, `code`
+- show `title` or `detail` when no better field-level copy exists
+- handle `401` by routing to sign-in
+- handle `403` by showing forbidden/provider-access state
+- treat `404` on setup GET endpoints as "not configured yet" only when this document says so
 
-Bad integration to avoid:
+## Auth And Provider Access Flow
 
-- do not treat every `400` as the same registration failure
-- do not parse `title` to detect password, email, or token errors
-- do not ignore `code: "auth.password_too_short"` and show a generic server error
-- do not send JSON credentials to `/api/v1/auth/login`; JSON cookie login belongs to `/api/v1/auth/session-login`
-- do not use legacy `/api/auth/*` routes in new provider web code
+Provider console has two phases:
 
-## Location Model
+- pre-provider user: auth, email verification, provider onboarding
+- provider member: provider workspace access after approval creates `ProviderMembership`
 
-Location concepts are intentionally split:
+Do not grant provider access in frontend state. Use:
 
-- `registeredAddress`: legal registration address for onboarding, acquiring, payout, and compliance
-- `cityId`: platform city catalog identity used by provider profile, provider operational locations, and future marketplace filtering
-- `provider location`: provider-owned pickup/service place, created after provider access exists
+```http
+GET /api/v1/auth/me
+GET /api/v1/auth/provider-memberships
+```
 
-Do not model “Адрес точки выдачи” as onboarding legal identity. A provider can have multiple pickup/service places.
+Routing:
 
-The city catalog is the Sportgearhub source of truth for supported service cities. Dadata can be added later for address/legal identity suggestions, but it must not auto-create supported cities during provider registration.
+- signed out -> auth screens
+- signed in, no provider membership -> provider onboarding
+- membership exists -> provider shell/provider switcher
+- provider API returns `403` -> forbidden state and refresh memberships
 
-### Cities
+### Email Start
+
+```http
+POST /api/v1/auth/email/start
+```
+
+```json
+{
+  "email": "ivan@example.com",
+  "app": "crm"
+}
+```
+
+Behavior:
+
+- unknown email -> registration invitation email
+- known email -> magic sign-in email
+- always show generic "check email" copy on success
+- development helper: `GET /api/v1/development/emails`
+
+### Registration Invitation
+
+```http
+GET /api/v1/auth/registration-invitations/{token}
+POST /api/v1/auth/register
+```
+
+```json
+{
+  "token": "registration_invitation_token",
+  "name": "Ivan",
+  "surname": "Petrov",
+  "password": "StrongPassword123!"
+}
+```
+
+Token owns the email. Do not let user edit it.
+
+`GET /api/v1/auth/registration-invitations/{token}` returns:
+
+```json
+{
+  "email": "ivan@example.com",
+  "expiresAt": "2026-05-27T08:14:07Z",
+  "requiresPassword": true
+}
+```
+
+After successful registration, immediately request a provider-console token with the same email/password via
+`POST /api/v1/auth/login` password grant. `POST /api/v1/auth/register` does not return an access token.
+
+### Magic Sign-In
+
+```http
+POST /api/v1/auth/magic-sign-in
+```
+
+```json
+{
+  "token": "magic_sign_in_token"
+}
+```
+
+After success:
+
+1. `GET /api/v1/auth/me`
+2. `GET /api/v1/auth/provider-memberships`
+
+### Session Login
+
+```http
+POST /api/v1/auth/session-login
+```
+
+```json
+{
+  "email": "ivan@example.com",
+  "password": "strong-password"
+}
+```
+
+Use this endpoint for JSON browser-session login. Do not send JSON credentials to `/api/v1/auth/login`; that route is token/password grant style.
+
+### Password Reset
+
+```http
+POST /api/v1/auth/password/forgot
+POST /api/v1/auth/password/reset
+```
+
+```json
+{
+  "email": "ivan@example.com",
+  "app": "crm"
+}
+```
+
+```json
+{
+  "token": "token-from-email-link",
+  "newPassword": "new-strong-password"
+}
+```
+
+## Onboarding Flow
+
+Pre-provider onboarding belongs to `/api/v1/provider-onboarding/*`, not `/api/v1/provider/*`.
+
+Flow:
+
+1. Load cities, onboarding options, and current onboarding.
+2. If current onboarding is `not_started`, show the basic provider registration wizard.
+3. Wizard continue creates the onboarding draft with `POST /api/v1/provider-onboarding/current`.
+4. If current onboarding is `draft` or `changes_requested`, show the full onboarding forms.
+5. Full onboarding forms update the draft with `PATCH /api/v1/provider-onboarding/current/profile`.
+6. Only the full onboarding review screen calls `POST /api/v1/provider-onboarding/current/submit`.
+7. Wait for internal review.
+8. After approval, refresh memberships and enter provider shell.
+
+Routing states:
+
+- `not_started`: basic wizard
+- `draft`: full onboarding forms
+- `changes_requested`: full onboarding forms with review feedback
+- `submitted` / `in_review`: review waiting screen
+- `approved` plus provider membership: provider shell
+
+Do not call `/submit` from the basic wizard. `/submit` means "send completed onboarding to platform review",
+not "continue from wizard".
+
+```http
+GET  /api/v1/catalog/cities
+GET  /api/v1/provider-onboarding/options
+GET  /api/v1/provider-onboarding/current
+POST /api/v1/provider-onboarding/current
+PATCH /api/v1/provider-onboarding/current/profile
+POST /api/v1/provider-onboarding/current/submit
+GET  /api/v1/provider-onboarding/banks/ru/lookup?bic={bic}
+```
+
+Basic wizard draft creation:
+
+```http
+POST /api/v1/provider-onboarding/current
+```
+
+```json
+{
+  "displayName": "Sportgearhub - все для людей",
+  "cityId": "00000000-0000-0000-0000-000000000100",
+  "legalCountryCode": "RU",
+  "legalForm": "sole_proprietor",
+  "taxationSystem": "usn",
+  "taxNumber": "024803896842"
+}
+```
+
+Draft creation response:
+
+```json
+{
+  "applicationId": "0c0aaab4-34ca-44e7-82cf-9057be84dbe9",
+  "providerId": null,
+  "status": "draft",
+  "checklist": {
+    "profile": "missing",
+    "legal": "ready",
+    "finance": "missing"
+  },
+  "draft": {
+    "displayName": "Sportgearhub - все для людей",
+    "legalName": "Индивидуальный предприниматель Искужин Айгиз Ирикович",
+    "legalCountryCode": "RU",
+    "legalForm": "sole_proprietor",
+    "taxationSystem": "usn",
+    "taxNumber": "024803896842",
+    "registrationNumber": "326028000044859",
+    "branchNumber": null,
+    "registeredAddress": "Республика Башкортостан, Уфимский район, Зубовский, с Зубово",
+    "contactEmail": null,
+    "contactPhone": null,
+    "cityId": "00000000-0000-0000-0000-000000000100",
+    "address": null,
+    "description": null,
+    "acquiringProvider": "t_bank_multishop",
+    "payoutSchedule": null,
+    "payoutDraft": null
+  },
+  "review": null,
+  "updatedAt": "2026-05-27T09:28:00.094884+00:00"
+}
+```
+
+After this response, route to full onboarding forms because `status` is `draft`.
+
+Full onboarding profile patch:
+
+```http
+PATCH /api/v1/provider-onboarding/current/profile
+```
+
+```json
+{
+  "contactEmail": "provider@example.com",
+  "contactPhone": "+79990000000",
+  "address": "ул. Ленина, 1",
+  "description": "Прокат велосипедов и SUP",
+  "payoutSchedule": "daily",
+  "payoutDraft": {
+    "mode": "t_bank_bank_account",
+    "beneficiaryName": "Индивидуальный предприниматель Искужин Айгиз Ирикович",
+    "bankName": "ПАО СБЕРБАНК",
+    "bik": "044525225",
+    "bankAccount": "40802810900000000001",
+    "correspondentAccount": "30101810400000000225",
+    "displayBankName": "Сбербанк"
+  }
+}
+```
+
+For `legalForm: "self_employed"`, show SBP payout form instead:
+
+```json
+{
+  "contactEmail": "provider@example.com",
+  "contactPhone": "+79990000000",
+  "address": "ул. Ленина, 1",
+  "description": "Прокат SUP",
+  "payoutSchedule": "daily",
+  "payoutDraft": {
+    "mode": "t_bank_sbp_individual",
+    "beneficiaryName": "Искужин Айгиз Ирикович",
+    "phone": "+79990000000",
+    "displayBankName": "Т-Банк",
+    "sbpMemberId": "100000000111"
+  }
+}
+```
+
+Response uses the same `ProviderOnboardingResponse` shape. Enable final review submit only when:
+
+```json
+{
+  "checklist": {
+    "profile": "ready",
+    "legal": "ready",
+    "finance": "ready"
+  }
+}
+```
+
+Final review submit:
+
+```http
+POST /api/v1/provider-onboarding/current/submit
+```
+
+```json
+{}
+```
+
+Success response:
+
+```json
+{
+  "applicationId": "0c0aaab4-34ca-44e7-82cf-9057be84dbe9",
+  "providerId": null,
+  "status": "submitted",
+  "checklist": {
+    "profile": "ready",
+    "legal": "ready",
+    "finance": "ready"
+  },
+  "draft": {
+    "displayName": "Sportgearhub - все для людей",
+    "legalName": "Индивидуальный предприниматель Искужин Айгиз Ирикович",
+    "legalCountryCode": "RU",
+    "legalForm": "sole_proprietor",
+    "taxationSystem": "usn",
+    "taxNumber": "024803896842",
+    "registrationNumber": "326028000044859",
+    "branchNumber": null,
+    "registeredAddress": "Республика Башкортостан, Уфимский район, Зубовский, с Зубово",
+    "contactEmail": "provider@example.com",
+    "contactPhone": "+79990000000",
+    "cityId": "00000000-0000-0000-0000-000000000100",
+    "address": "ул. Ленина, 1",
+    "description": "Прокат велосипедов и SUP",
+    "acquiringProvider": "t_bank_multishop",
+    "payoutSchedule": "daily",
+    "payoutDraft": {
+      "mode": "t_bank_bank_account",
+      "beneficiaryName": "Индивидуальный предприниматель Искужин Айгиз Ирикович",
+      "bankName": "ПАО СБЕРБАНК",
+      "bik": "044525225",
+      "bankAccount": "40802810900000000001",
+      "correspondentAccount": "30101810400000000225",
+      "displayBankName": "Сбербанк"
+    }
+  },
+  "review": null,
+  "updatedAt": "2026-05-27T09:40:00.000000+00:00"
+}
+```
+
+Quick marketplace-style draft creation can ask only:
+
+- INN / `taxNumber`
+- legal form / `legalForm`
+- taxation system / `taxationSystem`
+- shop name / `displayName`
+- city / `cityId`
+
+Current onboarding finance rules:
+
+- only `acquiringProvider: "t_bank_multishop"` is available now
+- `t_bank_multishop` means Sportgearhub's T-Bank multishop rail
+- payout schedule and payout draft are required for `t_bank_multishop`, but they are collected after the basic wizard in the full onboarding forms
+- payout schedule options currently contain only `daily`; do not show weekly delayed payout choices yet
+- payout mode is legal-form specific:
+  - `self_employed` -> `payoutDraft.mode: "t_bank_sbp_individual"`
+  - `sole_proprietor` / `company` -> `payoutDraft.mode: "t_bank_bank_account"`
+- payout fee is legal-form/payout-mode specific and comes from `payoutModes[].bankPayoutFee`, not from `payoutSchedules`
+
+Bank lookup by BIC:
+
+```http
+GET /api/v1/provider-onboarding/banks/ru/lookup?bic=044525225
+```
+
+```json
+{
+  "source": "dadata",
+  "value": "ПАО СБЕРБАНК",
+  "unrestrictedValue": "ПАО СБЕРБАНК",
+  "bic": "044525225",
+  "swift": "SABRRUMM",
+  "swifts": ["SABRRUMM"],
+  "inn": "7707083893",
+  "branchNumber": "773601001",
+  "registrationNumber": "1481",
+  "correspondentAccount": "30101810400000000225",
+  "paymentName": "ПАО СБЕРБАНК",
+  "shortName": "СБЕРБАНК",
+  "paymentCity": "г Москва",
+  "opfType": "BANK",
+  "address": "г Москва, ул Вавилова, д 19",
+  "unrestrictedAddress": "117312, г Москва, ул Вавилова, д 19",
+  "stateStatus": "ACTIVE"
+}
+```
+
+If lookup returns `404`, keep manual bank entry available. DaData bank lookup is an enrichment helper; it does not
+save onboarding state until the frontend sends `payoutDraft` in the onboarding patch.
+
+SBP payout bank options:
+
+```http
+GET /api/v1/payment-reference/sbp-members
+```
+
+```json
+{
+  "source": "t_bank",
+  "items": [
+    {
+      "sbpMemberId": "100000000004",
+      "displayBankName": "Т-Банк",
+      "bankName": "T-Bank"
+    }
+  ]
+}
+```
+
+Use this endpoint for onboarding and future payout settings pages. For `legalForm: "self_employed"`, frontend
+stores the selected `sbpMemberId` and `displayBankName` inside `payoutDraft`.
+
+Payout schedules:
+
+```json
+[
+  {
+    "value": "daily",
+    "label": "Ежедневно",
+    "cadence": "daily",
+    "settlementDelayDays": 0,
+    "payoutDaysOfMonth": null,
+    "platformTransferFeePercent": 0
+  }
+]
+```
+
+Payout mode fees:
+
+```json
+[
+  {
+    "value": "t_bank_bank_account",
+    "label": "На расчетный счет",
+    "supportedLegalForms": ["sole_proprietor", "company"],
+    "requiredFields": ["mode", "beneficiaryName", "bankName", "bik", "bankAccount", "correspondentAccount"],
+    "bankPayoutFee": {
+      "percent": 0.5,
+      "minimumAmount": null,
+      "currency": "RUB"
+    }
+  },
+  {
+    "value": "t_bank_sbp_individual",
+    "label": "СБП самозанятого",
+    "supportedLegalForms": ["self_employed"],
+    "requiredFields": ["mode", "beneficiaryName", "phone", "displayBankName", "sbpMemberId"],
+    "bankPayoutFee": {
+      "percent": 1.5,
+      "minimumAmount": 30,
+      "currency": "RUB"
+    }
+  }
+]
+```
+
+Onboarding location rule:
+
+- `registeredAddress` is legal identity data
+- `address` is a simple provider profile field during onboarding
+- pickup/return/service counters are provider fulfillment locations after approval
+
+## Cities, Addresses, And Fulfillment Locations
+
+Cities are the platform source of truth for supported service cities.
 
 ```http
 GET /api/v1/catalog/cities
 ```
 
-Response:
-
-```json
-[
-  {
-    "cityId": "00000000-0000-0000-0000-000000000100",
-    "countryCode": "RU",
-    "region": "Свердловская область",
-    "name": "Екатеринбург",
-    "slug": "yekaterinburg",
-    "timezone": "Asia/Yekaterinburg"
-  }
-]
-```
-
-### Provider Locations
+Address helpers are suggestions only. They do not create cities, providers, fulfillment locations, offers, or booking truth.
 
 ```http
-GET /api/v1/provider/locations
-POST /api/v1/provider/locations
-PATCH /api/v1/provider/locations/{locationId}
+GET  /api/v1/addresses/ru/suggestions?query={query}&count={count}
+POST /api/v1/addresses/ru/geolocate
 ```
 
-Create request:
+Reverse geocoding request:
+
+```json
+{
+  "lat": 55.878,
+  "lon": 37.653,
+  "count": 10,
+  "radiusMeters": 100,
+  "language": "ru",
+  "division": "ADMINISTRATIVE"
+}
+```
+
+Shared address response:
+
+```json
+{
+  "source": "dadata",
+  "suggestions": [
+    {
+      "value": "г Москва, ул Сухонская, д 11",
+      "unrestrictedValue": "127642, г Москва, ул Сухонская, д 11",
+      "postalCode": "127642",
+      "country": "Россия",
+      "countryCode": "RU",
+      "region": "г Москва",
+      "city": "г Москва",
+      "settlement": null,
+      "street": "ул Сухонская",
+      "house": "д 11",
+      "block": null,
+      "flat": null,
+      "fiasId": "8f6e4b9b-...",
+      "kladrId": "77000000000268400",
+      "geoLat": "55.8782557",
+      "geoLon": "37.65372"
+    }
+  ]
+}
+```
+
+Address helper rules:
+
+- coverage is Russia only
+- call suggestions after at least 3 typed characters
+- call reverse geocoding from explicit map actions, not every map movement
+- empty success is `{ "source": "dadata", "suggestions": [] }`
+- store provider-confirmed coordinates from `geoLat` and `geoLon` as numeric `latitude` and `longitude`
+- do not treat DaData `city` text as platform city truth; use `cityId` from `/api/v1/catalog/cities`
+
+Provider fulfillment locations are reusable operational centers: shops, warehouses, rental issue centers, pickup points, return/check-in points, and staffed counters. They are not offer meetup/activity-start places.
+
+```http
+GET   /api/v1/provider/fulfillment-locations
+POST  /api/v1/provider/fulfillment-locations
+PATCH /api/v1/provider/fulfillment-locations/{fulfillmentLocationId}
+```
+
+Create:
 
 ```json
 {
@@ -159,15 +747,17 @@ Create request:
   "address": "ул. Ленина, 1",
   "type": "pickup",
   "isDefaultPickup": true,
+  "latitude": 56.838011,
+  "longitude": 60.597465,
   "description": null
 }
 ```
 
-Location response:
+Response:
 
 ```json
 {
-  "locationId": "00000000-0000-0000-0000-000000000101",
+  "fulfillmentLocationId": "00000000-0000-0000-0000-000000000101",
   "providerId": "00000000-0000-0000-0000-000000000010",
   "cityId": "00000000-0000-0000-0000-000000000100",
   "cityName": "Екатеринбург",
@@ -176,45 +766,83 @@ Location response:
   "type": "pickup",
   "status": "active",
   "isDefaultPickup": true,
+  "latitude": 56.838011,
+  "longitude": 60.597465,
   "description": null,
-  "updatedAt": "2026-05-06T00:00:00Z"
+  "updatedAt": "2026-05-18T10:00:00Z"
 }
 ```
 
-Location `type` values:
+Current type values:
 
 - `pickup`
 - `service_area`
 
-## Provider Resources
+Frontend display rules:
 
-Provider resource endpoints require a provider-authenticated session or bearer token with provider access.
+- show fulfillment locations in provider setup and rental equipment offer forms
+- use them for pickup/return or issue-center selection
+- do not ask for working days yet; working hours and holiday policy are not implemented in this API contract
+- use offer meetup locations for beaches, piers, parks, route starts, or SUP board meeting points
 
-Provider-facing model:
+## Rental Readiness Flow
 
-- resource is the provider-owned operational root
-- category is stored on the resource as `{ slug, title }`
-- variants inherit their attribute schema from the parent resource category
-- uploaded resource images are owned by the resource and served through API media URLs
-- offers may aggregate resource data, but frontend should not treat offers as resource truth
+This is the main flow for equipment rental, such as bicycles, SUP boards, skis, tents, rods, and yoga mats.
 
-### Resource Authoring Flow
+Minimum customer-visible rental setup:
 
-For the current bicycle flow:
+1. resource is `equipment / inventory / active`
+2. resource has category
+3. resource has active variants
+4. resource has active ready inventory units assigned to variants
+5. resource has active availability profile
+6. resource or offer has active pricing policy
+7. active provider/resource/offer policy chain exists
+8. active offer exists with `offerType: "rental"`
+9. offer has a fulfillment location, a meetup location, or both
+10. offer visibility makes it visible today or in the intended season
+11. offer routability is acceptable for checkout
 
-1. Load categories:
+Local data note from the API repo inspection:
+
+- active offers may be hidden by seasonal visibility
+- inventory availability profile alone does not prove there are rentable units
+- marketplace/media projections may lag resource setup; provider UI should use provider responses and diagnostics
+
+## Resources
+
+### Categories And Activities
 
 ```http
-GET /api/v1/provider/resource-categories?resourceType=equipment&locale=ru-RU
-Authorization: Bearer <access_token>
+GET /api/v1/provider/activity-options?resourceType=equipment&locale=ru-RU
+GET /api/v1/provider/resource-categories?resourceType=equipment&activity=water_sports&locale=ru-RU
+GET /api/v1/provider/resource-categories/equipment/bicycle/attributes?locale=ru-RU
 ```
 
-2. Create the resource:
+Activity is a navigation facet. Category owns the variant attribute schema.
+
+Seeded equipment categories:
+
+- `bicycle`
+- `sup_board`
+- `tent`
+- `skis`
+- `fishing_rod`
+- `yoga_mat`
+
+Seeded activity examples:
+
+- `water_sports`
+- `cycling`
+- `camping`
+- `winter_sports`
+- `tourism`
+- `fitness`
+
+### Create Resource
 
 ```http
 POST /api/v1/provider/resources
-Authorization: Bearer <access_token>
-Content-Type: application/json
 ```
 
 ```json
@@ -226,424 +854,161 @@ Content-Type: application/json
 }
 ```
 
-3. Load variant fields from the selected category:
+Rules:
+
+- `equipment` uses `inventory`
+- `experience` and `service` use `scheduled_slot`
+- do not send base capacity for inventory resources
+- category is optional at transport level, but required for useful provider UI and marketplace aggregation
+
+### Resource Read/Update
 
 ```http
-GET /api/v1/provider/resource-categories/equipment/bicycle/attributes?locale=ru-RU
-Authorization: Bearer <access_token>
+GET   /api/v1/provider/resources
+GET   /api/v1/provider/resources/{resourceId}
+PATCH /api/v1/provider/resources/{resourceId}
+POST  /api/v1/provider/resources/{resourceId}/archive
+DELETE /api/v1/provider/resources/{resourceId}
 ```
 
-4. Render one or more variant forms from the returned attribute schema.
+Patch:
 
-5. Upload images for the resource:
+```json
+{
+  "title": "Велосипеды Stels Miss 6500",
+  "category": "bicycle",
+  "status": "active"
+}
+```
+
+Delete behavior:
+
+- `204`: removed
+- `404`: missing or not accessible
+- `409`: linked to downstream records; offer archive instead
+
+### Images
 
 ```http
+GET  /api/v1/provider/resources/{resourceId}/images
 POST /api/v1/provider/resources/{resourceId}/images
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
+GET  /api/v1/media/provider-resource-images/{imageId}
 ```
 
-Use form field `files`.
+Upload:
 
-6. Use returned image `url` values directly in `<img src>`.
+- `multipart/form-data`
+- field name: `files`
+- max 10 files by default
+- accepted: `image/jpeg`, `image/png`, `image/webp`
 
-Do not construct image URLs from filesystem paths, provider ids, resource ids, or stored file names.
+Do not construct image URLs manually. Use response `url` and `mediaPreviewUrl`.
 
-### Resource Categories
+## Variants
+
+Variants are stable operational classifications under one resource.
 
 ```http
-GET /api/v1/provider/resource-categories
+GET   /api/v1/provider/resources/{resourceId}/variants
+POST  /api/v1/provider/resources/{resourceId}/variants
+GET   /api/v1/provider/resources/{resourceId}/variants/{variantId}
+PATCH /api/v1/provider/resources/{resourceId}/variants/{variantId}
+POST  /api/v1/provider/resources/{resourceId}/variants/{variantId}/archive
 ```
 
-Query params:
-
-- `resourceType`: optional, for example `equipment`
-- `activity`: optional, for example `water_sports`
-- `locale`: optional, for example `ru-RU`
-
-Response item:
-
-```json
-{
-  "categoryId": "0b1c1c1e-0000-4000-8000-000000000001",
-  "resourceType": "equipment",
-  "slug": "bicycle",
-  "title": "Велосипед",
-  "titles": {
-    "ru-RU": "Велосипед",
-    "en-US": "Bicycle"
-  },
-  "activities": [
-    {
-      "slug": "cycling",
-      "title": "Велоспорт",
-      "titles": {
-        "ru-RU": "Велоспорт",
-        "en-US": "Cycling"
-      },
-      "isPrimary": true,
-      "sortOrder": 10
-    },
-    {
-      "slug": "active_leisure",
-      "title": "Активный отдых",
-      "titles": {
-        "ru-RU": "Активный отдых",
-        "en-US": "Active leisure"
-      },
-      "isPrimary": false,
-      "sortOrder": 20
-    }
-  ],
-  "capacityMode": "inventory",
-  "status": "active",
-  "sortOrder": 10
-}
-```
-
-### Activity Domains
-
-Activity is the customer/provider-facing sphere of use. It is better product language than `categoryGroup` for marketplace and provider navigation.
-
-Do not use `activity` as a replacement for category. Category still owns the attribute schema and operational setup:
-
-- `resourceType`: technical resource kind, for example `equipment`
-- `category`: concrete schema, for example `sup_board`, `bicycle`, `tent`
-- `activity`: discovery/navigation context, for example `water_sports`, `cycling`, `camping`
-- `capacityMode`: execution mode, for example `inventory` or `scheduled_slot`
-
-One category may belong to multiple activities, so model activity as a facet rather than a strict tree. For example:
-
-- `sup_board`: `water_sports`, `beach_leisure`, `tourism`
-- `bicycle`: `cycling`, `active_leisure`, `tourism`
-- `tent`: `camping`, `hiking_trekking`, `tourism`
-- `skis`: `winter_sports`, `tourism`
-- `fishing_rod`: `fishing`, `tourism`
-- `yoga_mat`: `yoga`, `fitness`
-
-Seeded activity slugs:
-
-- `water_sports`
-- `cycling`
-- `fishing`
-- `camping`
-- `hiking_trekking`
-- `extreme_sports`
-- `active_leisure`
-- `winter_sports`
-- `fitness`
-- `yoga`
-- `beach_leisure`
-- `tourism`
-- `kids_active_leisure`
-- `motorsports`
-- `equestrian`
-- `golf`
-- `climbing`
-
-Current API shape:
-
-```http
-GET /api/v1/provider/activity-options?resourceType=equipment&locale=ru-RU
-GET /api/v1/provider/resource-categories?resourceType=equipment&activity=water_sports&locale=ru-RU
-```
-
-Activity options response:
-
-```json
-[
-  {
-    "activityId": "0b1c1c1e-0000-4000-8000-000000010001",
-    "slug": "water_sports",
-    "title": "Водный спорт",
-    "titles": {
-      "ru-RU": "Водный спорт",
-      "en-US": "Water sports"
-    },
-    "status": "active",
-    "sortOrder": 10
-  }
-]
-```
-
-Category response with activities:
-
-```json
-{
-  "categoryId": "0b1c1c1e-0000-4000-8000-000000000002",
-  "resourceType": "equipment",
-  "slug": "sup_board",
-  "title": "SUP-доска",
-  "activities": [
-    {
-      "slug": "water_sports",
-      "title": "Водный спорт",
-      "isPrimary": true
-    },
-    {
-      "slug": "beach_leisure",
-      "title": "Пляжный отдых",
-      "isPrimary": false
-    }
-  ],
-  "capacityMode": "inventory",
-  "status": "active",
-  "sortOrder": 20
-}
-```
-
-Frontend behavior:
-
-- use activity as the first-step navigation/filter when creating a resource
-- after activity is selected, show matching categories
-- still load the category attribute schema from `/resource-categories/{resourceType}/{categorySlug}/attributes`
-- do not hardcode a single activity per category; use `isPrimary` only for default grouping/display
-- load activities from `/api/v1/provider/activity-options`; do not maintain a frontend-only activity-to-category map
-
-### Category Attributes
-
-```http
-GET /api/v1/provider/resource-categories/{resourceType}/{categorySlug}/attributes?locale=ru-RU
-```
-
-Use this endpoint after the category is selected. The returned schema drives variant forms. For bicycles, expected fields include brand/model metadata, bicycle type, frame size, wheel size, brakes/suspension fields, and rider height range.
-
-Important frontend rule:
-
-- do not ask user for `variantType`
-- do not ask user for base capacity
-- do not store category per variant in frontend state
-- keep resource-level fields separate from variant attributes
-- create, update, and read variants with an `attributes` object shaped as `{ "attribute_key": "value" }`; do not use legacy `normalizedAttributes` arrays in new provider web code
-- current API create/update validation does not yet reject unknown attribute keys, missing schema fields, wrong enum values, or wrong value types
-- frontend should still validate variant attributes from the category schema and submit category-shaped data; backend schema enforcement is intentionally deferred and should not be treated as permanently absent
-
-Variant create request:
+Create:
 
 ```json
 {
   "variantKey": "STELS-MISS-6500-M-26",
   "label": "M / 26\" / 160-175 см",
   "attributes": {
-    "brand": "Stels",
+    "brand_name": "Stels",
     "model": "Miss 6500",
-    "model_year": "2025",
-    "bike_type": "mountain",
     "frame_size": "m",
     "wheel_size_in": "26",
     "rider_height_min_cm": "160",
-    "rider_height_max_cm": "175",
-    "brake_type": "mechanical_disc",
-    "suspension_type": "front"
+    "rider_height_max_cm": "175"
   },
   "sortOrder": 1,
   "status": "active"
 }
 ```
 
-Variant response:
+List supports:
+
+```http
+GET /api/v1/provider/resources/{resourceId}/variants?status=active&attributes.frame_size=m&sort=sortOrder,label
+```
+
+Frontend rules:
+
+- render forms from category attribute schema
+- send attributes as `{ "attribute_key": "value" }`
+- do not ask for `variantType`
+- do not store category per variant
+- backend schema enforcement is still partial; frontend should validate from schema
+
+## Inventory Units
+
+Units are physical rentable items. They apply to `equipment / inventory` resources only.
+
+```http
+GET   /api/v1/provider/resources/{resourceId}/inventory-summary
+GET   /api/v1/provider/resources/{resourceId}/units
+POST  /api/v1/provider/resources/{resourceId}/units
+PATCH /api/v1/provider/resources/{resourceId}/units/{unitId}
+POST  /api/v1/provider/resources/{resourceId}/units/{unitId}/archive
+```
+
+Quick add:
 
 ```json
 {
-  "variantId": "0a1a0000-0000-4000-8000-000000000202",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "variantKey": "STELS-MISS-6500-M-26",
-  "label": "M / 26\" / 160-175 см",
+  "resourceVariantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
+  "inventoryCode": "BIKE-0001",
+  "displayName": null,
   "status": "active",
-  "attributes": {
-    "brand": "Stels",
-    "model": "Miss 6500",
-    "frame_size": "m",
-    "wheel_size_in": "26"
-  },
-  "sortOrder": 1,
-  "createdAt": "2026-05-18T10:00:00Z",
-  "updatedAt": "2026-05-18T10:00:00Z"
+  "conditionStatus": "ready",
+  "externalReferenceCode": null
 }
 ```
 
-Variant list supports resource-scoped filtering and sorting:
+Rules:
 
-```http
-GET /api/v1/provider/resources/{resourceId}/variants?status=active&attributes.frame_size=m&attributes.wheel_size_in=26&sort=attributes.frame_size,-updatedAt
-```
+- active unit must have `resourceVariantId`
+- `inventoryCode` is provider-scoped human identity
+- send explicit codes such as `BIKE-0001`; do not rely on generated codes for Cyrillic titles
+- a unit counts as ready only when `status: "active"`, assigned to variant, and `conditionStatus: "ready"`
 
-Supported query params:
+Inventory summary is the CRM source for setup counters:
 
-- `status`: optional variant status, for example `active`
-- `attributes.{key}`: exact attribute value filter scoped to the selected resource
-- `sort`: comma-separated sort terms
+- total units
+- active units
+- ready units
+- maintenance/damaged/inactive/retired/lost units
+- classified/unclassified units
+- per-variant unit counts
 
-Supported sort terms:
+## Availability
 
-- `sortOrder`
-- `label`
-- `variantKey`
-- `status`
-- `updatedAt`
-- `attributes.{key}`
-
-Prefix a sort term with `-` for descending order, for example `sort=-attributes.frame_size,label`.
-
-Frontend behavior:
-
-- use category schema to decide which attribute columns and filters to show
-- send attribute filters as `attributes.frame_size=m`, not as a JSON body
-- if no sort is selected, API returns variants by `sortOrder`, then `label`
-- filtering and sorting are scoped to variants under the selected `resourceId`
-
-SUP board category is seeded as `sup_board` with the same resource model:
-
-```http
-GET /api/v1/provider/resource-categories/equipment/sup_board/attributes?locale=ru-RU
-```
-
-Expected SUP variant fields:
-
-| Название | Key | Type | Usage |
-| --- | --- | --- | --- |
-| Бренд | `brand` | `reference` | filter |
-| Модель | `model` | `string` | search |
-| Тип сапборда | `sup_type` | `enum` | filter |
-| Длина | `board_length_ft` | `decimal` | filter |
-| Грузоподъемность | `max_rider_weight_kg` | `integer` | filter |
-| Конструкция | `construction_type` | `enum` | filter |
-| Вес доски | `board_weight_kg` | `decimal` | compare |
-| Подходит новичкам | `beginner_friendly` | `boolean` | filter |
-| С сиденьем | `kayak_seat_supported` | `boolean` | filter |
-| Электро SUP | `has_motor` | `boolean` | filter |
-
-Additional seeded equipment category schemas:
-
-| Category | Seeded variant fields |
-| --- | --- |
-| `tent` | `brand`, `model`, `tent_type`, `capacity_persons`, `season_rating`, `tent_weight_kg`, `waterproof_rating_mm`, `packed_size` |
-| `skis` | `brand`, `model`, `ski_type`, `ski_length_cm`, `rider_height_min_cm`, `rider_height_max_cm`, `boot_size_min_eu`, `boot_size_max_eu`, `skill_level` |
-| `fishing_rod` | `brand`, `model`, `rod_type`, `rod_length_m`, `casting_weight_min_g`, `casting_weight_max_g`, `rod_action`, `sections_count` |
-| `yoga_mat` | `brand`, `model`, `mat_thickness_mm`, `mat_material`, `mat_length_cm`, `mat_width_cm`, `non_slip`, `travel_friendly` |
-
-### Resource Responses
-
-Summary:
-
-```json
-{
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "resourceType": "equipment",
-  "status": "active",
-  "category": {
-    "slug": "bicycle",
-    "title": "Велосипед"
-  },
-  "title": "Велосипед Stels Miss 6500",
-  "mediaPreviewUrl": "/api/v1/media/provider-resource-images/5513d83986374f91b577f46793b61f9e",
-  "readiness": {},
-  "publishabilityImpact": {},
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Detail adds:
-
-- `providerId`
-- `capacityMode`
-- `createdAt`
-
-### Resource Images
-
-```http
-GET /api/v1/provider/resources/{resourceId}/images
-POST /api/v1/provider/resources/{resourceId}/images
-GET /api/v1/media/provider-resource-images/{imageId}
-```
-
-Upload rules:
-
-- `multipart/form-data`
-- field name: `files`
-- max 10 images per resource by default
-- max 5 MB per file by default
-- accepted content types: `image/jpeg`, `image/png`, `image/webp`
-
-Image response:
-
-```json
-{
-  "imageId": "5513d839-8637-4f91-b577-f46793b61f9e",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "originalFileName": "front.jpg",
-  "contentType": "image/jpeg",
-  "sizeBytes": 82826,
-  "url": "/api/v1/media/provider-resource-images/5513d83986374f91b577f46793b61f9e",
-  "sortOrder": 0,
-  "createdAt": "2026-05-18T10:00:00Z"
-}
-```
-
-The media URL is public and API-owned. In local development, use the configured API proxy or prefix it with the API authority. If the frontend is served on `localhost:5173`, `/api/*` must proxy to the API process, for example `localhost:5093`.
-
-Resource and offer list/detail responses expose `mediaPreviewUrl`. The API chooses the first resource image by `sortOrder`, then `createdAt`, unless an offer has its own explicit preview override. Frontend should use this field for cards and keep `/images` for gallery management.
-
-## Provider Availability
-
-Availability is configured under `ProviderResource`. The provider web app should treat it as execution-side configuration, not as customer-facing availability truth and not as search hint data.
+Availability belongs to the resource.
 
 Mode rule:
 
-- equipment resources with `capacityMode: "inventory"` use `availabilityMode: "inventory"`
-- service or experience resources with `capacityMode: "scheduled_slot"` use `availabilityMode: "scheduled_slot"`
-- `availabilityMode` must match the resource `capacityMode`; the API rejects mismatches
-- for MVP rental flow, configure inventory availability on equipment resources and keep scheduled-slot UI behind capability/feature gating until those offer types are enabled
+- `equipment / inventory` -> `availabilityMode: "inventory"`
+- `service` or `experience / scheduled_slot` -> `availabilityMode: "scheduled_slot"`
+- do not call calendar/slot endpoints for inventory resources
 
-### `/availability` Page Flow
-
-The provider route `http://localhost:5173/availability` is a resource-scoped availability management screen. It does not manage offers directly.
-
-Initial load:
-
-1. Require a signed-in provider member with `provider_api` access.
-2. Load resources with `GET /api/v1/provider/resources`.
-3. Select the first resource by default, or keep the user-selected `resourceId`.
-4. Derive the expected availability mode from the selected resource:
-   - `capacityMode: "scheduled_slot"` -> `availabilityMode: "scheduled_slot"`
-   - any other current resource mode -> `availabilityMode: "inventory"`
-5. Load `GET /api/v1/provider/resources/{resourceId}/availability-profile`.
-6. Load `GET /api/v1/provider/resources/{resourceId}/availability-diagnostics`.
-7. Only when expected mode is `scheduled_slot`, also load:
-   - `GET /api/v1/provider/resources/{resourceId}/availability-calendar`
-   - `GET /api/v1/provider/resources/{resourceId}/slots`
-
-Empty states:
-
-- if the resource list is empty, show an empty inventory state and link the user to resource creation
-- if profile `GET` returns `404`, treat it as “availability not configured yet” and show the default profile form
-- default profile form values are `availabilityMode` from `capacityMode`, `timezone: "Asia/Yekaterinburg"`, `bookingHorizonDays: 30`, `status: "active"`
-- if calendar `GET` returns `404` for a scheduled-slot resource, show an empty calendar form with empty typed arrays
-
-Save behavior:
-
-1. Saving the profile calls `PUT /api/v1/provider/resources/{resourceId}/availability-profile`.
-2. The frontend sends the API-derived `availabilityMode`; do not let the user choose a mode that contradicts `capacityMode`.
-3. After profile save, refresh diagnostics.
-4. Saving calendar rules calls `PUT /api/v1/provider/resources/{resourceId}/availability-calendar` and then refreshes diagnostics.
-5. Creating or closing slots uses the slot endpoints and then refreshes diagnostics.
-
-Readiness behavior:
-
-- use diagnostics for setup guidance, warnings, and publishability blockers
-- do not present diagnostics as a promise that a specific future customer booking is available
-- for inventory resources, availability readiness only proves the profile exists; rentable capacity comes from inventory units and variant setup
-- for scheduled-slot resources, calendar and slots are execution configuration inputs, but booking-time validation remains the final source of truth
-
-### Availability Profile
+### Profile
 
 ```http
 GET /api/v1/provider/resources/{resourceId}/availability-profile
 PUT /api/v1/provider/resources/{resourceId}/availability-profile
-Authorization: Bearer <access_token>
+GET /api/v1/provider/resources/{resourceId}/availability-diagnostics
 ```
 
-Create or update request:
+Use `404` on GET as "not configured yet".
 
 ```json
 {
@@ -654,49 +1019,22 @@ Create or update request:
 }
 ```
 
-Profile response:
+For inventory resources, availability profile is necessary but capacity comes from inventory units.
 
-```json
-{
-  "profileId": "10000000-0000-4000-8000-000000000001",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "availabilityMode": "inventory",
-  "timezone": "Asia/Yekaterinburg",
-  "bookingHorizonDays": 30,
-  "status": "active",
-  "readiness": {
-    "configurationStatus": "configured_profile_only",
-    "slotSupportStatus": "not_applicable",
-    "calendarSupportStatus": "not_applicable",
-    "diagnosticsStatus": "pending_module"
-  },
-  "publishabilityImpact": {
-    "status": "pending_module",
-    "reason": "Availability profile exists; inventory units or scheduled slots provide execution capacity truth."
-  },
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
+### Calendar And Slots
 
-Frontend behavior:
-
-- after creating a resource, show availability setup before offer creation/publishing checks
-- prefill `timezone` from provider city/resource context when available; otherwise ask explicitly
-- for equipment/inventory resources, the profile is the main availability form and capacity comes from inventory units and variants
-- handle `404` as “profile not configured yet” on `GET`, but as “resource not found or not accessible” on `PUT`
-- show API validation errors directly when there is no field-specific local copy
-
-### Availability Calendar
+Only for `scheduled_slot` resources.
 
 ```http
-GET /api/v1/provider/resources/{resourceId}/availability-calendar
-PUT /api/v1/provider/resources/{resourceId}/availability-calendar
-Authorization: Bearer <access_token>
+GET  /api/v1/provider/resources/{resourceId}/availability-calendar
+PUT  /api/v1/provider/resources/{resourceId}/availability-calendar
+GET  /api/v1/provider/resources/{resourceId}/slots
+POST /api/v1/provider/resources/{resourceId}/slots
+PATCH /api/v1/provider/resources/{resourceId}/slots/{slotId}
+POST /api/v1/provider/resources/{resourceId}/slots/{slotId}/close
 ```
 
-Calendar is currently supported only for `scheduled_slot` availability. Do not call it for inventory resources.
-
-Upsert request:
+Calendar:
 
 ```json
 {
@@ -709,47 +1047,12 @@ Upsert request:
       "capacity": 8
     }
   ],
-  "blockedPeriods": [
-    {
-      "startsAt": "2026-06-01T00:00:00+05:00",
-      "endsAt": "2026-06-02T00:00:00+05:00",
-      "reasonCode": "maintenance"
-    }
-  ],
-  "exceptions": [
-    {
-      "date": "2026-06-12",
-      "isClosed": true,
-      "opensAtLocal": null,
-      "closesAtLocal": null,
-      "capacity": null
-    }
-  ]
+  "blockedPeriods": [],
+  "exceptions": []
 }
 ```
 
-Response echoes the same typed arrays plus `calendarId`, `resourceId`, `timezone`, and `updatedAt`.
-
-Frontend behavior:
-
-- render calendar only after an active `scheduled_slot` profile exists
-- if `GET` returns `404`, show an empty calendar form rather than an error screen
-- if `PUT` returns an error saying calendar is supported only for scheduled-slot resources, hide the calendar form and refresh the profile/resource
-- keep recurring rules, blocked periods, and exceptions as typed objects; do not serialize nested JSON strings
-
-### Resource Slots
-
-```http
-GET /api/v1/provider/resources/{resourceId}/slots
-POST /api/v1/provider/resources/{resourceId}/slots
-PATCH /api/v1/provider/resources/{resourceId}/slots/{slotId}
-POST /api/v1/provider/resources/{resourceId}/slots/{slotId}/close
-Authorization: Bearer <access_token>
-```
-
-Slots are for service/experience scheduled-slot resources. They are not used for equipment inventory resources.
-
-Create request:
+Slot:
 
 ```json
 {
@@ -762,172 +1065,21 @@ Create request:
 }
 ```
 
-Slot response:
+Current provider UI should keep scheduled-slot flows behind capability/feature gating until experience/service offer authoring is enabled end to end.
 
-```json
-{
-  "slotId": "20000000-0000-4000-8000-000000000001",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "startsAt": "2026-06-15T10:00:00+05:00",
-  "endsAt": "2026-06-15T12:00:00+05:00",
-  "totalCapacity": 8,
-  "reservedCapacity": 0,
-  "availableCapacity": 8,
-  "status": "open",
-  "title": "Утренняя прогулка",
-  "meetingPoint": "Пункт проката на Ленина",
-  "createdAt": "2026-05-18T10:00:00Z",
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
+## Pricing
 
-Slot rules:
+Pricing belongs to resource by default. Offer pricing is an override, not the normal path.
 
-- `endsAt` must be after `startsAt`
-- `totalCapacity` must be greater than zero
-- `totalCapacity` cannot be reduced below already reserved capacity
-- status values are currently `open`, `closed`, and `cancelled`
-- close uses `POST /close`; do not delete slots to make them unavailable
-
-### Availability Diagnostics
-
-```http
-GET /api/v1/provider/resources/{resourceId}/availability-diagnostics
-Authorization: Bearer <access_token>
-```
-
-Response:
-
-```json
-{
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "availabilityReady": true,
-  "bookingRoutable": true,
-  "modeValid": true,
-  "errors": [],
-  "warnings": [],
-  "publishabilityImpact": [
-    { "key": "status", "value": "configured_profile_only" },
-    { "key": "reason", "value": "Availability runtime configuration is present for the current mode." }
-  ],
-  "checkedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Frontend behavior:
-
-- use diagnostics for setup/readiness UI and publishability guidance
-- do not present diagnostics as a guarantee that a specific customer booking time is available
-- show blocking states from `errors`; current error codes include `availability_profile_missing`, `availability_profile_inactive`, `availability_timezone_missing`, and `resource_slots_missing`
-- show non-blocking warnings from `warnings`; current warning code includes `availability_calendar_missing`
-- refresh diagnostics after profile, calendar, slot, inventory-unit, or resource-status changes
-
-### Inventory Units
-
-Inventory units are used only for equipment resources with `capacityMode: "inventory"`, such as bicycles. They are the provider's physical rentable units. Do not use calendar or slot APIs for these resources.
-
-```http
-GET /api/v1/provider/resources/{resourceId}/inventory-summary
-GET /api/v1/provider/resources/{resourceId}/units
-POST /api/v1/provider/resources/{resourceId}/units
-PATCH /api/v1/provider/resources/{resourceId}/units/{unitId}
-POST /api/v1/provider/resources/{resourceId}/units/{unitId}/archive
-Authorization: Bearer <access_token>
-```
-
-Create request can stay intentionally small. Status and condition can be updated later:
-
-```json
-{
-  "resourceVariantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
-  "inventoryCode": "BIKE-0001"
-}
-```
-
-Current API defaults omitted `status` to `active`. Omitted `conditionStatus` means the unit exists but is not counted as ready until condition is set later.
-
-Important current validation:
-
-- active units must have `resourceVariantId`
-- `inventoryCode` may contain only Latin letters, numbers, spaces, dashes, underscores, or dots
-- do not rely on API-generated inventory codes while resource titles can contain Cyrillic; send an explicit code such as `BIKE-0001`
-- show `inventoryCode` to providers as “Инвентарный номер”
-
-Unit response:
-
-```json
-{
-  "unitId": "50000000-0000-4000-8000-000000000001",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "resourceVariantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
-  "inventoryCode": "BIKE-0001",
-  "displayName": null,
-  "status": "active",
-  "conditionStatus": null,
-  "externalReferenceCode": null,
-  "createdAt": "2026-05-18T10:00:00Z",
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Inventory summary response:
-
-```json
-{
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "totalUnits": 1,
-  "activeUnits": 1,
-  "readyUnits": 0,
-  "maintenanceUnits": 0,
-  "damagedUnits": 0,
-  "inactiveUnits": 0,
-  "retiredUnits": 0,
-  "lostUnits": 0,
-  "classifiedUnits": 1,
-  "unclassifiedUnits": 0,
-  "variants": [
-    {
-      "resourceVariantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1",
-      "variantKey": "frame-m",
-      "label": "Рама M",
-      "status": "active",
-      "totalUnits": 1,
-      "activeUnits": 1,
-      "readyUnits": 0,
-      "maintenanceUnits": 0,
-      "damagedUnits": 0,
-      "updatedAt": "2026-05-18T10:00:00Z"
-    }
-  ],
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Frontend behavior:
-
-- the quick-add unit form should ask only for variant/model and inventory code
-- do not show or require `displayName` in the provider UI for now; treat it as an optional API field that can remain `null`
-- expose status and condition in an edit/details flow, not as required fields on quick add
-- show `readyUnits` as “готово к прокату”; a unit is counted ready only when `status: "active"`, `resourceVariantId` is present, and `conditionStatus: "ready"`
-- if `readyUnits` is `0`, show setup guidance rather than treating availability diagnostics as proof that a bicycle can be rented
-
-## Provider Pricing
-
-Pricing is configured under `ProviderResource` by default. Offers may later add an offer-specific pricing override, but frontend should first configure the resource pricing policy because resource pricing is the normal publishability dependency for the current rental flow.
-
-Do not put pricing truth into offer cards, availability diagnostics, or frontend-only state. Offer responses may expose pricing summaries as projections, but executable pricing comes from pricing policy and quote/preview logic.
-
-### Resource Pricing Policy
+### Resource Pricing
 
 ```http
 GET /api/v1/provider/resources/{resourceId}/pricing-policy
 PUT /api/v1/provider/resources/{resourceId}/pricing-policy
-Authorization: Bearer <access_token>
+GET /api/v1/provider/resources/{resourceId}/pricing-diagnostics
 ```
 
-If `GET` returns `404`, treat it as “pricing is not configured yet” and show an empty pricing form. This is the API path that resolves provider-facing warnings such as `Pricing policy is required before the offer can be published.`
-
-Create or update request for a simple hourly bicycle rental:
+Use `404` on GET as "not configured yet".
 
 ```json
 {
@@ -939,33 +1091,7 @@ Create or update request for a simple hourly bicycle rental:
 }
 ```
 
-Pricing policy response:
-
-```json
-{
-  "pricingPolicyId": "30000000-0000-4000-8000-000000000001",
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "offerId": null,
-  "pricingMode": "per_unit_time",
-  "currency": "RUB",
-  "baseAmount": 500,
-  "adjustmentRules": [],
-  "status": "active",
-  "readiness": {
-    "quoteabilityStatus": "pending_module",
-    "summaryPreviewStatus": "pending_module",
-    "variantPricingStatus": "not_evaluated",
-    "diagnosticsStatus": "pending_module"
-  },
-  "publishabilityImpact": {
-    "status": "pending_module",
-    "reason": "Pricing policy is persisted, but quote preview, summary preview, and diagnostics modules are still deferred."
-  },
-  "updatedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Supported `pricingMode` values currently accepted by the API:
+Accepted `pricingMode` values:
 
 - `fixed`
 - `per_unit_time`
@@ -973,78 +1099,24 @@ Supported `pricingMode` values currently accepted by the API:
 - `tiered`
 - `dynamic`
 
-Supported `status` values:
+Accepted status values:
 
-- `draft`
 - `active`
 - `superseded`
 - `archived`
 
-Frontend behavior:
-
-- for MVP bicycle rentals, default to `pricingMode: "per_unit_time"`, `currency: "RUB"`, `status: "active"`
-- label `baseAmount` as “Цена” or “Цена за час” when `pricingMode` is `per_unit_time`; do not show API field names directly to providers
-- after saving pricing, refresh pricing diagnostics and offer publishability/routability views
-- do not treat pricing diagnostics as a customer-facing quote; use quote preview for calculated amounts
-
-### Pricing Diagnostics
-
-```http
-GET /api/v1/provider/resources/{resourceId}/pricing-diagnostics
-Authorization: Bearer <access_token>
-```
-
-Response:
-
-```json
-{
-  "resourceId": "0a1a0000-0000-4000-8000-000000000101",
-  "offerId": null,
-  "pricingReady": true,
-  "quoteable": true,
-  "summaryReady": true,
-  "errors": [],
-  "warnings": [],
-  "publishabilityImpact": [
-    { "key": "status", "value": "partially_evaluated" },
-    { "key": "reason", "value": "Pricing policy is configured, but deeper diagnostics and preview parity remain bootstrap-level." }
-  ],
-  "checkedAt": "2026-05-18T10:00:00Z"
-}
-```
-
-Frontend behavior:
-
-- show `pricing_policy_missing`, `pricing_policy_inactive`, and `pricing_currency_missing` as blocking setup issues
-- show `pricing_base_amount_missing` and `pricing_adjustments_not_configured` as guidance/warnings
-- use diagnostics for setup and publishability guidance only, not as pricing truth
-- when diagnostics says pricing is missing, link the user to the resource pricing form
+Provider-facing saves default to `active`; do not send `draft`.
 
 ### Offer Pricing Override
 
 ```http
 GET /api/v1/provider/offers/{offerId}/pricing-policy
 PUT /api/v1/provider/offers/{offerId}/pricing-policy
-Authorization: Bearer <access_token>
-```
-
-Use offer-level pricing only when an offer intentionally needs a different commercial price than the resource default, for example a promo, package, adult-only offer, or premium bundle.
-
-Frontend behavior:
-
-- default offer creation should rely on the resource pricing policy
-- do not require an offer-level pricing policy when the resource policy is already active
-- if offer-specific pricing is enabled in UI, make it clear that it overrides the resource-level price for that offer
-
-### Pricing Previews
-
-```http
 POST /api/v1/provider/offers/{offerId}/pricing-summary-preview
 POST /api/v1/provider/pricing/quote-preview
-Authorization: Bearer <access_token>
 ```
 
-Quote preview request:
+Quote preview:
 
 ```json
 {
@@ -1060,39 +1132,30 @@ Quote preview request:
 }
 ```
 
-Frontend behavior:
+Frontend rules:
 
-- use summary preview for offer cards/previews after an offer exists
-- use quote preview when the provider needs to test a concrete booking interval and quantity
-- quote preview is a provider-side calculation preview, not a booking reservation and not a guarantee that inventory will still be available later
+- default rental UI should create resource pricing, not offer pricing
+- use offer pricing only for promo/package/special commercial cases
+- previews are not reservations and not booking guarantees
 
-## Provider Policy
+## Policy
 
-Policy is the provider-authored business rules layer for rental/booking conditions. It answers questions such as minimum age, cancellation window, no-show charge, deposit percent, lead time, weather exception, and check-in grace period.
+Policy is authored business-rule truth. It is not freeform frontend copy.
 
-Current policy data is typed API data, not a dynamic category attribute schema. Fields such as `helmetRequired` are nullable typed policy facts. If a field does not apply to a category, omit it or keep it `null`; do not show irrelevant category-specific controls in the UI.
+Inheritance:
 
-Do not treat `policySummary`, offer cards, or diagnostics as policy truth. Policy truth is authored through the policy endpoints. Offer/customer-facing summaries are projections, and booking-time allow/block validation still happens in checkout.
+1. provider default policy
+2. resource override
+3. offer override
 
-Current inheritance model:
-
-1. Provider default policy profile is the baseline for the provider.
-2. Resource policy override specializes the baseline for one operational resource, for example bicycles.
-3. Offer policy override specializes the chain for one commercial offer, for example a promo or special package.
-
-For MVP bicycle rental, the frontend should first make sure the provider default policy exists and is active. Resource or offer overrides are optional and should only be shown when rules differ from the provider default. Category-specific rules, such as helmet requirements for bicycles, should normally be configured as a resource override unless the provider only operates that category and wants the rule as a global default.
-
-### Provider Default Policy Profile
+### Provider Default
 
 ```http
 GET /api/v1/provider/policy-profile
 PUT /api/v1/provider/policy-profile
-Authorization: Bearer <access_token>
 ```
 
-If `GET` returns `404`, treat it as “rules are not configured yet” and show the default policy form. This is the primary path to resolve publishability/routability failures such as `policy_chain_missing` or `Provider or resource policy is required before the offer can be published.`
-
-Create or update request:
+Use `404` on GET as "not configured yet".
 
 ```json
 {
@@ -1101,98 +1164,37 @@ Create or update request:
   "cancellationWindowHours": 24,
   "isCancellationAllowed": true,
   "noShowChargePercent": 100,
-  "depositPercent": 0,
-  "checkInGraceMinutes": 15,
-  "assuranceMode": "none",
-  "weatherException": false,
-  "minimumAge": 18,
-  "status": "active"
-}
-```
-
-Policy profile response:
-
-```json
-{
-  "policyProfileId": "70000000-0000-4000-8000-000000000001",
-  "ownerType": "provider",
-  "ownerId": "00000000-0000-0000-0000-000000000010",
-  "policyScope": "default",
-  "leadTimeHours": 2,
-  "cancellationWindowHours": 24,
-  "isCancellationAllowed": true,
-  "noShowChargePercent": 100,
-  "depositPercent": 0,
+  "deposit": {
+    "unit": "none",
+    "value": 0,
+    "currency": null
+  },
   "checkInGraceMinutes": 15,
   "assuranceMode": "none",
   "weatherException": false,
   "minimumAge": 18,
   "helmetRequired": null,
-  "status": "active",
-  "readiness": {
-    "authoringStatus": "configured",
-    "summaryPreviewStatus": "pending_module",
-    "effectivePreviewStatus": "pending_module",
-    "diagnosticsStatus": "pending_module"
-  },
-  "publishabilityImpact": {
-    "status": "pending_module",
-    "reason": "Provider default policy exists, but policy summary preview and diagnostics are bootstrap-level."
-  },
-  "updatedAt": "2026-05-18T10:00:00Z"
+  "status": "active"
 }
 ```
 
-Current accepted `policyScope` values:
+Deposit values:
 
-- `default`
-- `booking`
-- `cancellation`
-- `assurance`
-- `eligibility`
-- `fulfillment`
+- `unit: "none"`: no deposit; `value` should be `0`
+- `unit: "percentage"`: deposit is calculated from booking total, for example `{ "unit": "percentage", "value": 20 }`
+- `unit: "fixed_amount"`: fixed deposit amount, for example `{ "unit": "fixed_amount", "value": 1000, "currency": "RUB" }`
 
-Current accepted provider policy `status` values:
+The API no longer accepts `depositPercent`; send `deposit`.
 
-- `draft`
-- `active`
-- `superseded`
-- `archived`
-
-Frontend behavior:
-
-- label this module as “Правила проката” or “Условия бронирования”, not “Policy”
-- for normal bicycle rental, default to `policyScope: "default"` and `status: "active"`
-- at least one rule field must be present; the API rejects an empty ruleset
-- hide advanced scope selection in the main MVP form unless the provider intentionally configures specialized rules
-- after saving, refresh policy diagnostics plus offer publishability/routability views
-
-Suggested MVP fields for a simple provider form:
-
-- `minimumAge`: “Минимальный возраст”
-- `leadTimeHours`: “За сколько часов можно забронировать”
-- `cancellationWindowHours`: “За сколько часов можно отменить”
-- `isCancellationAllowed`: “Отмена разрешена”
-- `noShowChargePercent`: “Штраф за неявку, %”
-- `depositPercent`: “Залог, %”
-- `weatherException`: “Исключение из-за погоды”
-- `checkInGraceMinutes`: “Допустимое опоздание, минут”
-
-Category-specific fields should be shown only when applicable:
-
-- `helmetRequired`: “Шлем обязателен” for bicycle-like categories, usually as a resource override
-
-### Resource Policy Override
+### Resource Override
 
 ```http
 GET /api/v1/provider/resources/{resourceId}/policy
 PUT /api/v1/provider/resources/{resourceId}/policy
-Authorization: Bearer <access_token>
+GET /api/v1/provider/resources/{resourceId}/policy-diagnostics
 ```
 
-Use resource policy override only when one resource needs rules different from the provider default. For example, bicycles may require helmets and a minimum age, while another resource type may not.
-
-Create or update request:
+Use `404` on GET as "uses provider default".
 
 ```json
 {
@@ -1203,53 +1205,18 @@ Create or update request:
 }
 ```
 
-Current accepted `overrideScope` values:
-
-- `assurance`
-- `duration`
-- `cancellation`
-- `eligibility`
-- `prerequisites`
-- `fulfillment`
-
-Current accepted override `status` values:
-
-- `active`
-- `superseded`
-- `archived`
-
-Frontend behavior:
-
-- if `GET` returns `404`, show “uses provider default rules” rather than an error
-- do not force every resource to have an override
-- when the user creates an override, explain that only filled fields are the resource-specific rule set in the current API response; the effective chain is inspected through diagnostics/preview
-
-### Offer Policy Override
+### Offer Override
 
 ```http
 GET /api/v1/provider/offers/{offerId}/policy
 PUT /api/v1/provider/offers/{offerId}/policy
-Authorization: Bearer <access_token>
-```
-
-Use offer policy override only when the commercial offer needs different rules from the provider/resource default, for example a promo with different cancellation or deposit terms.
-
-Frontend behavior:
-
-- do not create offer policy overrides by default
-- if `GET` returns `404`, show “uses provider/resource rules” rather than an error
-- after saving an offer override, refresh the offer detail/list projection and policy summary preview
-
-### Policy Diagnostics And Preview
-
-```http
-GET /api/v1/provider/resources/{resourceId}/policy-diagnostics
-POST /api/v1/provider/policy/effective-preview
 POST /api/v1/provider/offers/{offerId}/policy-summary-preview
-Authorization: Bearer <access_token>
+POST /api/v1/provider/policy/effective-preview
 ```
 
-Effective preview request:
+Use offer overrides only when a commercial offer differs from provider/resource rules.
+
+Effective preview:
 
 ```json
 {
@@ -1258,107 +1225,153 @@ Effective preview request:
 }
 ```
 
-Diagnostics response:
+Policy options endpoint does not exist yet. Keep MVP policy labels/defaults local in the frontend.
+
+## Payment Route Setup
+
+Payment route setup has a provider-facing onboarding part and an internal/operator activation part.
+
+Provider-facing routes:
+
+```http
+GET  /api/v1/provider/acquiring-connections
+POST /api/v1/provider/acquiring-connections
+GET  /api/v1/provider/acquiring-connections/{connectionId}
+POST /api/v1/provider/acquiring-connections/{connectionId}/submit-onboarding
+GET  /api/v1/provider/acquiring-connections/{connectionId}/recipient-routes
+GET  /api/v1/provider/acquiring-connections/{connectionId}/deal-binding
+GET  /api/v1/provider/acquiring-connections/{connectionId}/routability
+```
+
+Create connection:
 
 ```json
 {
-  "ownerType": "resource",
-  "ownerId": "0a1a0000-0000-4000-8000-000000000101",
-  "effectiveChain": [
-    { "key": "provider_profile_status", "value": "active" },
-    { "key": "resource_override_status", "value": null },
-    { "key": "offer_override_status", "value": null }
-  ],
-  "validationReady": true,
-  "summaryReady": true,
-  "errors": [],
-  "warnings": [
-    "effective_policy_preview_bootstrap",
-    "policy_summary_projection_bootstrap"
-  ],
-  "publishabilityImpact": [
-    { "key": "status", "value": "partially_evaluated" },
-    { "key": "reason", "value": "Policy chain is present, but effective preview remains bootstrap-level." }
-  ],
-  "checkedAt": "2026-05-18T10:00:00Z"
+  "acquiringProvider": "t_bank_multishop"
 }
 ```
 
-Frontend behavior:
-
-- show `provider_policy_missing` and `provider_policy_inactive` as blocking setup issues
-- show `resource_policy_override_inactive` and `offer_policy_override_inactive` as warnings unless publishability/routability says otherwise
-- show bootstrap warnings as technical setup notes or hide them from normal providers; they are not actionable business problems
-- use policy diagnostics for setup/readiness guidance only, not as a booking guarantee
-- use policy summary preview for provider-facing preview of customer-visible policy text/summary after an offer exists
-
-### Policy Options
-
-Current API does not expose a policy options endpoint. For the MVP, frontend may use the documented enum values above and conservative defaults for the bicycle rental form.
-
-Until this endpoint exists, do not call it from the frontend. Keep policy labels/defaults local to the provider web app and revisit after policy requirements grow.
-
-## Provider Offers
-
-Offer creation forms must load supported options from the API instead of hardcoding enum strings.
-
-```http
-GET /api/v1/provider/offers/authoring-options
-GET /api/v1/provider/offers/authoring-options?primaryResourceId={resourceId}
-Authorization: Bearer <access_token>
-```
-
-Use the resource-aware call after the user selects a primary resource. For an equipment/inventory resource, the current default offer type is `rental`.
-
-Response shape:
+Connection response shape:
 
 ```json
 {
-  "offerTypes": [
-    {
-      "value": "rental",
-      "title": "Прокат",
-      "description": "Аренда оборудования или инвентаря.",
-      "isDefault": true
-    }
-  ],
-  "bookingFlowTypes": [
-    {
-      "value": "direct_checkout",
-      "title": "Прямая оплата",
-      "description": "Клиент может оформить заказ без ручного подтверждения.",
-      "isDefault": true
-    }
-  ],
-  "variantExposureModes": [
-    {
-      "value": "all_active_variants",
-      "title": "Все активные варианты",
-      "description": "Оффер использует все активные варианты ресурса.",
-      "isDefault": true
-    }
-  ],
-  "defaults": {
-    "offerType": "rental",
-    "bookingFlowType": "direct_checkout",
-    "variantExposureMode": "all_active_variants"
+  "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "providerId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "acquiringProvider": "t_bank_multishop",
+  "status": "draft",
+  "shopCode": null,
+  "onboardingSnapshot": {
+    "snapshotPresent": false,
+    "snapshotVersion": null,
+    "integrationProvider": null,
+    "chiefExecutivePresent": false,
+    "founderCount": 0,
+    "submittedAt": null
   },
-  "resourceCompatibility": {
-    "resourceId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1",
-    "resourceType": "equipment",
-    "capacityMode": "inventory",
-    "recommendedOfferTypes": ["rental"],
-    "defaultOfferType": "rental"
+  "routing": {
+    "routeStatus": "missing",
+    "paymentRecipientId": null,
+    "partnerId": null,
+    "levelOfConfidence": null
+  },
+  "dealBinding": {
+    "status": "missing",
+    "mode": null,
+    "dealId": null,
+    "createDealWithType": null
+  },
+  "routability": {
+    "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "paymentRouteable": false,
+    "connectionStatus": "draft",
+    "shopCodePresent": false,
+    "terminalReady": false,
+    "recipientRouteReady": false,
+    "dealBindingReady": false,
+    "reasonCodes": ["connection_not_active", "recipient_route_missing", "deal_binding_missing"],
+    "diagnostics": null,
+    "checkedAt": "2026-05-27T06:00:00Z"
+  },
+  "diagnostics": null,
+  "createdAt": "2026-05-27T06:00:00Z",
+  "updatedAt": "2026-05-27T06:00:00Z"
+}
+```
+
+Submit onboarding:
+
+```json
+{
+  "legalProfile": {
+    "legalEntityName": "ООО Мегапрокат",
+    "legalName": "ООО Мегапрокат",
+    "taxpayerNumber": "6671000000",
+    "registrationNumber": "1026600000000",
+    "registeredAddress": "г Екатеринбург, ул Ленина, д 1"
+  },
+  "contactProfile": {
+    "surname": "Иванов",
+    "name": "Иван",
+    "patronymic": "Иванович",
+    "email": "owner@example.ru",
+    "phone": "+79990000000",
+    "position": "Директор"
+  },
+  "businessProfile": {
+    "billingDescriptor": "MEGAPROKAT",
+    "shortName": "Мегапрокат",
+    "siteUrl": "https://example.ru",
+    "okved": "77.21",
+    "registrationDepartment": "ФНС",
+    "registrationDate": "2020-01-15",
+    "actualAddress": "г Екатеринбург, ул Ленина, д 1",
+    "comment": null
+  },
+  "chiefExecutive": null,
+  "founders": [],
+  "settlementProfile": {
+    "mode": "bank_account",
+    "bankName": "Банк",
+    "bankAccount": "40702810000000000000",
+    "correspondentAccount": "30101810000000000000",
+    "bik": "044525000",
+    "beneficiaryName": "ООО Мегапрокат",
+    "phone": "+79990000000",
+    "sbpMemberId": null,
+    "displayBankName": "Банк"
   }
 }
 ```
 
-Create request:
+Frontend rules:
+
+- web-provider can create a `t_bank_multishop` connection draft and submit onboarding data
+- web-provider cannot activate the connection in V1
+- web-provider cannot create or activate recipient routes in V1
+- web-provider cannot create or activate deal bindings in V1
+- `routeScope` is internal and defaults to `provider_default` for MVP
+- for ИП/ООО partner payout, operator/bank setup uses `partnerId` / `shopCode`
+- for SBP/phone payout, setup uses `paymentRecipientId`
+- T-Bank confirmation is still needed before requiring `paymentRecipientId` for registered ИП/ООО partner payouts
+- show `payment_route` readiness and acquiring `routability.reasonCodes` as setup blockers
+- after onboarding submission, show review/operator setup state until `paymentRouteable` becomes `true`
+- do not invent route/deal setup UI; those commands are internal-only today
+
+## Offers
+
+Offer authoring must load options from API.
+
+```http
+GET /api/v1/provider/offers/authoring-options
+GET /api/v1/provider/offers/authoring-options?primaryResourceId={resourceId}
+```
+
+Current active offer type for provider authoring is `rental`. `service` and `experience` may appear but can be inactive.
+
+### Create
 
 ```http
 POST /api/v1/provider/offers
-Authorization: Bearer <access_token>
-Content-Type: application/json
 ```
 
 ```json
@@ -1368,56 +1381,48 @@ Content-Type: application/json
   "bookingFlowType": "direct_checkout",
   "variantExposureMode": "all_active_variants",
   "title": "Прокат велосипеда Stels Miss 6500",
-  "description": null,
-  "location": null
+  "description": "Почасовой прокат велосипеда.",
+  "fulfillmentLocationId": "edededed-eded-eded-eded-ededededed11"
 }
 ```
 
-`location` can point to a reusable provider location or store an offer-specific inline place.
-
-Reusable provider location:
+Meetup/activity-start place:
 
 ```json
 {
-  "type": "provider_location",
-  "providerLocationId": "edededed-eded-eded-eded-ededededed11"
+  "meetupLocation": {
+    "cityId": "edededed-eded-eded-eded-ededededed01",
+    "title": "Пляж Солнечный",
+    "address": "Пляж Солнечный, причал 2",
+    "house": null,
+    "latitude": 56.852,
+    "longitude": 60.612
+  }
 }
 ```
 
-Inline place:
+Hybrid rental plus activity-start offer:
 
 ```json
 {
-  "type": "inline_place",
-  "cityId": "edededed-eded-eded-eded-ededededed01",
-  "title": "Пляж Солнечный",
-  "address": "Пляж Солнечный, причал 2",
-  "latitude": 56.852,
-  "longitude": 60.612,
-  "timezone": "Asia/Yekaterinburg"
+  "primaryResourceId": "0a1a0000-0000-4000-8000-000000000101",
+  "offerType": "rental",
+  "bookingFlowType": "direct_checkout",
+  "variantExposureMode": "all_active_variants",
+  "title": "SUP board rental with lake meetup",
+  "description": "Pick up from the issue center or meet at the pier.",
+  "fulfillmentLocationId": "edededed-eded-eded-eded-ededededed11",
+  "meetupLocation": {
+    "cityId": "edededed-eded-eded-eded-ededededed01",
+    "title": "Пляж Солнечный",
+    "address": "Пляж Солнечный, причал 2",
+    "latitude": 56.852,
+    "longitude": 60.612
+  }
 }
 ```
 
-Location frontend behavior:
-
-- provider locations are optional reusable places
-- use `provider_location` when many offers share the same pickup or meeting point
-- use `inline_place` for one-off or activity-specific starts
-- when using `provider_location`, send only the provider location id; the API validates ownership and snapshots display fields
-- when using `inline_place`, send at least `title` or `address`
-- send `cityId` from `/api/v1/catalog/cities` when available; address suggestions must not create platform cities
-- coordinates may come from Dadata or another address/geocoding UI
-- treat `location` as display/discovery data, not booking availability or execution truth
-- checkout must still validate and snapshot the concrete pickup or meeting point at booking time
-
-To create an offer that exposes only specific variants, load variants first:
-
-```http
-GET /api/v1/provider/resources/{resourceId}/variants
-Authorization: Bearer <access_token>
-```
-
-Then submit selected exposures in the same create request:
+Selected variants:
 
 ```json
 {
@@ -1436,746 +1441,472 @@ Then submit selected exposures in the same create request:
 }
 ```
 
-Variant exposure rules:
+Rules:
 
-- use `all_active_variants` when the offer should include every active variant of the resource
-- use `selected_variants_only` when the offer is a package/filter such as adult-only, kids-only, premium-only, or promo-only
+- send option `value`, never localized title
 - `selectedVariants` is accepted only with `selected_variants_only`
 - selected variants must belong to the primary resource
-- selected variants are booking-required by default
-- `visibilityStatus` values: `visible`, `hidden`, `unavailable`
-- the older two-step flow still works: create the offer, then call `PUT /api/v1/provider/offers/{offerId}/variants/{variantId}/exposure`
+- `fulfillmentLocationId` must reference one of the provider's active fulfillment locations
+- `meetupLocation.cityId` must be a supported platform city
+- `meetupLocation` requires `cityId` and at least `title` or `address`
+- offer can have fulfillment location, meetup location, or both
+- omitting `fulfillmentLocationId` or `meetupLocation` on patch leaves existing value unchanged
+- current V1 does not expose an explicit clear/delete operation for existing offer locations
+- do not send legacy `location`
+- if API rejects offer type as disabled, refresh authoring options and block submit
+- offers are created `active` by default; there is no required publish step after creation
+- public/customer visibility still depends on offer visibility, routability, and checkout validation
 
-Frontend rules:
+Provider and public offer reads expose a purpose-aware location summary for display:
 
-- send option `value`, never `title`
-- default from `defaults` or `resourceCompatibility.defaultOfferType`
-- do not invent values such as `bike`, `equipment`, or `inventory`
-- if API returns `Unsupported offer_type`, refresh authoring options and block submit until a supported value is selected
+```json
+{
+  "locationSummary": {
+    "primaryPurpose": "mixed",
+    "fulfillmentLocation": {
+      "purpose": "pickup_return",
+      "fulfillmentLocationId": "edededed-eded-eded-eded-ededededed11",
+      "cityId": "edededed-eded-eded-eded-ededededed01",
+      "title": "Пункт выдачи на Ленина",
+      "country": "Россия",
+      "region": "Свердловская область",
+      "city": "Екатеринбург",
+      "address": "ул. Ленина, 1",
+      "house": null,
+      "latitude": 56.838011,
+      "longitude": 60.597465,
+      "timezone": "Asia/Yekaterinburg"
+    },
+    "meetupLocation": {
+      "purpose": "meetup",
+      "fulfillmentLocationId": null,
+      "cityId": "edededed-eded-eded-eded-ededededed01",
+      "title": "Пляж Солнечный",
+      "country": "Россия",
+      "region": "Свердловская область",
+      "city": "Екатеринбург",
+      "address": "Пляж Солнечный, причал 2",
+      "house": null,
+      "latitude": 56.852,
+      "longitude": 60.612,
+      "timezone": "Asia/Yekaterinburg"
+    }
+  }
+}
+```
 
-### Offer Visibility
+`primaryPurpose` values:
 
-Offer visibility controls marketplace display for a commercial offer. It is not availability and not booking execution truth.
+- `pickup_return`: show the fulfillment location as the main customer-visible place
+- `meetup`: show the meetup/activity-start place as the main customer-visible place
+- `mixed`: show both, for example issue center plus SUP board meetup point
+
+### Edit And Variant Exposure
+
+```http
+GET   /api/v1/provider/offers
+GET   /api/v1/provider/offers/{offerId}
+PATCH /api/v1/provider/offers/{offerId}
+GET   /api/v1/provider/offers/{offerId}/variant-exposure
+PUT   /api/v1/provider/offers/{offerId}/variant-exposure-mode
+PUT   /api/v1/provider/offers/{offerId}/variants/{variantId}/exposure
+```
+
+Patch:
+
+```json
+{
+  "title": "Прокат велосипеда Stels Miss 6500",
+  "description": "Обновленное описание",
+  "fulfillmentLocationId": "edededed-eded-eded-eded-ededededed11",
+  "meetupLocation": null
+}
+```
+
+Exposure:
+
+```json
+{
+  "isRequiredForBooking": true,
+  "displayLabelOverride": null,
+  "visibilityStatus": "visible",
+  "sortOrder": 0
+}
+```
+
+Exposure response:
+
+```json
+[
+  {
+    "offerId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "resourceVariantId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    "isRequiredForBooking": true,
+    "displayLabelOverride": null,
+    "visibilityStatus": "visible",
+    "sortOrder": 0,
+    "updatedAt": "2026-05-27T06:00:00Z"
+  }
+]
+```
+
+Variant exposure rules:
+
+- allowed `variantExposureMode`: `all_active_variants`, `selected_variants_only`
+- allowed `visibilityStatus`: `visible`, `hidden`, `unavailable`
+- selected exposure rows are valid only when offer mode is `selected_variants_only`
+- selected-variant readiness requires at least one row with `visibilityStatus: "visible"`
+- switching to `all_active_variants` does not clear existing exposure rows; rows are ignored while the mode is all-active
+- for rental variant selection, send `isRequiredForBooking: true` unless a future optional add-on flow is explicitly introduced
+
+### Visibility
 
 ```http
 GET /api/v1/provider/offers/{offerId}/visibility
 PUT /api/v1/provider/offers/{offerId}/visibility
-Authorization: Bearer <access_token>
 ```
 
-If no visibility row exists, the API returns an `always_visible` default projection.
+If no visibility row exists, API returns an `always_visible` default projection.
 
-Upsert request:
+```json
+{
+  "visibilityMode": "always_visible",
+  "visibleFrom": null,
+  "visibleUntil": null,
+  "status": "active"
+}
+```
+
+Seasonal:
 
 ```json
 {
   "visibilityMode": "seasonal",
-  "visibleFrom": "2026-06-01",
+  "visibleFrom": "2026-05-01",
   "visibleUntil": "2026-08-31",
   "status": "active"
 }
 ```
 
-Response:
-
-```json
-{
-  "offerId": "40000000-0000-4000-8000-000000000001",
-  "visibilityMode": "seasonal",
-  "visibleFrom": "2026-06-01",
-  "visibleUntil": "2026-08-31",
-  "status": "active",
-  "derivedSeasonId": "summer",
-  "derivedSeasonTitle": "Лето",
-  "seasonAlignment": "single_season",
-  "updatedAt": "2026-05-18T00:00:00Z"
-}
-```
-
-Accepted `visibilityMode` values:
+Accepted `visibilityMode`:
 
 - `always_visible`
 - `seasonal`
 - `hidden`
 
-Accepted `status` values:
+Important: an active seasonal offer is invisible outside its date window.
 
-- `active`
-- `inactive`
-
-Frontend behavior:
-
-- let the provider choose concrete dates for seasonal visibility; do not require season selection
-- show `derivedSeasonTitle` as the API-derived season label when useful
-- when `seasonAlignment` is `multi_season`, show that the date window crosses seasons rather than blocking save
-- do not send `seasonId`; the API derives it from `visibleFrom` and `visibleUntil`
-- city is not part of the seasonality model
-- `hidden` removes the offer from marketplace discovery without archiving it
-- default seeded demo offer visibility uses the summer period `2026-06-01` through `2026-08-31`
-- checkout must still validate availability, inventory or slots, pricing, and policy at booking time
-
-### Delete Resource
+### Lifecycle, Visibility, And Routability
 
 ```http
-DELETE /api/v1/provider/resources/{resourceId}
-Authorization: Bearer <access_token>
+GET  /api/v1/provider/offers/{offerId}/readiness
+POST /api/v1/provider/offers/{offerId}/activate
+POST /api/v1/provider/offers/{offerId}/deactivate
+POST /api/v1/provider/offers/{offerId}/archive
+GET  /api/v1/provider/offers/{offerId}/routability
+GET  /api/v1/provider/offers/routability
+GET  /api/v1/provider/resources/{resourceId}/routability-impact
 ```
 
-Swagger response contract:
-
-- `204 No Content`: resource was deleted
-- `401 Unauthorized`: user/session/token is not authorized
-
-Frontend behavior:
-
-- expose deletion from the resource detail danger zone
-- ask for explicit confirmation before calling delete
-- on `204`, remove the resource from local list state and navigate back to `/resources`
-- if the API returns `404`, show that the resource is missing or not available to the current provider
-- if the API returns `409`, do not retry deletion; offer archive instead because the resource is already linked to offers, reservations, or fulfillment records
-
-Current client wiring:
-
-- `resourcesApi.remove(resourceId)` calls `DELETE /api/v1/provider/resources/{resourceId}`
-- `ResourceDetail` renders the delete action in the danger zone
-- `ResourcePage.handleRemove` handles success plus `404` and `409` provider-facing errors
-
-## Step 1: Email Start, Registration Invitation, And Magic Sign-In
-
-Goal: a provider owner candidate proves access to an email before account creation, while existing users can receive a magic sign-in link. This is the primary provider-console auth entry flow.
-
-The email-start endpoint performs email validation, including configured MX checks. This flow may later be mirrored by phone-first verification with the same proof-token pattern.
-
-### API Endpoints
-
-#### Start Email Auth
-
-```http
-POST /api/v1/auth/email/start
-```
-
-Request:
+Lifecycle request:
 
 ```json
 {
-  "email": "ivan@example.com",
-  "app": "crm"
+  "reasonCode": "provider_requested"
 }
 ```
 
-Response:
+Readiness:
 
 ```json
 {
-  "accepted": true,
-  "message": "Если email корректен, письмо отправлено."
-}
-```
-
-Behavior:
-
-- unknown email: API sends `/auth/register?token=registration_invitation_token`
-- existing email: API sends `/auth/magic-sign-in?token=magic_sign_in_token`
-- invalid email shape or MX failure: API returns `auth.email_invalid`
-- `app` must be `crm` for provider web links
-
-The registration invitation token is proof of email access only. It is not a user/session token.
-
-#### Read Registration Invitation
-
-```http
-GET /api/v1/auth/registration-invitations/{token}
-```
-
-Response:
-
-```json
-{
-  "email": "ivan@example.com",
-  "expiresAt": "2026-05-17T12:00:00Z"
-}
-```
-
-Frontend behavior:
-
-- route: `/auth/register?token=...`
-- call this endpoint before rendering the registration form
-- lock/prefill the email from the response
-- show expired/invalid token state if the token cannot be read
-
-#### Register With Invitation Token
-
-```http
-POST /api/v1/auth/register
-```
-
-Request:
-
-```json
-{
-  "token": "registration_invitation_token",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "password": "optional-if-password-login-is-enabled"
-}
-```
-
-Response:
-
-```json
-{
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "emailVerified": true
-}
-```
-
-Frontend behavior:
-
-- after success, call `/api/v1/auth/me` if the API set a session cookie in the current implementation path
-- if no session is present, route through sign-in/magic-link flow
-- do not let the user edit email; the token owns the email
-- password is optional for token registration, but if the UI asks for it, enforce the API minimum of 8 characters
-
-#### Magic Sign-In
-
-```http
-POST /api/v1/auth/magic-sign-in
-```
-
-Request:
-
-```json
-{
-  "token": "magic_sign_in_token"
-}
-```
-
-Response:
-
-```json
-{
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "emailVerified": true
-}
-```
-
-Frontend behavior:
-
-- route: `/auth/magic-sign-in?token=...`
-- submit the token to the API
-- after success, call `/api/v1/auth/me`
-- then call `/api/v1/auth/provider-memberships`
-
-#### Legacy Password Register
-
-The old password-registration path still exists for compatibility, but new provider web code should prefer email-start registration.
-
-```http
-POST /api/v1/auth/register
-```
-
-Request:
-
-```json
-{
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "password": "strong-password",
-  "app": "crm"
-}
-```
-
-Response has `emailVerified: false` and requires email verification.
-
-Auth errors:
-
-```json
-{
-  "title": "Пароль должен содержать не менее 8 символов.",
-  "status": 400,
-  "detail": "Пароль должен содержать не менее 8 символов.",
-  "instance": "/api/v1/auth/register",
-  "code": "auth.password_too_short"
-}
-```
-
-Stable auth error codes for this slice:
-
-- `auth.email_required`: email is missing or blank
-- `auth.email_invalid`: email shape or email receiving checks failed
-- `auth.password_too_short`: password is missing, blank, or shorter than 8 characters
-- `auth.email_already_exists`: account already exists for the normalized email
-- `auth.invalid_email_app`: `app` is not one of `client`, `crm`, or `admin`
-- `auth.token_invalid`: token is malformed or not for this purpose
-- `auth.token_invalid_or_expired`: token is expired or no longer valid
-
-Current RU messages:
-
-- `auth.email_required`: `Укажите email.`
-- `auth.email_invalid`: `Укажите корректный email.`
-- `auth.password_too_short`: `Пароль должен содержать не менее 8 символов.`
-- `auth.email_already_exists`: `Пользователь с таким email уже существует.`
-- `auth.invalid_email_app`: `Некорректное приложение для email-ссылки.`
-- `auth.token_invalid`: `Ссылка недействительна.`
-- `auth.token_invalid_or_expired`: `Ссылка недействительна или срок ее действия истек.`
-
-Frontend behavior:
-
-- first ask for email only and call `/api/v1/auth/email/start`
-- show generic check-email copy after email-start success
-- in development, offer a link to the dev email outbox
-- use the link path to decide whether to render register or magic-sign-in callback
-- do not auto-mark email verified locally; trust the API response
-- map `auth.password_too_short` to the password field, using the API minimum of 8 characters
-- map `auth.email_required`, `auth.email_invalid`, and `auth.email_already_exists` to the email field
-- treat `auth.invalid_email_app` as an integration/configuration error; provider web should send `app: "crm"`
-- preserve the user's typed form values after a registration error except for password confirmation fields if the local UX clears them intentionally
-
-#### Read Dev Emails
-
-```http
-GET /api/v1/development/emails
-```
-
-Development only. Use this to extract verification links while developing.
-
-#### Verify Email
-
-```http
-POST /api/v1/auth/email/verify
-```
-
-Request:
-
-```json
-{
-  "token": "token-from-email-link"
-}
-```
-
-Frontend behavior:
-
-- route: `/auth/verify-email?token=...`
-- submit token to API
-- show verified state
-- offer sign-in after success
-- show expired/invalid token state with resend option
-
-#### Resend Verification
-
-```http
-POST /api/v1/auth/email/verification
-```
-
-Request:
-
-```json
-{
-  "email": "ivan@example.com",
-  "app": "crm"
-}
-```
-
-Frontend behavior:
-
-- use from verification-error screen and post-registration screen
-- pass `app: "crm"` so the email link returns to `crm.sportgearhub.ru`
-- always show generic success copy
-
-### Checklist
-
-- [ ] email-start screen
-- [ ] email-start API client method
-- [ ] check-email screen
-- [ ] registration invitation context API client method
-- [ ] token-based registration screen
-- [ ] token-based registration API client method
-- [ ] magic-sign-in callback route
-- [ ] magic-sign-in API client method
-- [ ] dev email outbox helper for local development
-- [ ] invalid or expired invitation/magic token state
-- [ ] legacy verify-email callback only if password registration remains exposed
-- [ ] legacy resend verification action only if password registration remains exposed
-
-## Step 2: Sign In And Session
-
-Goal: a verified or existing user can sign in and the app can load current user state.
-
-### API Endpoints
-
-#### Password Session Login
-
-```http
-POST /api/v1/auth/session-login
-```
-
-Request:
-
-```json
-{
-  "email": "ivan@example.com",
-  "password": "strong-password"
-}
-```
-
-Response:
-
-```json
-{
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan",
-  "surname": "Petrov",
-  "email": "ivan@example.com",
-  "emailVerified": true
-}
-```
-
-Frontend behavior:
-
-- call with credentials enabled
-- use this endpoint for JSON browser-session login
-- after success, call `GET /api/v1/auth/me`
-- if `emailVerified` is false, route to check-email/resend screen
-- call `GET /api/v1/auth/provider-memberships`
-- if memberships exist, enter provider shell or show provider switcher
-- otherwise route to provider onboarding
-
-Login errors:
-
-- `auth.invalid_credentials`: show one generic email/password error; do not reveal whether the email exists
-- missing username/password validation may return `400`; show the relevant required field state locally before calling the API where possible
-
-#### Current User
-
-```http
-GET /api/v1/auth/me
-```
-
-Response:
-
-```json
-{
-  "userId": "00000000-0000-0000-0000-000000000001",
-  "name": "Ivan Petrov",
-  "email": "ivan@example.com",
-  "roles": ["User"]
-}
-```
-
-#### Current Provider Memberships
-
-```http
-GET /api/v1/auth/provider-memberships
-```
-
-Response:
-
-```json
-{
-  "memberships": [
+  "offerId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "providerId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "primaryResourceId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "status": "blocked",
+  "customerVisibleNow": false,
+  "bookingSetupReady": false,
+  "sections": [
     {
-      "providerId": "00000000-0000-0000-0000-000000000010",
-      "displayName": "Sportgearhub Rentals",
-      "role": "owner",
-      "operatingState": "active"
-    }
-  ]
-}
-```
-
-Frontend behavior:
-
-- if `memberships.length > 0`, show provider workspace or provider switcher
-- if `memberships.length === 0`, call `GET /api/v1/provider-onboarding/current`
-
-#### Sign Out
-
-```http
-POST /api/v1/auth/signout
-```
-
-Response:
-
-- `204 No Content`
-
-### Optional OIDC Token Flow
-
-If the provider web app uses bearer tokens instead of cookie-only calls:
-
-1. Ensure the user has a local API session.
-2. Start `/connect/authorize` for `sportgearhub-provider`.
-3. Exchange authorization code at `/connect/token`.
-4. Store token in the app's normal auth layer.
-5. Use `GET /connect/userinfo` to validate `provider_api` and provider claims.
-
-Password grant shortcut:
-
-- endpoint: `POST /api/v1/auth/login`
-- content type: `application/x-www-form-urlencoded`
-- body fields: `grant_type=password`, `client_id=sportgearhub-provider`, `username`, `password`, `scope`
-- use only when the app intentionally uses bearer tokens; do not call this endpoint with JSON
-
-### Checklist
-
-- [ ] sign-in screen
-- [ ] login API client method with credentials
-- [ ] current-user loader
-- [ ] auth guard for signed-out users
-- [ ] email-unverified guard
-- [ ] provider-access guard
-- [ ] sign-out action
-- [ ] optional OIDC callback route if bearer tokens are used
-
-## Step 3: Password Reset
-
-Goal: a user can recover access without support/operator intervention.
-
-### API Endpoints
-
-#### Forgot Password
-
-```http
-POST /api/v1/auth/password/forgot
-```
-
-Request:
-
-```json
-{
-  "email": "ivan@example.com",
-  "app": "crm"
-}
-```
-
-Frontend behavior:
-
-- always show generic success copy
-- pass `app: "crm"` so the reset link returns to `crm.sportgearhub.ru`
-- in development, point to dev email outbox
-
-#### Reset Password
-
-```http
-POST /api/v1/auth/password/reset
-```
-
-Request:
-
-```json
-{
-  "token": "token-from-email-link",
-  "newPassword": "new-strong-password"
-}
-```
-
-Frontend behavior:
-
-- route: `/auth/reset-password?token=...`
-- require password confirmation client-side
-- after success, route to sign-in
-- show expired/invalid token state with link back to forgot-password
-
-### Checklist
-
-- [ ] forgot-password screen
-- [ ] forgot-password API client method
-- [ ] reset-password callback route
-- [ ] reset-password API client method
-- [ ] password confirmation validation
-- [ ] expired or invalid reset token state
-
-## Step 4: Provider Onboarding Entry
-
-Start this only after the auth slice is stable.
-
-Initial API calls:
-
-- `GET /api/v1/catalog/cities`
-- `GET /api/v1/provider-onboarding/options`
-- `GET /api/v1/provider-onboarding/current`
-- `POST /api/v1/provider-onboarding/current`
-- `PATCH /api/v1/provider-onboarding/current/profile`
-- `POST /api/v1/provider-onboarding/current/submit`
-
-#### Onboarding Options
-
-```http
-GET /api/v1/provider-onboarding/options
-```
-
-Use this response to render legal country and organization/legal form choices. Do not hardcode legal form values in the web app.
-
-Response:
-
-```json
-{
-  "legalCountries": [
-    {
-      "value": "RU",
-      "label": "Россия"
+      "code": "inventory",
+      "status": "blocked",
+      "title": "Inventory",
+      "message": "Add at least one active ready inventory unit assigned to a variant.",
+      "reasonCodes": ["ready_inventory_missing"]
     }
   ],
-  "legalForms": [
+  "checkedAt": "2026-05-27T06:00:00Z"
+}
+```
+
+Readiness section statuses:
+
+- `ready`
+- `warning`
+- `blocked`
+- `not_applicable`
+
+Frontend behavior:
+
+- Offers are created active by default.
+- Do not show a required "publish" step after offer creation.
+- Use `GET /readiness` for the setup checklist and primary "can customers rent this now?" state.
+- Use `publishability` and `executionLink` from `GET /offers` or `GET /offers/{offerId}` for setup state.
+- Use `activate` only to resume an inactive offer.
+- Use `deactivate` to pause an offer.
+- Use `visibility` to control marketplace display windows.
+- Use `routability` as a diagnostics/details view when the UI needs to explain booking/payment blockers.
+
+Do not present `active` as "customers can book now" unless visibility is currently active and routability is acceptable.
+
+## Bookings
+
+Provider booking API is a read/operations projection, not booking workflow authority.
+
+```http
+GET /api/v1/provider/bookings
+GET /api/v1/provider/bookings/{bookingId}
+```
+
+Filters:
+
+- `status`
+- `dateFrom`
+- `dateTo`
+- `offerId`
+- `resourceId`
+
+Summary fields:
+
+- `bookingId`
+- `bookingNumber`
+- `offerId`
+- `offerTitle`
+- `bookingType`
+- `customerSummary`
+- `status`
+- `startAt`
+- `endAt`
+- `quantity`
+- `fulfillmentSummary`
+- `createdAt`
+- `updatedAt`
+
+Frontend rules:
+
+- hide payment/ledger internals
+- show customer contact only for provider-relevant fulfillment
+- do not implement provider direct refund/cancellation unless a dedicated API exists
+
+## Fulfillment
+
+Fulfillment is the operational handover/return/completion layer.
+
+```http
+GET  /api/v1/provider/fulfillment
+GET  /api/v1/provider/bookings/{bookingId}/fulfillment
+POST /api/v1/provider/bookings/{bookingId}/handover
+POST /api/v1/provider/bookings/{bookingId}/return
+POST /api/v1/provider/bookings/{bookingId}/complete
+POST /api/v1/provider/bookings/{bookingId}/report-issue
+```
+
+Queue filters:
+
+- `fulfillmentStage`
+- `dateFrom`
+- `dateTo`
+- `offerId`
+- `resourceId`
+
+Handover:
+
+```json
+{
+  "handedOverAt": "2026-06-15T10:00:00+05:00",
+  "note": "Выдано клиенту",
+  "handoverMetadata": [
+    { "key": "staff", "value": "ivan" }
+  ]
+}
+```
+
+Return:
+
+```json
+{
+  "returnedAt": "2026-06-15T12:00:00+05:00",
+  "conditionSummary": [
+    { "key": "condition", "value": "ready" }
+  ],
+  "note": "Возврат без повреждений"
+}
+```
+
+Complete:
+
+```json
+{
+  "completedAt": "2026-06-15T12:10:00+05:00",
+  "note": "Заказ закрыт"
+}
+```
+
+Issue:
+
+```json
+{
+  "reasonCode": "equipment_damaged",
+  "description": "Повреждена ручка тормоза",
+  "evidenceRefs": []
+}
+```
+
+Frontend rules:
+
+- use `handoverAllowed`, `returnAllowed`, `completionAllowed` flags
+- show confirmation before state-changing actions
+- do not infer settlement/refund outcome from fulfillment state
+
+## Provider Members
+
+Provider member management is owner-only. It changes provider access, not provider profile, resource, offer, booking, payment, or ledger truth.
+
+```http
+GET    /api/v1/provider/providers/{providerId}/members
+GET    /api/v1/provider/providers/{providerId}/members/options
+POST   /api/v1/provider/providers/{providerId}/members/invitations
+GET    /api/v1/provider/providers/{providerId}/members/invitations
+PUT    /api/v1/provider/providers/{providerId}/members/{membershipId}/role
+DELETE /api/v1/provider/providers/{providerId}/members/{membershipId}
+```
+
+Options:
+
+```json
+{
+  "roles": [
     {
-      "value": "self_employed",
-      "label": "Самозанятый",
-      "requiredLegalIdentityFields": [
-        "legalCountryCode",
-        "legalForm",
-        "legalName",
-        "taxNumber"
-      ]
+      "value": "owner",
+      "label": "Владелец",
+      "description": "Полный доступ к провайдеру и управлению участниками.",
+      "sortOrder": 10
     },
     {
-      "value": "sole_proprietor",
-      "label": "ИП",
-      "requiredLegalIdentityFields": [
-        "legalCountryCode",
-        "legalForm",
-        "legalName",
-        "taxNumber",
-        "registeredAddress",
-        "registrationNumber"
-      ]
+      "value": "manager",
+      "label": "Менеджер",
+      "description": "Управление операциями, ресурсами, предложениями и бронированиями.",
+      "sortOrder": 20
     },
     {
-      "value": "company",
-      "label": "Организация",
-      "requiredLegalIdentityFields": [
-        "legalCountryCode",
-        "legalForm",
-        "legalName",
-        "taxNumber",
-        "registeredAddress",
-        "registrationNumber",
-        "branchNumber"
-      ]
+      "value": "staff",
+      "label": "Сотрудник",
+      "description": "Операционная работа с заказами, выдачей и возвратом.",
+      "sortOrder": 30
+    },
+    {
+      "value": "finance",
+      "label": "Финансы",
+      "description": "Доступ к финансовым и выплатным разделам.",
+      "sortOrder": 40
     }
   ]
 }
 ```
 
-#### Current Onboarding
-
-```http
-GET /api/v1/provider-onboarding/current
-```
-
-Response when the signed-in user has not started provider onboarding:
+Invite:
 
 ```json
 {
-  "applicationId": null,
-  "providerId": null,
-  "status": "not_started",
-  "checklist": null,
-  "draft": null,
-  "updatedAt": "2026-05-06T00:00:00Z"
+  "email": "staff@example.com",
+  "role": "staff"
 }
 ```
 
-Response after an application exists:
+Change role:
 
 ```json
 {
-  "applicationId": "00000000-0000-0000-0000-000000000001",
-  "providerId": null,
-  "status": "draft",
-  "checklist": {
-    "profile": "missing",
-    "legal": "missing"
-  },
-  "draft": {
-    "displayName": "Sportgearhub Rentals",
-    "legalName": null,
-    "legalCountryCode": null,
-    "legalForm": null,
-    "taxNumber": null,
-    "registrationNumber": null,
-    "branchNumber": null,
-    "registeredAddress": null,
-    "contactEmail": null,
-    "contactPhone": null,
-    "cityId": null,
-    "address": null,
-    "description": null
-  },
-  "updatedAt": "2026-05-06T00:00:00Z"
+  "role": "staff"
 }
 ```
 
-#### Start Onboarding
+Role values:
 
-```http
-POST /api/v1/provider-onboarding/current
-```
+- `owner`
+- `manager`
+- `staff`
+- `finance`
 
-Request:
+Frontend rules:
 
-- send JSON, even when creating an empty draft: `{}`
-- include any known draft fields in the JSON body to prefill the draft
-- use `cityId` from `GET /api/v1/catalog/cities`; do not send a free-text city
+- send role values as strings, preferably lowercase
+- `Staff` is accepted by the API, but UI constants should stay lowercase
+- do not remove or demote the last owner; API enforces this too
 
-Example with initial profile fields:
+## CRM Implementation Checklist
 
-```json
-{
-  "displayName": "Sportgearhub Rentals",
-  "contactEmail": "provider@example.com",
-  "cityId": "00000000-0000-0000-0000-000000000100",
-  "address": "ул. Ленина, 1"
-}
-```
+### Foundations
 
-Response:
+- [ ] typed API client with credentials and bearer support
+- [ ] centralized problem JSON normalization
+- [ ] auth guard
+- [ ] provider access guard using memberships
+- [ ] forbidden and onboarding routing states
+- [ ] dev email outbox helper hidden outside development
 
-- `201 Created`
-- same shape as `GET /api/v1/provider-onboarding/current` after an application exists
+### Auth And Onboarding
 
-Checklist contract:
+- [ ] email-start screen
+- [ ] registration invitation screen
+- [ ] magic sign-in callback
+- [ ] session login
+- [ ] forgot/reset password
+- [ ] current user loader
+- [ ] provider membership loader
+- [ ] onboarding current/options forms
+- [ ] submit/review state
 
-- values: `missing` or `ready`
-- `profile`: ready when display name and contact email or contact phone are present
-- `legal`: ready when all `requiredLegalIdentityFields` for the selected legal form are present
+### Provider Setup
 
-Provider location note:
+- [ ] fulfillment locations CRUD
+- [ ] activity/category selector
+- [ ] resource create/edit/archive/delete
+- [ ] image upload/gallery
+- [ ] category schema-driven variant forms
+- [ ] inventory unit quick add and edit
+- [ ] inventory summary and per-variant counts
 
-- `registeredAddress` is the legal registration address and belongs to onboarding/legal identity for ИП and organizations; it is not required for `self_employed`.
-- `cityId` points to `/api/v1/catalog/cities`; web should send the selected catalog city id, not free text.
-- `address` is a simple provider profile address only; do not use it as the long-term source of pickup point truth.
-- Pickup points / addresses of handover should become separate provider locations after provider approval, because one provider can operate multiple places.
-- Provider locations reference the same city catalog. Treat `cityId` as canonical; `cityName` in location responses is display convenience.
+### Rental Publication
 
-Frontend routing:
+- [ ] availability profile form
+- [ ] resource pricing policy form
+- [ ] provider default policy form
+- [ ] optional resource policy override
+- [ ] offer authoring options loader
+- [ ] offer create/edit
+- [ ] variant exposure picker
+- [ ] offer location picker
+- [ ] offer visibility editor
+- [ ] offer readiness checklist from `GET /offers/{offerId}/readiness`
+- [ ] publishability and execution link display from offer list/detail
+- [ ] pause/resume/archive actions
+- [ ] routability diagnostics details
 
-- `not_started` -> start onboarding
-- `draft` or `changes_requested` -> onboarding form; derive missing sections from `checklist`
-- `submitted` or `in_review` -> review/waiting screen
-- `approved` with provider membership from `GET /api/v1/auth/provider-memberships` -> provider console
-- `rejected` or `cancelled` -> decision/support screen
+### Operations
 
-Checklist:
+- [ ] booking list/detail
+- [ ] fulfillment queue
+- [ ] handover action
+- [ ] return action
+- [ ] completion action
+- [ ] issue report action
 
-- [ ] route signed-in users without provider membership to onboarding
-- [ ] current onboarding loader
-- [ ] create onboarding application
-- [ ] profile form
-- [ ] submit for review
-- [ ] review/requested-changes state
+## Current Known Gaps And Frontend Handling
 
-## Shared Frontend Implementation Checklist
-
-- [ ] typed API client with `credentials: "include"` support
-- [ ] centralized API error normalization
-- [ ] 401 handling routes to sign in
-- [ ] 403 handling shows forbidden state
-- [ ] loading, empty, error, and success states for auth screens
-- [ ] dev-only email outbox helper hidden outside development builds
-- [ ] no frontend-only provider/admin role grants
+- Provider dashboard/profile/operating-state endpoints from the product brief are not fully available yet; build dashboard from available resources, offers, routability, bookings, and fulfillment projections.
+- Experience/service offer authoring is not fully active for provider authoring; keep scheduled-slot experience UI gated until API enables it end to end.
+- Marketplace aggregation endpoints are thinner than provider setup data; do not expect provider UI setup counters to match public marketplace cards one-to-one yet.
+- Policy options endpoint does not exist; keep MVP labels/defaults local.
+- Availability diagnostics for inventory prove profile setup, not real stock; show ready inventory units separately.
+- Active seasonal offers are invisible outside `visibleFrom` / `visibleUntil`; show this explicitly in offer status UI.

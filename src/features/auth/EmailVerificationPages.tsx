@@ -27,7 +27,7 @@ export function CheckEmailPage({ email, onNavigate }: { email: string; onNavigat
       <Notice kind="success">
         Отправили письмо для подтверждения{email ? ` на ${email}` : ''}.
       </Notice>
-      {sent && <Notice kind="success">Отправили письмо еще раз, проверьте почту.</Notice>}
+      {sent && <Notice kind="success">Отправили письмо еще раз.</Notice>}
 
       <div className="space-y-3">
         <Button onClick={resend} loading={loading} className="w-full justify-center">

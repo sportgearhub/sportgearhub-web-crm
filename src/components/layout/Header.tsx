@@ -1,5 +1,4 @@
-import { LogOut, Bell, HelpCircle, ChevronRight } from 'lucide-react';
-import { useAuth } from '../../context/useAuth';
+import { Bell, HelpCircle, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 export type HeaderBreadcrumb = {
@@ -16,8 +15,8 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, breadcrumbs, onNavigate, actions }: HeaderProps) {
-  const { signOut, user, activeMembership } = useAuth();
   const hasBreadcrumbs = Boolean(breadcrumbs?.length);
+  const hasTitle = Boolean(title);
 
   return (
     <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
@@ -47,18 +46,11 @@ export function Header({ title, subtitle, breadcrumbs, onNavigate, actions }: He
                 );
               })}
             </nav>
-          ) : (
+          ) : hasTitle ? (
             <h1 className="text-base font-semibold text-foreground">{title}</h1>
-          )}
+          ) : null}
           {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
         </div>
-
-        {user && (
-          <div className="hidden border-l pl-3 text-right xl:block">
-            <p className="text-xs font-medium text-foreground">{activeMembership?.displayName ?? 'Доступ партнера'}</p>
-            <p className="text-[11px] text-muted-foreground">{user.email}</p>
-          </div>
-        )}
 
         <div className="flex items-center gap-2">
           {actions && <div className="mr-2 flex items-center gap-2">{actions}</div>}
@@ -67,16 +59,6 @@ export function Header({ title, subtitle, breadcrumbs, onNavigate, actions }: He
           </Button>
           <Button type="button" variant="secondary" size="icon" title="Помощь">
             <HelpCircle size={15} />
-          </Button>
-          <Button
-            onClick={signOut}
-            variant="secondary"
-            size="sm"
-            className="ml-1"
-            title={`Выйти из ${user?.email}`}
-          >
-            <LogOut size={13} />
-            Выйти
           </Button>
         </div>
       </div>

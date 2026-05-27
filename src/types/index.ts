@@ -16,6 +16,76 @@ export interface ProviderMembership {
   operatingState: string;
 }
 
+export interface ProviderMemberRoleOption {
+  value: string;
+  label: string;
+  description?: string | null;
+}
+
+export interface ProviderMemberOptions {
+  roles: ProviderMemberRoleOption[];
+}
+
+export interface ProviderMember {
+  membershipId: string;
+  userId: string;
+  providerId: string;
+  name: string;
+  surname: string;
+  email: string | null;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProviderInvitationStatus = 'pending' | 'accepted' | 'expired' | string;
+
+export interface ProviderInvitation {
+  invitationId: string;
+  providerId: string;
+  email: string;
+  role: string;
+  status: ProviderInvitationStatus;
+  invitedByUserId: string;
+  invitedByName: string;
+  invitedByEmail: string | null;
+  sentAt: string;
+  expiresAt: string;
+  acceptedByUserId: string | null;
+  acceptedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderMemberInvitationResult {
+  accepted: boolean;
+  message: string;
+}
+
+export interface CatalogCity {
+  cityId: string;
+  name: string;
+  countryCode?: string | null;
+  timezone?: string | null;
+}
+
+export interface ProviderLocation {
+  fulfillmentLocationId: string;
+  locationId: string;
+  providerId?: string;
+  cityId: string;
+  cityName?: string;
+  name: string;
+  address: string;
+  type: 'pickup' | 'service_area' | string;
+  status: string;
+  isDefaultPickup: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  description?: string | null;
+  updatedAt?: string;
+}
+
 // ─── Provider / Profile ──────────────────────────────────────────────────────
 
 export interface OperatingState {
@@ -151,8 +221,8 @@ export interface Resource {
   /** kept for backward-compat with existing UI components */
   id: string;
   slug?: string;
-  categoryId?: string;
-  categoryName?: string;
+  categoryId: string;
+  categoryName: string;
   description?: string;
   imageUrl?: string;
   variantCount?: number;
@@ -255,7 +325,7 @@ export interface ResourceUnit {
   unitId: string;
   resourceId: string;
   resourceVariantId?: string | null;
-  inventoryCode: string;
+  inventoryCode?: string | null;
   displayName?: string | null;
   status: string;
   conditionStatus?: string | null;
@@ -402,28 +472,45 @@ export interface PricingDiagnostics {
 // ─── Policy ───────────────────────────────────────────────────────────────────
 
 export interface PolicyRuleset {
+  leadTimeHours?: number;
   cancellationWindowHours?: number;
   isCancellationAllowed?: boolean;
-  depositPercent?: number;
+  noShowChargePercent?: number;
+  deposit?: PolicyDeposit;
+  checkInGraceMinutes?: number;
+  assuranceMode?: string;
+  weatherException?: boolean;
+  minimumAge?: number;
   [key: string]: unknown;
 }
+
+export type PolicyDeposit =
+  | { unit: 'none' }
+  | { unit: 'percentage'; value: number }
+  | { unit: 'fixed_amount'; value: number; currency: string };
 
 export interface ProviderPolicy {
   ownerType?: string;
   ownerId?: string;
   policyScope: string;
-  ruleset: PolicyRuleset;
+  ruleset?: PolicyRuleset;
   status: string;
+  leadTimeHours?: number;
+  isCancellationAllowed?: boolean;
+  noShowChargePercent?: number;
+  checkInGraceMinutes?: number;
+  assuranceMode?: string;
+  weatherException?: boolean;
+  minimumAge?: number;
   readiness?: Record<string, unknown>;
   publishabilityImpact?: PublishabilityImpact;
+  deposit: PolicyDeposit;
   /** kept for backward-compat with existing UI */
   id: string;
   resourceId?: string;
   label: string;
   cancellationWindowHours: number;
   cancellationRefundPercent: number;
-  depositRequired: boolean;
-  depositPercent: number;
   lateReturnFeeEnabled: boolean;
   damageDepositRequired: boolean;
   additionalNotes?: string;
@@ -465,6 +552,32 @@ export interface OfferPublishability {
   reason: string;
 }
 
+export interface OfferReadinessSection {
+  code: string;
+  status: 'ready' | 'blocked' | 'pending' | 'warning' | string;
+  title?: string | null;
+  message: string;
+  reasonCodes?: string[];
+}
+
+export interface OfferReadiness {
+  offerId?: string;
+  providerId?: string;
+  primaryResourceId?: string;
+  status: 'ready' | 'blocked' | 'pending' | 'warning' | string;
+  customerVisibleNow: boolean;
+  bookingSetupReady: boolean;
+  sections: OfferReadinessSection[];
+  checkedAt?: string;
+}
+
+export interface OfferVisibility {
+  visibilityMode: 'always_visible' | 'seasonal' | 'hidden' | string;
+  visibleFrom: string | null;
+  visibleUntil: string | null;
+  status: string;
+}
+
 export interface Offer {
   offerId: string;
   offerType: string;
@@ -476,6 +589,11 @@ export interface Offer {
   subtitle?: string;
   description?: string;
   locationRef?: LocationRef;
+  location?: Record<string, unknown> | null;
+  fulfillmentLocationId?: string | null;
+  meetupLocation?: Record<string, unknown> | null;
+  locationSummary?: Record<string, unknown> | null;
+  visibility?: OfferVisibility;
   includedItems?: IncludedItem[];
   requiredItems?: IncludedItem[];
   mediaRefs?: MediaRefs;
@@ -499,6 +617,7 @@ export interface Offer {
   durationValue?: number;
   isPublishable?: boolean;
   publishabilityIssues?: string[];
+  readiness?: OfferReadiness;
 }
 
 export interface OfferVariantExposure {
@@ -676,32 +795,110 @@ export interface FulfillmentCommandResult {
 
 export interface AcquiringConnection {
   connectionId: string;
+  providerId?: string;
   acquiringProvider: string;
   status: string;
-  shopCode?: string;
-  onboardingStatus: string;
+  shopCode?: string | null;
+  onboardingStatus?: string;
+  onboardingSnapshot?: {
+    snapshotPresent: boolean;
+    snapshotVersion?: number | null;
+    integrationProvider?: string | null;
+    chiefExecutivePresent: boolean;
+    founderCount: number;
+    submittedAt?: string | null;
+  };
+  routing?: {
+    routeStatus: string;
+    paymentRecipientId?: string | null;
+    levelOfConfidence?: string | null;
+  };
+  dealBinding?: {
+    status: string;
+    mode?: string | null;
+    dealId?: string | null;
+    createDealWithType?: string | null;
+  };
+  routability?: AcquiringRoutability;
+  diagnostics?: Record<string, unknown> | null;
+  paymentRouteable?: boolean;
+  createdAt?: string;
+  updatedAt: string;
+}
+
+export interface AcquiringRoutability {
+  connectionId: string;
   paymentRouteable: boolean;
+  connectionStatus: string;
+  shopCodePresent: boolean;
+  terminalReady: boolean;
+  recipientRouteReady: boolean;
+  dealBindingReady: boolean;
+  reasonCodes: string[];
+  diagnostics?: Record<string, unknown> | null;
+  checkedAt: string;
+}
+
+export interface AcquiringRecipientRoute {
+  routeId: string;
+  connectionId: string;
+  routeScope: string;
+  routeStatus: string;
+  paymentRecipientId?: string | null;
+  levelOfConfidence?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AcquiringDealBinding {
+  bindingId: string;
+  routeId: string;
+  status: string;
+  mode: string;
+  dealId?: string | null;
+  createDealWithType?: string | null;
+  diagnostics?: Record<string, unknown> | null;
+  createdAt: string;
   updatedAt: string;
 }
 
 export interface AcquiringOnboardingPayload {
   legalProfile: {
     legalEntityName: string;
+    legalName?: string;
     taxpayerNumber: string;
     registrationNumber: string;
     registeredAddress: string;
   };
   contactProfile: {
-    fullName: string;
+    surname?: string;
+    name?: string;
+    patronymic?: string;
     email: string;
     phone: string;
     position: string;
   };
+  businessProfile?: {
+    billingDescriptor?: string;
+    shortName?: string;
+    siteUrl?: string;
+    okved?: string;
+    registrationDepartment?: string;
+    registrationDate?: string;
+    actualAddress?: string;
+    comment?: string | null;
+  };
+  chiefExecutive?: Record<string, unknown> | null;
+  founders?: Record<string, unknown>[];
   settlementProfile: {
+    mode?: string;
     bankName: string;
     bankAccount: string;
     correspondentAccount: string;
     bik: string;
     beneficiaryName: string;
+    phone?: string;
+    sbpMemberId?: string | null;
+    displayBankName?: string;
   };
 }

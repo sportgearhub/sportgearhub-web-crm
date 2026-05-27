@@ -369,7 +369,7 @@ export function ResourceForm({
         brandName: resolvedBrand.brandName,
         brandId: resolvedBrand.brandId,
       };
-      if (!isEdit && !schema) return;
+      if (!schema) return;
       const title = makeResourceTitle(selectedCategory.title, nextForm.brandName, nextForm.model, titleOverride);
       const nextVariants = variants.map((variant, index) => {
         const variantLabel = makeVariantLabel(nextForm, variant.attributeValues) || `Модель ${index + 1}`;

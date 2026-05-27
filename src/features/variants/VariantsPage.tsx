@@ -97,7 +97,6 @@ export function VariantsPage() {
   const filtered = useMemo(() => variants.filter(variant => {
     const matchesResource = !resourceFilter || variant.resourceId === resourceFilter;
     const matchesStatus = !statusFilter || variant.status === statusFilter;
-    const resourceTitle = resourceById.get(variant.resourceId)?.title ?? '';
     return matchesResource && matchesStatus;
   }), [resourceById, resourceFilter, statusFilter, variants]);
 

@@ -5,8 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { Textarea } from '../../components/ui/Textarea';
-import { ApiError, offersApi, pricingApi, variantsApi } from '../../lib/api-client';
-import type { AdjustmentRule, Offer, OfferAuthoringOption, OfferAuthoringOptions, Resource, ResourceVariant } from '../../types';
+import { ApiError, locationsApi, offersApi, pricingApi, variantsApi } from '../../lib/api-client';
+import type { AdjustmentRule, Offer, OfferAuthoringOption, OfferAuthoringOptions, ProviderLocation, Resource, ResourceVariant } from '../../types';
 
 type SimpleOption = {
   value: string;
@@ -38,6 +38,7 @@ export type OfferFormData = Partial<Offer> & {
   pricingCurrency?: string;
   pricingStatus?: string;
   adjustmentRules?: AdjustmentRule[];
+  fulfillmentLocationId?: string | null;
 };
 
 interface OfferFormProps {
@@ -61,6 +62,8 @@ export function OfferForm({ offer, resources, onSubmit, onCancel, initialResourc
   const [adjustmentRules, setAdjustmentRules] = useState<AdjustmentRule[]>([]);
   const [advancedPricingOpen, setAdvancedPricingOpen] = useState(false);
   const [description, setDescription] = useState(offer?.description || '');
+  const [locations, setLocations] = useState<ProviderLocation[]>([]);
+  const [locationId, setLocationId] = useState(readFulfillmentLocationId(offer));
   const [authoringOptions, setAuthoringOptions] = useState<OfferAuthoringOptions | null>(null);
   const [resourceVariants, setResourceVariants] = useState<ResourceVariant[]>([]);
   const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
@@ -70,12 +73,38 @@ export function OfferForm({ offer, resources, onSubmit, onCancel, initialResourc
   const [variantsError, setVariantsError] = useState('');
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState('');
+  const [locationsError, setLocationsError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const resourceOptions = [
     { value: '', label: 'Выберите позицию' },
     ...resources.map(r => ({ value: r.resourceId, label: r.title })),
   ];
+  const locationOptions = [
+    { value: '', label: 'Выберите пункт выдачи' },
+    ...locations
+      .filter(location => location.status !== 'inactive')
+      .map(location => ({ value: location.locationId, label: `${location.name} · ${location.cityName ?? location.address}` })),
+  ];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setLocationsError('');
+    locationsApi.list()
+      .then(nextLocations => {
+        if (cancelled) return;
+        setLocations(nextLocations);
+        setLocationId(current => current || nextLocations.find(location => location.isDefaultPickup)?.locationId || '');
+      })
+      .catch(err => {
+        if (!cancelled) setLocationsError(err instanceof ApiError ? err.message : 'Не удалось загрузить пункты выдачи.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +227,7 @@ export function OfferForm({ offer, resources, onSubmit, onCancel, initialResourc
     if (variantExposureMode === 'selected_variants_only' && selectedVariantIds.length === 0) {
       e.selectedVariantIds = 'Выберите хотя бы одну модель.';
     }
+    if (!locationId) e.locationId = 'Выберите пункт выдачи.';
     if (!pricingMode) e.pricingMode = 'Выберите способ расчета цены.';
     if (!pricingCurrency.trim()) e.pricingCurrency = 'Укажите валюту.';
     if (!pricingBaseAmount || isNaN(Number(pricingBaseAmount)) || Number(pricingBaseAmount) < 0) {
@@ -233,6 +263,7 @@ export function OfferForm({ offer, resources, onSubmit, onCancel, initialResourc
       pricingStatus: 'active',
       adjustmentRules,
       description,
+      fulfillmentLocationId: locationId || null,
       selectedVariantIds: variantExposureMode === 'selected_variants_only' ? selectedVariantIds : undefined,
     });
   };
@@ -267,6 +298,18 @@ export function OfferForm({ offer, resources, onSubmit, onCancel, initialResourc
             }}
             error={errors.resourceId}
           />
+          <FancySelect
+            label="Пункт выдачи"
+            options={locationOptions}
+            value={locationId}
+            onChange={setLocationId}
+            error={errors.locationId}
+          />
+          {locationsError && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Пункты выдачи не загрузились. Добавьте или проверьте их в разделе настроек.
+            </p>
+          )}
 
           <div className="space-y-3">
             <OptionPicker
@@ -467,6 +510,20 @@ function FancySelect({
 
 function variantId(variant: ResourceVariant) {
   return variant.variantId || variant.id;
+}
+
+function readFulfillmentLocationId(offer: Offer | undefined) {
+  if (!offer) return '';
+  if (offer.fulfillmentLocationId) return offer.fulfillmentLocationId;
+
+  const summaryLocation = offer.locationSummary?.fulfillmentLocation;
+  if (summaryLocation && typeof summaryLocation === 'object') {
+    const id = (summaryLocation as Record<string, unknown>).fulfillmentLocationId;
+    if (typeof id === 'string') return id;
+  }
+
+  const legacyId = offer.location?.providerLocationId;
+  return typeof legacyId === 'string' ? legacyId : '';
 }
 
 function VariantPicker({

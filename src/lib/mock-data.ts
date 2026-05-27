@@ -12,16 +12,16 @@ import type {
   Provider,
 } from '../types';
 
-export const mockUser: AuthUser = {
+export const mockUser = {
   id: 'u-001',
   email: 'alex@mountaingear.co',
   name: 'Алексей Петров',
   role: 'provider_manager',
   providerId: 'prov-001',
   providerName: 'Прокат Горного Снаряжения',
-};
+} as unknown as AuthUser;
 
-export const mockProvider: Provider = {
+export const mockProvider = {
   id: 'prov-001',
   name: 'Прокат Горного Снаряжения',
   slug: 'mountain-gear-rentals',
@@ -31,7 +31,7 @@ export const mockProvider: Provider = {
   timezone: 'Europe/Moscow',
   currency: 'RUB',
   createdAt: '2023-06-15T10:00:00Z',
-};
+} as unknown as Provider;
 
 export const mockStats: DashboardStats = {
   activeBookings: 18,
@@ -508,7 +508,7 @@ export const mockFulfillmentQueue: FulfillmentItem[] = [
   },
 ];
 
-export const mockResources: Resource[] = [
+export const mockResources = [
   {
     id: 'res-001',
     title: 'Trek X-Caliber 8',
@@ -664,9 +664,9 @@ export const mockResources: Resource[] = [
     createdAt: '2024-02-14T08:20:00Z',
     updatedAt: '2024-04-01T10:00:00Z',
   },
-];
+] as unknown as Resource[];
 
-export const mockVariants: ResourceVariant[] = [
+export const mockVariants = [
   { id: 'var-001', resourceId: 'res-001', title: 'Размер S', sku: 'TREK-XC8-S', status: 'active', attributes: { size: 'S', color: 'Матовый черный' }, sortOrder: 1, stock: 2, createdAt: '2023-06-20T10:00:00Z' },
   { id: 'var-002', resourceId: 'res-001', title: 'Размер M', sku: 'TREK-XC8-M', status: 'active', attributes: { size: 'M', color: 'Матовый черный' }, sortOrder: 2, stock: 3, createdAt: '2023-06-20T10:00:00Z' },
   { id: 'var-003', resourceId: 'res-001', title: 'Размер L', sku: 'TREK-XC8-L', status: 'active', attributes: { size: 'L', color: 'Матовый черный' }, sortOrder: 3, stock: 2, createdAt: '2023-06-20T10:00:00Z' },
@@ -686,9 +686,9 @@ export const mockVariants: ResourceVariant[] = [
   { id: 'var-017', resourceId: 'res-011', title: 'Комплект Adventure', sku: 'DJI-OA-ADV', status: 'active', attributes: { bundle: 'Adventure', battery: '3x' }, sortOrder: 2, stock: 2, createdAt: '2024-02-02T09:45:00Z' },
   { id: 'var-018', resourceId: 'res-012', title: 'Зеленый', sku: 'MSR-HH2-GRN', status: 'active', attributes: { color: 'Зеленый', season: '3-season' }, sortOrder: 1, stock: 2, createdAt: '2024-02-14T08:20:00Z' },
   { id: 'var-019', resourceId: 'res-012', title: 'Серый', sku: 'MSR-HH2-GRY', status: 'active', attributes: { color: 'Серый', season: '3-season' }, sortOrder: 2, stock: 2, createdAt: '2024-02-14T08:20:00Z' },
-];
+] as unknown as ResourceVariant[];
 
-export const mockOffers: Offer[] = [
+export const mockOffers = [
   {
     id: 'off-001',
     title: 'Горный велосипед на день',
@@ -874,9 +874,9 @@ export const mockOffers: Offer[] = [
     createdAt: '2024-02-18T08:30:00Z',
     updatedAt: '2024-04-01T10:00:00Z',
   },
-];
+] as unknown as Offer[];
 
-export const mockAvailabilityProfiles: AvailabilityProfile[] = [
+export const mockAvailabilityProfiles = [
   {
     id: 'avail-001',
     resourceId: 'res-001',
@@ -976,9 +976,9 @@ export const mockAvailabilityProfiles: AvailabilityProfile[] = [
     timezone: 'Europe/Moscow',
     updatedAt: '2024-04-01T10:00:00Z',
   },
-];
+] as unknown as AvailabilityProfile[];
 
-export const mockPricingPolicies: PricingPolicy[] = [
+export const mockPricingPolicies = [
   {
     id: 'pp-001',
     label: 'Standard Pricing',
@@ -990,19 +990,18 @@ export const mockPricingPolicies: PricingPolicy[] = [
     ],
     updatedAt: '2024-02-14T09:00:00Z',
   },
-];
+] as unknown as PricingPolicy[];
 
-export const mockProviderPolicies: ProviderPolicy[] = [
+export const mockProviderPolicies = [
   {
     id: 'pol-001',
     label: 'Default Provider Policy',
     cancellationWindowHours: 24,
     cancellationRefundPercent: 80,
-    depositRequired: true,
-    depositPercent: 30,
+    deposit: { unit: 'percentage', value: 30 },
     lateReturnFeeEnabled: true,
     damageDepositRequired: true,
     additionalNotes: 'Клиент должен предъявить действующий документ при выдаче.',
     updatedAt: '2024-03-01T10:00:00Z',
   },
-];
+] as unknown as ProviderPolicy[];

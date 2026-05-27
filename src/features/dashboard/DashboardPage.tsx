@@ -52,7 +52,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           value={stats.activeBookings}
           icon={<ShoppingBag size={18} className="text-blue-500" />}
           color="blue"
-          onClick={() => onNavigate('/bookings')}
+          onClick={() => onNavigate('/fulfillment')}
         />
         <StatCard
           label="Ожидают выдачи"
@@ -125,7 +125,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <h3 className="text-sm font-semibold text-gray-900">Последние бронирования</h3>
               <p className="text-xs text-gray-500 mt-0.5">Недавняя активность</p>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => onNavigate('/bookings')}>
+            <Button size="sm" variant="ghost" onClick={() => onNavigate('/fulfillment')}>
               Все <ArrowRight size={12} />
             </Button>
           </div>
@@ -134,7 +134,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <div
                 key={b.id}
                 className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
-                onClick={() => onNavigate('/bookings')}
+                onClick={() => onNavigate('/fulfillment')}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -205,7 +205,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               { label: 'Инвентарь', path: '/resources' },
               { label: 'Модели', path: '/variants' },
               { label: 'Предложения и цены', path: '/resources' },
-              { label: 'Правила', path: '/policy' },
+              { label: 'Правила', path: '/settings/policy' },
             ].map(link => (
               <button
                 key={link.path}

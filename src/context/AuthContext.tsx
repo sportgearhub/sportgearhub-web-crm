@@ -7,7 +7,7 @@ interface AuthContextType {
   memberships: ProviderMembership[];
   activeMembership: ProviderMembership | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<SessionSnapshot>;
   signOut: () => Promise<void>;
   reloadUser: () => Promise<{ user: AuthUser; memberships: ProviderMembership[] } | null>;
   sessionExpired: boolean;
@@ -80,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser);
     setMemberships(currentMemberships);
     setSessionExpired(false);
+    return { user: nextUser, memberships: currentMemberships };
   };
 
   const signOut = async () => {

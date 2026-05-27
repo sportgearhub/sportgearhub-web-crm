@@ -6,6 +6,7 @@ import { OfferForm, type OfferFormData } from './OfferForm';
 import { OfferListTable } from './OfferListTable';
 import { ApiError, offersApi, pricingApi, resourcesApi } from '../../lib/api-client';
 import type { Offer, OfferStatus, Resource } from '../../types';
+import { attachOfferReadiness, attachOffersReadiness, offerCustomerVisible } from './offerReadiness';
 
 type View = 'list' | 'detail' | 'create' | 'edit';
 
@@ -69,7 +70,7 @@ export function OffersPage() {
         offersApi.list(),
       ]);
       setResources(nextResources);
-      setOffers(await enrichOfferPrices(nextOffers));
+      setOffers(await attachOffersReadiness(await enrichOfferPrices(nextOffers)));
     } catch (err) {
       setError(err instanceof ApiError
         ? `Не удалось загрузить предложения из API: ${err.message}`
@@ -96,7 +97,7 @@ export function OffersPage() {
     return matchesStatus && matchesResource && matchesQuery;
   });
 
-  const readyCount = filtered.filter(offer => offer.isPublishable).length;
+  const readyCount = filtered.filter(offerCustomerVisible).length;
 
   const resourceTitleOf = (offer: Offer) =>
     resourceById.get(offer.primaryResourceId)?.title ||
@@ -120,6 +121,7 @@ export function OffersPage() {
         variantExposureMode: data.variantExposureMode || 'all_active_variants',
         title: data.title || 'Новое предложение',
         description: data.description || undefined,
+        fulfillmentLocationId: data.fulfillmentLocationId ?? null,
       });
       if (data.variantExposureMode === 'selected_variants_only' && data.selectedVariantIds?.length) {
         await Promise.all(data.selectedVariantIds.map((variantId, index) =>
@@ -138,7 +140,8 @@ export function OffersPage() {
         adjustmentRules: data.adjustmentRules ?? [],
         status: data.pricingStatus || 'active',
       });
-      setOffers(prev => [mergeOfferPricing(nextOffer, data), ...prev]);
+      const readyOffer = await attachOfferReadiness(nextOffer);
+      setOffers(prev => [mergeOfferPricing(readyOffer, data), ...prev]);
       setView('list');
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось создать предложение: ${err.message}` : 'Не удалось создать предложение.');
@@ -155,7 +158,11 @@ export function OffersPage() {
       const nextOffer = await offersApi.patch(selected.offerId, {
         title: data.title,
         description: data.description,
+        fulfillmentLocationId: data.fulfillmentLocationId ?? null,
       });
+      if (data.variantExposureMode && data.variantExposureMode !== selected.variantExposureMode) {
+        await offersApi.putVariantExposureMode(selected.offerId, data.variantExposureMode);
+      }
       await pricingApi.putOfferPolicy(selected.offerId, {
         pricingMode: data.pricingMode || 'per_unit_time',
         currency: data.pricingCurrency || 'RUB',
@@ -163,7 +170,7 @@ export function OffersPage() {
         adjustmentRules: data.adjustmentRules ?? [],
         status: data.pricingStatus || 'active',
       });
-      updateOfferInState(mergeOfferPricing(nextOffer, data));
+      updateOfferInState(mergeOfferPricing(await attachOfferReadiness(nextOffer), data));
       setView('list');
       setSelected(null);
     } catch (err) {
@@ -185,7 +192,7 @@ export function OffersPage() {
             : status === 'archived'
               ? await offersApi.archive(offer.offerId, 'provider_requested')
               : await offersApi.patch(offer.offerId, {});
-      updateOfferInState(nextOffer);
+      updateOfferInState(await attachOfferReadiness(nextOffer));
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось изменить статус предложения: ${err.message}` : 'Не удалось изменить статус предложения.');
     } finally {

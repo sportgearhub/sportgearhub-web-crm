@@ -2,13 +2,15 @@ import {
   Mountain,
   LayoutDashboard,
   Package,
-  CalendarDays,
-  ShoppingBag,
   ClipboardList,
   CheckSquare,
+  Settings,
   ChevronDown,
+  LogOut,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  UserRound,
   ChevronRight,
   type LucideIcon,
 } from 'lucide-react';
@@ -28,15 +30,19 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Дашборд', icon: LayoutDashboard, path: '/' },
-  { label: 'Бронирования', icon: ShoppingBag, path: '/bookings' },
   { label: 'Выдача', icon: CheckSquare, path: '/fulfillment', badge: '8' },
   { label: 'Каталог', icon: Package, path: '/resources' },
   {
     label: 'Настройки',
-    icon: CalendarDays,
-    path: '/policy',
+    icon: Settings,
+    path: '/settings/account',
     children: [
-      { label: 'Правила', path: '/policy' },
+      { label: 'Аккаунт', path: '/settings/account' },
+      { label: 'Магазин', path: '/settings/profile' },
+      { label: 'Сотрудники', path: '/settings/employees' },
+      { label: 'Пункты выдачи', path: '/settings/locations' },
+      { label: 'Правила', path: '/settings/policy' },
+      { label: 'Оплата', path: '/settings/payments' },
     ],
   },
   { label: 'Отчеты', icon: ClipboardList, path: '/reports' },
@@ -50,8 +56,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, activeMembership, signOut } = useAuth();
   const [expanded, setExpanded] = useState<string[]>(['Настройки']);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const providerName = activeMembership?.displayName ?? 'Кабинет партнера';
 
   const toggleExpand = (label: string) => {
     setExpanded(prev =>
@@ -78,8 +86,8 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
           </div>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-sidebar-foreground">Sportgearhub</p>
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Кабинет партнера</p>
+              <p className="truncate text-sm font-semibold text-sidebar-foreground">{providerName}</p>
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Sportgearhub</p>
             </div>
           )}
         </div>
@@ -103,23 +111,36 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
             const childActive = item.children.some(c => isActive(c.path));
             return (
               <div key={item.label} className="mb-2">
-                <button
-                  onClick={() => toggleExpand(item.label)}
+                <div
                   className={cn(
                     'flex h-9 w-full items-center rounded-md px-3 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                     collapsed ? 'justify-center' : 'gap-3',
                     childActive && 'bg-sidebar-accent text-sidebar-accent-foreground'
                   )}
-                  title={item.label}
                 >
-                  <Icon size={16} className={cn('shrink-0', childActive ? 'text-sidebar-primary' : 'text-muted-foreground')} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNavigate(item.path);
+                      setExpanded(prev => prev.includes(item.label) ? prev : [...prev, item.label]);
+                    }}
+                    className={cn('flex min-w-0 flex-1 items-center text-left', collapsed ? 'justify-center' : 'gap-3')}
+                    title={item.label}
+                  >
+                    <Icon size={16} className={cn('shrink-0', childActive ? 'text-sidebar-primary' : 'text-muted-foreground')} />
+                    {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                  </button>
                   {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left">{item.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(item.label)}
+                      className="rounded p-0.5 hover:bg-sidebar-accent"
+                      title={open ? 'Свернуть раздел' : 'Развернуть раздел'}
+                    >
                       {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </>
+                    </button>
                   )}
-                </button>
+                </div>
                 {open && !collapsed && (
                   <div className="mt-1 space-y-1 border-l pl-3 ml-4">
                     {item.children.map(child => (
@@ -162,8 +183,43 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
       </nav>
 
       {!collapsed && (
-        <div className="mt-2 border-t px-3 py-3">
-          <div className="flex items-center gap-3">
+        <div className="relative mt-2 border-t px-3 py-3">
+          {userMenuOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                aria-label="Закрыть меню пользователя"
+                onClick={() => setUserMenuOpen(false)}
+              />
+              <div className="absolute bottom-[58px] right-3 z-50 w-52 overflow-hidden rounded-md border bg-background py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    onNavigate('/settings/account');
+                  }}
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-foreground transition hover:bg-sidebar-accent"
+                >
+                  <UserRound size={14} />
+                  <span>Аккаунт</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    signOut();
+                  }}
+                  className="flex h-9 w-full items-center gap-2 px-3 text-left text-sm text-red-600 transition hover:bg-red-50"
+                >
+                  <LogOut size={14} />
+                  <span>Выйти</span>
+                </button>
+              </div>
+            </>
+          )}
+
+          <div className="relative z-50 flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-md border bg-background">
               <span className="text-xs font-bold text-foreground">
                 {user?.name.charAt(0).toUpperCase()}
@@ -173,7 +229,16 @@ export function Sidebar({ currentPath, onNavigate, collapsed, onToggleCollapse }
               <p className="truncate text-xs font-medium text-foreground">{user?.name}</p>
               <p className="truncate text-[11px] capitalize text-muted-foreground">{user?.role.replace(/_/g, ' ')}</p>
             </div>
-            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen(open => !open)}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              title="Действия пользователя"
+              aria-label="Действия пользователя"
+              aria-expanded={userMenuOpen}
+            >
+              <MoreHorizontal size={16} />
+            </button>
           </div>
         </div>
       )}

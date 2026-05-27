@@ -43,7 +43,7 @@ export function SignInPage({ onNavigate }: { onNavigate: Navigate }) {
 
   return (
     <AuthShell title="Введите почту">
-      {sent && <Notice kind="success">Отправили письмо для входа, проверьте почту.</Notice>}
+      {sent && <Notice kind="success">Отправили письмо для входа.</Notice>}
       {error && <Notice kind="error">{error}</Notice>}
 
       <form onSubmit={handleSubmit} className="space-y-4">

@@ -15,14 +15,16 @@ type RegisterForm = {
 };
 
 export function RegisterPage({ token, onNavigate }: { token?: string | null; onNavigate: Navigate }) {
-  const { reloadUser } = useAuth();
+  const { signIn } = useAuth();
   const { returning, backToSignIn } = useBackToSignIn(onNavigate);
   const [form, setForm] = useState<RegisterForm>({ name: '', surname: '', email: '', password: '' });
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [invitationStatus, setInvitationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(token ? 'loading' : 'idle');
+  const [invitationRequiresPassword, setInvitationRequiresPassword] = useState(true);
   const isInvitationRegistration = Boolean(token);
+  const passwordRequired = !isInvitationRegistration || invitationRequiresPassword;
 
   useEffect(() => {
     if (!token) {
@@ -38,6 +40,7 @@ export function RegisterPage({ token, onNavigate }: { token?: string | null; onN
       .then(invitation => {
         if (cancelled) return;
         setForm(current => ({ ...current, email: invitation.email, password: '' }));
+        setInvitationRequiresPassword(invitation.requiresPassword !== false);
         setInvitationStatus('ready');
       })
       .catch(() => {
@@ -56,13 +59,14 @@ export function RegisterPage({ token, onNavigate }: { token?: string | null; onN
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const password = form.password.trim();
-    if (!form.name || !form.surname || (!isInvitationRegistration && (!form.email || !form.password))) {
+    const email = form.email.trim();
+    const password = form.password;
+    if (!form.name || !form.surname || !email || (passwordRequired && !password)) {
       setFieldErrors({});
       setError('Заполните все поля.');
       return;
     }
-    if (!isInvitationRegistration && password.length < 8) {
+    if (passwordRequired && password.length < 8) {
       setFieldErrors({ password: 'Пароль должен содержать не менее 8 символов.' });
       setError('');
       return;
@@ -73,12 +77,12 @@ export function RegisterPage({ token, onNavigate }: { token?: string | null; onN
     setLoading(true);
     try {
       await authApi.register(isInvitationRegistration
-        ? { token: token ?? undefined, name: form.name, surname: form.surname }
-        : form);
+        ? { token: token ?? undefined, name: form.name, surname: form.surname, password }
+        : { ...form, email });
 
       if (isInvitationRegistration) {
-        const session = await reloadUser();
-        onNavigate(session ? '/' : '/auth/sign-in');
+        const session = await signIn(email, password);
+        onNavigate(session.memberships.length > 0 ? '/' : '/onboarding');
         return;
       }
 
@@ -133,7 +137,7 @@ export function RegisterPage({ token, onNavigate }: { token?: string | null; onN
           <Input label="Фамилия" value={form.surname} onChange={e => updateForm({ surname: e.target.value })} autoComplete="family-name" />
         </div>
         <Input label="Почта" type="email" value={form.email} onChange={e => updateForm({ email: e.target.value })} autoComplete="email" error={fieldErrors.email} disabled={isInvitationRegistration} />
-        {!isInvitationRegistration && (
+        {passwordRequired && (
           <Input label="Пароль" type="password" value={form.password} onChange={e => updateForm({ password: e.target.value })} autoComplete="new-password" hint="Минимум 8 символов." error={fieldErrors.password} />
         )}
         <Button type="submit" variant="primary" loading={loading} className="w-full justify-center">

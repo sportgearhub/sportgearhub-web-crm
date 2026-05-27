@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Textarea';
+import { ApiError, bookingsApi } from '../../lib/api-client';
 import type { FulfillmentItem } from '../../types';
 
 interface CompleteFormProps {
@@ -12,14 +13,26 @@ interface CompleteFormProps {
 export function CompleteForm({ item, onSuccess, onCancel }: CompleteFormProps) {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 700));
+    setError('');
+    const completedAt = new Date().toISOString();
+    try {
+      await bookingsApi.complete(item.bookingId, {
+        completedAt,
+        note: notes.trim() || undefined,
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось завершить бронь.');
+      setLoading(false);
+      return;
+    }
     const updated: FulfillmentItem = {
       ...item,
       status: 'completed',
-      completedAt: new Date().toISOString(),
+      completedAt,
       notes,
     };
     onSuccess(updated);
@@ -46,6 +59,7 @@ export function CompleteForm({ item, onSuccess, onCancel }: CompleteFormProps) {
         rows={3}
         placeholder="Итоговые комментарии, оценка, дальнейшие действия..."
       />
+      {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
 
       <div className="flex gap-2 pt-2">
         <Button variant="primary" onClick={handleSubmit} loading={loading}>

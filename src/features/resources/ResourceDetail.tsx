@@ -85,7 +85,7 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
   }, []);
 
   return (
-    <div className="max-w-6xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-start justify-end gap-4">
         <div className="flex items-center gap-2">
           <Badge variant={status.variant} size="md">{status.label}</Badge>
@@ -147,52 +147,48 @@ export function ResourceDetail({ resource, onEdit, onArchive, onRemove, removing
       </div>
 
       {activeTab === 'overview' && (
-        <>
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card>
-          <div className="mb-4 flex items-center gap-2">
-            <Package size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Обзор позиции</h3>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Row label="Категория" value={resource.categoryName ?? resource.resourceType} />
-            <Row label="Создан" value={resource.createdAt ? new Date(resource.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Неизвестно'} />
-            <Row label="Обновлен" value={new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })} />
-            <Row label="Предложения" value={String(offers.length)} />
-          </div>
-          {resource.description && (
-            <p className="mt-4 text-sm text-gray-700">{resource.description}</p>
-          )}
-        </Card>
-      </div>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
+          <Card>
+            <div className="mb-4 flex items-center gap-2">
+              <Package size={15} className="text-gray-400" />
+              <h3 className="text-sm font-semibold text-gray-900">Обзор позиции</h3>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Row label="Категория" value={resource.categoryName ?? resource.resourceType} />
+              <Row label="Создан" value={resource.createdAt ? new Date(resource.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Неизвестно'} />
+              <Row label="Обновлен" value={new Date(resource.updatedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })} />
+              <Row label="Предложения" value={String(offers.length)} />
+            </div>
+            {resource.description && (
+              <p className="mt-4 text-sm text-gray-700">{resource.description}</p>
+            )}
+          </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="overflow-hidden">
-          <div className="mb-4 flex items-center gap-2">
-            <CalendarDays size={15} className="text-gray-400" />
-            <h3 className="text-sm font-semibold text-gray-900">Превью доступности</h3>
-          </div>
-          <div className="grid grid-cols-7 gap-2 text-center text-[11px]">
-            {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
-              <div key={day} className="bg-gray-50 px-2 py-2 text-gray-500">{day}</div>
-            ))}
-            {Array.from({ length: 14 }, (_, index) => (
-              <div
-                key={index}
-                className={`px-2 py-3 text-xs ${
-                  index % 5 === 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-                }`}
-              >
-                {index % 5 === 0 ? 'Занято' : 'Свободно'}
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-gray-500">
-            Временный календарь для будущей живой доступности и нагрузки по броням.
-          </p>
-        </Card>
-      </div>
-        </>
+          <Card className="min-w-0 overflow-hidden">
+            <div className="mb-4 flex items-center gap-2">
+              <CalendarDays size={15} className="text-gray-400" />
+              <h3 className="text-sm font-semibold text-gray-900">Превью доступности</h3>
+            </div>
+            <div className="grid grid-cols-7 gap-2 text-center text-[11px]">
+              {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(day => (
+                <div key={day} className="bg-gray-50 px-2 py-2 text-gray-500">{day}</div>
+              ))}
+              {Array.from({ length: 14 }, (_, index) => (
+                <div
+                  key={index}
+                  className={`px-2 py-3 text-xs ${
+                    index % 5 === 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {index % 5 === 0 ? 'Занято' : 'Свободно'}
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">
+              Временный календарь для будущей живой доступности и нагрузки по броням.
+            </p>
+          </Card>
+        </div>
       )}
 
       {activeTab === 'models' && (

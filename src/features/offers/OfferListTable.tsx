@@ -9,6 +9,7 @@ import {
   offerTypeLabel,
   variantExposureLabel,
 } from './offerDisplay';
+import { offerBookingSetupReady } from './offerReadiness';
 
 const statusBadge: Record<OfferStatus, { label: string; variant: 'green' | 'yellow' | 'gray' | 'blue' }> = {
   active: { label: 'Активно', variant: 'green' },
@@ -180,7 +181,7 @@ export function OfferListTable({
                             <button
                               type="button"
                               onClick={() => onStatusChange(offer, 'active')}
-                              disabled={saving || !offer.isPublishable}
+                              disabled={saving || !offerBookingSetupReady(offer)}
                               className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-600 transition hover:text-gray-900 disabled:opacity-50"
                             >
                               Включить

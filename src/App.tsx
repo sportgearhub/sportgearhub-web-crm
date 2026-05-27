@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import {
@@ -16,7 +16,6 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import type { HeaderBreadcrumb } from './components/layout/Header';
 import { DashboardPage } from './features/dashboard/DashboardPage';
-import { BookingsPage } from './features/bookings/BookingPage';
 import { FulfillmentPage } from './features/fulfillment/FulfillmentPage';
 import { ResourcesPage } from './features/resources/ResourcePage';
 import { ResourceCreatePage } from './features/resources/ResourceCreatePage';
@@ -26,12 +25,13 @@ import { VariantsPage } from './features/variants/VariantsPage';
 import { OffersPage } from './features/offers/OffersPage';
 import { AvailabilityPage } from './features/availability/AvailabilityPage';
 import { PricingPage } from './features/pricing/PricingPage';
-import { PolicyPage } from './features/policy/PolicyPage';
 import { ReportsPage } from './features/reports/ReportsPage';
+import { SettingsPage } from './features/settings/SettingsPage';
 
-const pageConfig: Record<string, { title: string; subtitle?: string }> = {
+type PageConfig = { title: string; subtitle?: string; breadcrumbs?: HeaderBreadcrumb[] };
+
+const pageConfig: Record<string, PageConfig> = {
   '/': { title: 'Дашборд', subtitle: 'Обзор партнера' },
-  '/bookings': { title: 'Бронирования', subtitle: 'Все бронирования партнера' },
   '/fulfillment': { title: 'Выдача и возврат', subtitle: 'Выдачи, возвраты и обращения' },
   '/resources': { title: 'Каталог', subtitle: 'Прокатные позиции, модели и инвентарь' },
   '/resources/create': { title: 'Добавить позицию', subtitle: 'Добавьте позицию в каталог.' },
@@ -39,18 +39,26 @@ const pageConfig: Record<string, { title: string; subtitle?: string }> = {
   '/offers': { title: 'Предложения', subtitle: 'Пакеты и условия проката для клиентов' },
   '/availability': { title: 'Доступность', subtitle: 'Горизонты бронирования и вместимость' },
   '/pricing': { title: 'Цены', subtitle: 'Правила ценообразования и корректировки' },
-  '/policy': { title: 'Правила', subtitle: 'Отмена, депозиты и условия' },
+  '/settings': { title: '' },
+  '/settings/profile': { title: '' },
+  '/settings/policy': { title: '' },
+  '/settings/locations': { title: '' },
+  '/settings/employees': { title: '' },
+  '/settings/payments': { title: '' },
+  '/settings/account': { title: '' },
+  '/policy': { title: '' },
+  '/locations': { title: '' },
   '/reports': { title: 'Отчеты', subtitle: 'Показатели и аналитика' },
 };
 
-type HeaderContent = { title: string; subtitle?: string; breadcrumbs?: HeaderBreadcrumb[] } | null;
+type HeaderContent = PageConfig | null;
 
 function AppShell() {
   const { user, memberships, loading } = useAuth();
   const knownPaths = useMemo(() => new Set(Object.keys(pageConfig)), []);
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname || '/');
+  const [navigationReloadKey, setNavigationReloadKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [headerActions, setHeaderActions] = useState<ReactNode>(null);
   const [headerContent, setHeaderContent] = useState<HeaderContent>(null);
   const params = new URLSearchParams(window.location.search);
 
@@ -71,11 +79,11 @@ function AppShell() {
 
   const navigateTo = (nextPath: string) => {
     const safePath = knownPaths.has(nextPath) || nextPath.startsWith('/resources/') ? nextPath : '/';
-    const nextUrl = safePath === '/bookings' ? `/bookings${window.location.search}` : safePath;
-    if (window.location.pathname !== safePath || window.location.search !== (safePath === '/bookings' ? window.location.search : '')) {
-      window.history.pushState({}, '', nextUrl);
+    if (window.location.pathname !== safePath || window.location.search !== '') {
+      window.history.pushState({}, '', safePath);
     }
     setCurrentPath(safePath);
+    setNavigationReloadKey(key => key + 1);
   };
 
   useEffect(() => {
@@ -140,12 +148,10 @@ function AppShell() {
     resourceDetailMatch ? { title: 'Позиция' } :
     pageConfig[appPath] || { title: 'Кабинет партнера' };
   const headerPage = headerContent ?? page;
+  const showHeader = !appPath.startsWith('/settings') && appPath !== '/policy' && appPath !== '/locations';
 
   const renderPage = () => {
     if (appPath === '/') return <DashboardPage onNavigate={navigateTo} />;
-    if (appPath === '/bookings') {
-      return <BookingsPage onHeaderActionsChange={setHeaderActions} />;
-    }
     if (appPath === '/fulfillment') return <FulfillmentPage />;
     if (appPath === '/resources') return <ResourcesPage onHeaderContentChange={setHeaderContent} onNavigate={navigateTo} />;
     if (appPath === '/resources/create') return <ResourceCreatePage onNavigate={navigateTo} onHeaderContentChange={setHeaderContent} />;
@@ -155,7 +161,12 @@ function AppShell() {
     if (appPath === '/offers') return <OffersPage />;
     if (appPath === '/availability') return <AvailabilityPage onNavigate={navigateTo} />;
     if (appPath === '/pricing') return <PricingPage onNavigate={navigateTo} />;
-    if (appPath === '/policy') return <PolicyPage />;
+    if (appPath === '/settings' || appPath === '/settings/account') return <SettingsPage tab="account" onNavigate={navigateTo} />;
+    if (appPath === '/settings/profile') return <SettingsPage tab="profile" onNavigate={navigateTo} />;
+    if (appPath === '/settings/policy' || appPath === '/policy') return <SettingsPage tab="policy" onNavigate={navigateTo} />;
+    if (appPath === '/settings/locations' || appPath === '/locations') return <SettingsPage tab="locations" onNavigate={navigateTo} />;
+    if (appPath === '/settings/employees') return <SettingsPage tab="employees" onNavigate={navigateTo} />;
+    if (appPath === '/settings/payments') return <SettingsPage tab="payments" onNavigate={navigateTo} />;
     if (appPath === '/reports') return <ReportsPage />;
     return <DashboardPage onNavigate={navigateTo} />;
   };
@@ -169,15 +180,18 @@ function AppShell() {
         onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-muted/30">
-        <Header
-          title={headerPage.title}
-          subtitle={headerPage.subtitle}
-          breadcrumbs={headerPage.breadcrumbs}
-          onNavigate={navigateTo}
-          actions={headerActions}
-        />
-        <main className={`relative min-h-0 flex-1 ${appPath === '/bookings' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-          {renderPage()}
+        {showHeader && (
+          <Header
+            title={headerPage.title}
+            subtitle={headerPage.subtitle}
+            breadcrumbs={headerPage.breadcrumbs}
+            onNavigate={navigateTo}
+          />
+        )}
+        <main className="relative min-h-0 flex-1 overflow-y-auto">
+          <Fragment key={`${appPath}:${navigationReloadKey}`}>
+            {renderPage()}
+          </Fragment>
         </main>
       </div>
     </div>

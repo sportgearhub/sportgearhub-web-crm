@@ -1014,6 +1014,44 @@
         }
       }
     },
+    "/api/v1/provider-onboarding/banks/ru/lookup": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsPublicProviderOnboardingGetRuProviderBankLookupEndpoint",
+        "parameters": [
+          {
+            "name": "bic",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderBankLookupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/provider-onboarding/legal-identity/ru/lookup": {
       "get": {
         "tags": [
@@ -1307,6 +1345,47 @@
         ]
       }
     },
+    "/api/v1/addresses/ru/geolocate": {
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsPublicAddressesPostRuAddressReverseGeocodeEndpoint",
+        "requestBody": {
+          "x-name": "ReverseGeocodeAddressRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAddressSuggestionsReverseGeocodeAddressRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsAddressSuggestionsAddressSuggestionListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/provider/offers/{offerId}/routability": {
       "get": {
         "tags": [
@@ -1520,6 +1599,55 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesProviderResourceDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/activity-options": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderResourcesGetActivityOptionsEndpoint",
+        "parameters": [
+          {
+            "name": "resourceType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesActivityDomainResponse"
+                  }
                 }
               }
             }
@@ -2087,6 +2215,14 @@
             }
           },
           {
+            "name": "activity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
             "name": "locale",
             "in": "query",
             "schema": {
@@ -2295,6 +2431,22 @@
             "schema": {
               "type": "string",
               "format": "guid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
             }
           }
         ],
@@ -3766,6 +3918,76 @@
         ]
       }
     },
+    "/api/v1/provider/offers/readiness": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderOffersGetProviderOfferReadinessListEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferReadinessResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/offers/{offerId}/readiness": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderOffersGetProviderOfferReadinessEndpoint",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferReadinessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/provider/offers": {
       "get": {
         "tags": [
@@ -3878,6 +4100,95 @@
         ]
       }
     },
+    "/api/v1/provider/offers/{offerId}/visibility": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderOffersGetProviderOfferVisibilityEndpoint",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferVisibilityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderOffersPutProviderOfferVisibilityEndpoint",
+        "parameters": [
+          {
+            "name": "offerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "PutProviderOfferVisibilityRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiEndpointsProviderOffersPutProviderOfferVisibilityRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferVisibilityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/provider/offers/{offerId}/activate": {
       "post": {
         "tags": [
@@ -3967,45 +4278,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferDetailResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/provider/offers/{offerId}/check-publishability": {
-      "post": {
-        "tags": [
-          "Api"
-        ],
-        "operationId": "EbashITSportgearhubApiEndpointsProviderOffersPostCheckPublishabilityProviderOfferEndpoint",
-        "parameters": [
-          {
-            "name": "offerId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferPublishabilityResponse"
                 }
               }
             }
@@ -4314,6 +4586,46 @@
             "JWTBearerAuth": []
           }
         ]
+      },
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderInvitationsEndpoint1",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderInvitationResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
       }
     },
     "/api/provider-console/providers/{providerId}/members/invitations": {
@@ -4366,53 +4678,23 @@
             "JWTBearerAuth": []
           }
         ]
-      }
-    },
-    "/api/v1/provider/locations": {
-      "post": {
-        "tags": [
-          "Api"
-        ],
-        "operationId": "EbashITSportgearhubApiEndpointsProviderLocationsCreateProviderLocationEndpoint",
-        "requestBody": {
-          "x-name": "CreateProviderLocationRequest",
-          "description": "",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderLocationsCreateProviderLocationRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 1
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderLocationsProviderLocationResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "security": [
-          {
-            "JWTBearerAuth": []
-          }
-        ]
       },
       "get": {
         "tags": [
           "Api"
         ],
-        "operationId": "EbashITSportgearhubApiEndpointsProviderLocationsGetProviderLocationsEndpoint",
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderInvitationsEndpoint2",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -4421,7 +4703,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderLocationsProviderLocationResponse"
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderInvitationResponse"
                   }
                 }
               }
@@ -4438,15 +4720,186 @@
         ]
       }
     },
-    "/api/v1/provider/locations/{locationId}": {
-      "patch": {
+    "/api/v1/provider/providers/{providerId}/members": {
+      "get": {
         "tags": [
           "Api"
         ],
-        "operationId": "EbashITSportgearhubApiEndpointsProviderLocationsUpdateProviderLocationEndpoint",
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMembersEndpoint1",
         "parameters": [
           {
-            "name": "locationId",
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/provider-console/providers/{providerId}/members": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMembersEndpoint2",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/providers/{providerId}/members/options": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMemberOptionsEndpoint1",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberOptionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/provider-console/providers/{providerId}/members/options": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMemberOptionsEndpoint2",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberOptionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/providers/{providerId}/members/{membershipId}/role": {
+      "put": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersPutProviderMemberRoleEndpoint1",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "membershipId",
             "in": "path",
             "required": true,
             "schema": {
@@ -4456,12 +4909,12 @@
           }
         ],
         "requestBody": {
-          "x-name": "UpdateProviderLocationRequestWithRoute",
+          "x-name": "UpdateProviderMemberRoleRequest",
           "description": "",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EbashITSportgearhubApiEndpointsProviderLocationsUpdateProviderLocationRequestWithRoute"
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersUpdateProviderMemberRoleRequest"
               }
             }
           },
@@ -4474,7 +4927,272 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderLocationsProviderLocationResponse"
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/provider-console/providers/{providerId}/members/{membershipId}/role": {
+      "put": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersPutProviderMemberRoleEndpoint2",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateProviderMemberRoleRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersUpdateProviderMemberRoleRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/providers/{providerId}/members/{membershipId}": {
+      "delete": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersDeleteProviderMemberEndpoint1",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/provider-console/providers/{providerId}/members/{membershipId}": {
+      "delete": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleMembersDeleteProviderMemberEndpoint2",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          },
+          {
+            "name": "membershipId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/fulfillment-locations": {
+      "get": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleFulfillmentLocationsGetProviderFulfillmentLocationsEndpoint",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderFulfillmentLocationsProviderFulfillmentLocationResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleFulfillmentLocationsCreateProviderFulfillmentLocationEndpoint",
+        "requestBody": {
+          "x-name": "CreateProviderFulfillmentLocationRequest",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderFulfillmentLocationsCreateProviderFulfillmentLocationRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderFulfillmentLocationsProviderFulfillmentLocationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "JWTBearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/provider/fulfillment-locations/{fulfillmentLocationId}": {
+      "patch": {
+        "tags": [
+          "Api"
+        ],
+        "operationId": "EbashITSportgearhubApiEndpointsProviderConsoleFulfillmentLocationsUpdateProviderFulfillmentLocationEndpoint",
+        "parameters": [
+          {
+            "name": "fulfillmentLocationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        ],
+        "requestBody": {
+          "x-name": "UpdateProviderFulfillmentLocationRequestWithRoute",
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiEndpointsProviderConsoleFulfillmentLocationsUpdateProviderFulfillmentLocationRequestWithRoute"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderFulfillmentLocationsProviderFulfillmentLocationResponse"
                 }
               }
             }
@@ -5595,6 +6313,9 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "requiresPassword": {
+            "type": "boolean"
           }
         }
       },
@@ -5694,6 +6415,84 @@
           }
         }
       },
+      "EbashITSportgearhubApiModelsProviderProfileProviderBankLookupResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "unrestrictedValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "bic": {
+            "type": "string",
+            "nullable": true
+          },
+          "swift": {
+            "type": "string",
+            "nullable": true
+          },
+          "swifts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "inn": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "registrationNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "correspondentAccount": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentName": {
+            "type": "string",
+            "nullable": true
+          },
+          "shortName": {
+            "type": "string",
+            "nullable": true
+          },
+          "paymentCity": {
+            "type": "string",
+            "nullable": true
+          },
+          "opfType": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "unrestrictedAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateStatus": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsPublicProviderOnboardingGetRuProviderBankLookupRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "EbashITSportgearhubApiModelsProviderProfileProviderLegalIdentityLookupResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -5749,6 +6548,24 @@
             "items": {
               "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderLegalFormOptionResponse"
             }
+          },
+          "taxationSystems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderTaxationSystemOptionResponse"
+            }
+          },
+          "acquiringProviders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderAcquiringProviderOptionResponse"
+            }
+          },
+          "payoutSchedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderPayoutScheduleOptionResponse"
+            }
           }
         }
       },
@@ -5779,6 +6596,79 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderProfileProviderTaxationSystemOptionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "supportedLegalForms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderProfileProviderAcquiringProviderOptionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "requiresPayoutSchedule": {
+            "type": "boolean"
+          },
+          "requiresProviderCredentials": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderProfileProviderPayoutScheduleOptionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "cadence": {
+            "type": "string"
+          },
+          "settlementDelayDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "payoutDaysOfMonth": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "platformTransferFeePercent": {
+            "type": "number",
+            "format": "decimal"
           }
         }
       },
@@ -5838,6 +6728,9 @@
           },
           "legal": {
             "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderOnboardingChecklistStatus"
+          },
+          "finance": {
+            "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderOnboardingChecklistStatus"
           }
         }
       },
@@ -5870,6 +6763,10 @@
             "nullable": true
           },
           "legalForm": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxationSystem": {
             "type": "string",
             "nullable": true
           },
@@ -5907,6 +6804,52 @@
             "nullable": true
           },
           "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "acquiringProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutSchedule": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutDraft": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderOnboardingPayoutDraftResponse"
+              }
+            ]
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderProfileProviderOnboardingPayoutDraftResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "beneficiaryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bik": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAccount": {
+            "type": "string",
+            "nullable": true
+          },
+          "correspondentAccount": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayBankName": {
             "type": "string",
             "nullable": true
           }
@@ -5951,6 +6894,10 @@
             "type": "string",
             "nullable": true
           },
+          "taxationSystem": {
+            "type": "string",
+            "nullable": true
+          },
           "taxNumber": {
             "type": "string",
             "nullable": true
@@ -5985,6 +6932,52 @@
             "nullable": true
           },
           "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "acquiringProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutSchedule": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutDraft": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderOnboardingPayoutDraftRequest"
+              }
+            ]
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderProfileProviderOnboardingPayoutDraftRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "beneficiaryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bik": {
+            "type": "string",
+            "nullable": true
+          },
+          "bankAccount": {
+            "type": "string",
+            "nullable": true
+          },
+          "correspondentAccount": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayBankName": {
             "type": "string",
             "nullable": true
           }
@@ -6020,6 +7013,10 @@
             "type": "string",
             "nullable": true
           },
+          "taxationSystem": {
+            "type": "string",
+            "nullable": true
+          },
           "taxNumber": {
             "type": "string",
             "nullable": true
@@ -6056,6 +7053,22 @@
           "description": {
             "type": "string",
             "nullable": true
+          },
+          "acquiringProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutSchedule": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutDraft": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderProfileProviderOnboardingPayoutDraftRequest"
+              }
+            ]
           }
         }
       },
@@ -6174,6 +7187,38 @@
         "type": "object",
         "additionalProperties": false
       },
+      "EbashITSportgearhubApiModelsAddressSuggestionsReverseGeocodeAddressRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "radiusMeters": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "division": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "EbashITSportgearhubApiModelsProviderRoutabilityProviderOfferRoutabilityResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6271,10 +7316,6 @@
             "type": "string",
             "format": "guid",
             "nullable": true
-          },
-          "suggestedAction": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -6337,6 +7378,39 @@
         "additionalProperties": false
       },
       "EbashITSportgearhubApiEndpointsProviderResourcesDeleteProviderResourceRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EbashITSportgearhubApiModelsProviderResourcesActivityDomainResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "activityId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderResourcesGetActivityOptionsRequest": {
         "type": "object",
         "additionalProperties": false
       },
@@ -7008,11 +8082,42 @@
               "type": "string"
             }
           },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesResourceCategoryActivityResponse"
+            }
+          },
           "capacityMode": {
             "type": "string"
           },
           "status": {
             "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderResourcesResourceCategoryActivityResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "isPrimary": {
+            "type": "boolean"
           },
           "sortOrder": {
             "type": "integer",
@@ -7232,10 +8337,11 @@
           "status": {
             "type": "string"
           },
-          "normalizedAttributes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonVariantAttributeModel"
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
             }
           },
           "sortOrder": {
@@ -7250,19 +8356,6 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
-          }
-        }
-      },
-      "EbashITSportgearhubApiModelsCommonVariantAttributeModel": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string",
-            "nullable": true
           }
         }
       },
@@ -7409,11 +8502,12 @@
             "type": "string",
             "nullable": true
           },
-          "normalizedAttributes": {
-            "type": "array",
+          "attributes": {
+            "type": "object",
             "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonVariantAttributeModel"
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
             }
           },
           "sortOrder": {
@@ -7481,11 +8575,12 @@
           "label": {
             "type": "string"
           },
-          "normalizedAttributes": {
-            "type": "array",
+          "attributes": {
+            "type": "object",
             "nullable": true,
-            "items": {
-              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonVariantAttributeModel"
+            "additionalProperties": {
+              "type": "string",
+              "nullable": true
             }
           },
           "sortOrder": {
@@ -8208,6 +9303,10 @@
             "type": "string",
             "nullable": true
           },
+          "taxationSystem": {
+            "type": "string",
+            "nullable": true
+          },
           "taxNumber": {
             "type": "string",
             "nullable": true
@@ -8242,6 +9341,14 @@
             "nullable": true
           },
           "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "acquiringProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "payoutSchedule": {
             "type": "string",
             "nullable": true
           },
@@ -8551,10 +9658,13 @@
             "format": "decimal",
             "nullable": true
           },
-          "depositPercent": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "deposit": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositResponse"
+              }
+            ]
           },
           "checkInGraceMinutes": {
             "type": "integer",
@@ -8590,6 +9700,23 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8665,10 +9792,13 @@
             "format": "decimal",
             "nullable": true
           },
-          "depositPercent": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "deposit": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositResponse"
+              }
+            ]
           },
           "checkInGraceMinutes": {
             "type": "integer",
@@ -8780,10 +9910,13 @@
             "format": "decimal",
             "nullable": true
           },
-          "depositPercent": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "deposit": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositRequest"
+              }
+            ]
           },
           "checkInGraceMinutes": {
             "type": "integer",
@@ -8808,6 +9941,23 @@
             "nullable": true
           },
           "status": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "currency": {
             "type": "string",
             "nullable": true
           }
@@ -8839,10 +9989,13 @@
             "format": "decimal",
             "nullable": true
           },
-          "depositPercent": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "deposit": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositRequest"
+              }
+            ]
           },
           "checkInGraceMinutes": {
             "type": "integer",
@@ -9083,6 +10236,71 @@
         "type": "object",
         "additionalProperties": false
       },
+      "EbashITSportgearhubApiModelsOffersProviderProviderOfferReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "providerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "primaryResourceId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "customerVisibleNow": {
+            "type": "boolean"
+          },
+          "bookingSetupReady": {
+            "type": "boolean"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderProviderOfferReadinessSectionResponse"
+            }
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsOffersProviderProviderOfferReadinessSectionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "reasonCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderOffersGetProviderOfferReadinessRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "EbashITSportgearhubApiModelsOffersProviderProviderOfferSummaryResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -9177,6 +10395,51 @@
         "type": "object",
         "additionalProperties": false
       },
+      "EbashITSportgearhubApiModelsOffersProviderProviderOfferVisibilityResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "offerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "visibilityMode": {
+            "type": "string"
+          },
+          "visibleFrom": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "visibleUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "derivedSeasonId": {
+            "type": "string",
+            "nullable": true
+          },
+          "derivedSeasonTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "seasonAlignment": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderOffersGetProviderOfferVisibilityRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
       "EbashITSportgearhubApiEndpointsProviderOffersPatchProviderOfferRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -9189,29 +10452,30 @@
             "type": "string",
             "nullable": true
           },
-          "locationRef": {
+          "fulfillmentLocationId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "meetupLocation": {
             "nullable": true,
             "oneOf": [
               {
-                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonLocationRefModel"
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonOfferMeetupLocationModel"
               }
             ]
           }
         }
       },
-      "EbashITSportgearhubApiModelsCommonLocationRefModel": {
+      "EbashITSportgearhubApiModelsCommonOfferMeetupLocationModel": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "country": {
+          "cityId": {
             "type": "string",
-            "nullable": true
+            "format": "guid"
           },
-          "region": {
-            "type": "string",
-            "nullable": true
-          },
-          "city": {
+          "title": {
             "type": "string",
             "nullable": true
           },
@@ -9221,6 +10485,16 @@
           },
           "house": {
             "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "format": "decimal",
             "nullable": true
           }
         }
@@ -9244,10 +10518,6 @@
             "nullable": true
           }
         }
-      },
-      "EbashITSportgearhubApiEndpointsProviderOffersPostCheckPublishabilityProviderOfferRequest": {
-        "type": "object",
-        "additionalProperties": false
       },
       "EbashITSportgearhubApiEndpointsProviderOffersPostDeactivateProviderOfferRequest": {
         "type": "object",
@@ -9284,11 +10554,16 @@
             "type": "string",
             "nullable": true
           },
-          "locationRef": {
+          "fulfillmentLocationId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "meetupLocation": {
             "nullable": true,
             "oneOf": [
               {
-                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonLocationRefModel"
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsCommonOfferMeetupLocationModel"
               }
             ]
           },
@@ -9438,10 +10713,13 @@
             "format": "decimal",
             "nullable": true
           },
-          "depositPercent": {
-            "type": "number",
-            "format": "decimal",
-            "nullable": true
+          "deposit": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderResourcesPolicyPolicyDepositRequest"
+              }
+            ]
           },
           "checkInGraceMinutes": {
             "type": "integer",
@@ -9529,6 +10807,40 @@
           }
         }
       },
+      "EbashITSportgearhubApiEndpointsProviderOffersPutProviderOfferVisibilityRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EbashITSportgearhubApiModelsOffersProviderUpsertProviderOfferVisibilityRequest"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false
+          }
+        ]
+      },
+      "EbashITSportgearhubApiModelsOffersProviderUpsertProviderOfferVisibilityRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "visibilityMode": {
+            "type": "string"
+          },
+          "visibleFrom": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "visibleUntil": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "EbashITSportgearhubApiEndpointsProviderConsoleMembersInviteProviderMemberRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -9537,31 +10849,170 @@
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/EbashITSportgearhubDatabaseEnumsProviderMembershipRoleType"
+            "type": "string"
           }
         }
       },
-      "EbashITSportgearhubDatabaseEnumsProviderMembershipRoleType": {
-        "type": "integer",
-        "description": "",
-        "x-enumNames": [
-          "Owner",
-          "Manager",
-          "Staff",
-          "Finance"
-        ],
-        "enum": [
-          1,
-          2,
-          3,
-          4
-        ]
-      },
-      "EbashITSportgearhubApiModelsProviderLocationsProviderLocationResponse": {
+      "EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberResponse": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "locationId": {
+          "membershipId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "providerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "surname": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMembersRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EbashITSportgearhubApiModelsProviderConsoleMembersProviderInvitationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitationId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "providerId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "invitedByUserId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "invitedByName": {
+            "type": "string"
+          },
+          "invitedByEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acceptedByUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderInvitationsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberOptionsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberRoleOptionResponse"
+            }
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderConsoleMembersProviderMemberRoleOptionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EbashITSportgearhubApiEndpointsProviderConsoleMembersGetProviderMemberOptionsRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EbashITSportgearhubApiModelsProviderConsoleMembersUpdateProviderMemberRoleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "EbashITSportgearhubApiModelsProviderConsoleMembersRemoveProviderMemberRequest": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "EbashITSportgearhubApiModelsProviderFulfillmentLocationsProviderFulfillmentLocationResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fulfillmentLocationId": {
             "type": "string",
             "format": "guid"
           },
@@ -9591,6 +11042,16 @@
           "isDefaultPickup": {
             "type": "boolean"
           },
+          "latitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -9601,7 +11062,7 @@
           }
         }
       },
-      "EbashITSportgearhubApiModelsProviderLocationsCreateProviderLocationRequest": {
+      "EbashITSportgearhubApiModelsProviderFulfillmentLocationsCreateProviderFulfillmentLocationRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -9622,16 +11083,26 @@
           "isDefaultPickup": {
             "type": "boolean"
           },
+          "latitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
           "description": {
             "type": "string",
             "nullable": true
           }
         }
       },
-      "EbashITSportgearhubApiEndpointsProviderLocationsUpdateProviderLocationRequestWithRoute": {
+      "EbashITSportgearhubApiEndpointsProviderConsoleFulfillmentLocationsUpdateProviderFulfillmentLocationRequestWithRoute": {
         "allOf": [
           {
-            "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderLocationsUpdateProviderLocationRequest"
+            "$ref": "#/components/schemas/EbashITSportgearhubApiModelsProviderFulfillmentLocationsUpdateProviderFulfillmentLocationRequest"
           },
           {
             "type": "object",
@@ -9639,7 +11110,7 @@
           }
         ]
       },
-      "EbashITSportgearhubApiModelsProviderLocationsUpdateProviderLocationRequest": {
+      "EbashITSportgearhubApiModelsProviderFulfillmentLocationsUpdateProviderFulfillmentLocationRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -9662,6 +11133,16 @@
           },
           "isDefaultPickup": {
             "type": "boolean",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "format": "decimal",
             "nullable": true
           },
           "description": {
@@ -10845,7 +12326,15 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "fullName": {
+          "surname": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "patronymic": {
             "type": "string",
             "nullable": true
           },

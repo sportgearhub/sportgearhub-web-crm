@@ -9,6 +9,7 @@ import type { Offer, OfferStatus, Resource } from '../../types';
 import { OfferDetail } from '../offers/OfferDetail';
 import { OfferForm, type OfferFormData } from '../offers/OfferForm';
 import { OfferReadinessChecklist } from '../offers/OfferReadinessChecklist';
+import { attachOfferReadiness, attachOffersReadiness, offerBookingSetupReady, offerCustomerVisible } from '../offers/offerReadiness';
 import {
   bookingFlowLabel,
   offerTypeLabel,
@@ -93,7 +94,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
     try {
       const nextOffers = await offersApi.list();
       const resourceOffers = nextOffers.filter(offer => offer.primaryResourceId === resource.resourceId || offer.resourceId === resource.resourceId);
-      setOffers(await enrichOfferPrices(resourceOffers));
+      setOffers(await attachOffersReadiness(await enrichOfferPrices(resourceOffers)));
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось загрузить предложения: ${err.message}` : 'Не удалось загрузить предложения.');
     } finally {
@@ -165,6 +166,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
         variantExposureMode: data.variantExposureMode || 'all_active_variants',
         title: data.title || `Прокат: ${resource.title}`,
         description: data.description || undefined,
+        fulfillmentLocationId: data.fulfillmentLocationId ?? null,
       });
 
       if (data.variantExposureMode === 'selected_variants_only' && data.selectedVariantIds?.length) {
@@ -186,7 +188,8 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
         status: data.pricingStatus || 'active',
       });
 
-      setOffers(prev => [mergeOfferPricing(nextOffer, data), ...prev]);
+      const readyOffer = await attachOfferReadiness(nextOffer);
+      setOffers(prev => [mergeOfferPricing(readyOffer, data), ...prev]);
       openList();
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось создать предложение: ${err.message}` : 'Не удалось создать предложение.');
@@ -203,7 +206,11 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
       const nextOffer = await offersApi.patch(selected.offerId, {
         title: data.title,
         description: data.description,
+        fulfillmentLocationId: data.fulfillmentLocationId ?? null,
       });
+      if (data.variantExposureMode && data.variantExposureMode !== selected.variantExposureMode) {
+        await offersApi.putVariantExposureMode(selected.offerId, data.variantExposureMode);
+      }
       await pricingApi.putOfferPolicy(selected.offerId, {
         pricingMode: data.pricingMode || 'per_unit_time',
         currency: data.pricingCurrency || 'RUB',
@@ -211,7 +218,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
         adjustmentRules: data.adjustmentRules ?? [],
         status: data.pricingStatus || 'active',
       });
-      updateOfferInState(mergeOfferPricing(nextOffer, data));
+      updateOfferInState(mergeOfferPricing(await attachOfferReadiness(nextOffer), data));
       openList();
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось обновить предложение: ${err.message}` : 'Не удалось обновить предложение.');
@@ -232,7 +239,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
             : status === 'archived'
               ? await offersApi.archive(offer.offerId, 'provider_requested')
               : await offersApi.patch(offer.offerId, {});
-      updateOfferInState(nextOffer);
+      updateOfferInState(await attachOfferReadiness(nextOffer));
     } catch (err) {
       setError(err instanceof ApiError ? `Не удалось изменить статус предложения: ${err.message}` : 'Не удалось изменить статус предложения.');
     } finally {
@@ -246,7 +253,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
         <BackButton onClick={openList} />
         <OfferDetail
           offer={selected}
-          onConfigurePolicy={() => onNavigate?.('/policy')}
+          onConfigurePolicy={() => onNavigate?.('/settings/policy')}
           onEdit={() => openEdit(selected)}
           onStatusChange={status => void handleStatusChange(selected, status)}
         />
@@ -285,7 +292,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
     );
   }
 
-  const readyCount = offers.filter(offer => offer.isPublishable).length;
+  const readyCount = offers.filter(offerCustomerVisible).length;
 
   return (
     <Card padding={false} className="overflow-hidden">
@@ -372,7 +379,7 @@ export function ResourceOffersTab({ resource, onNavigate }: ResourceOffersTabPro
                         { label: 'Изменить', icon: <Edit2 size={14} />, onClick: () => openEdit(offer) },
                         offer.status === 'active'
                           ? { label: 'Отключить', icon: <PowerOff size={14} />, onClick: () => void handleStatusChange(offer, 'inactive'), disabled: saving }
-                          : { label: 'Включить', icon: <Power size={14} />, onClick: () => void handleStatusChange(offer, 'active'), disabled: saving || !offer.isPublishable },
+                          : { label: 'Включить', icon: <Power size={14} />, onClick: () => void handleStatusChange(offer, 'active'), disabled: saving || !offerBookingSetupReady(offer) },
                       ]}
                     />
                   </td>

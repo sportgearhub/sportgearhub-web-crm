@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
+import { ApiError, bookingsApi } from '../../lib/api-client';
 import type { FulfillmentItem } from '../../types';
 
 interface IssueReportFormProps {
@@ -30,11 +31,22 @@ export function IssueReportForm({ item, onSuccess, onCancel }: IssueReportFormPr
     }
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 700));
+    const issueReportedAt = new Date().toISOString();
+    try {
+      await bookingsApi.reportIssue(item.bookingId, {
+        reasonCode: `fulfillment_${severity}`,
+        description: description.trim(),
+        evidenceRefs: [],
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось отправить отчет.');
+      setLoading(false);
+      return;
+    }
     const updated: FulfillmentItem = {
       ...item,
       status: 'issue_reported',
-      issueReportedAt: new Date().toISOString(),
+      issueReportedAt,
       notes: description,
     };
     onSuccess(updated);

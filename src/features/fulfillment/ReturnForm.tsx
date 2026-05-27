@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
+import { ApiError, bookingsApi } from '../../lib/api-client';
 import type { FulfillmentItem } from '../../types';
 
 interface ReturnFormProps {
@@ -21,14 +22,27 @@ export function ReturnForm({ item, onSuccess, onCancel }: ReturnFormProps) {
   const [condition, setCondition] = useState('good');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 700));
+    setError('');
+    const returnedAt = new Date().toISOString();
+    try {
+      await bookingsApi.return(item.bookingId, {
+        returnedAt,
+        note: notes.trim() || undefined,
+        conditionSummary: [{ key: 'condition', value: condition }],
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось записать возврат.');
+      setLoading(false);
+      return;
+    }
     const updated: FulfillmentItem = {
       ...item,
       status: condition === 'damaged' ? 'issue_reported' : 'pending_return',
-      returnAt: new Date().toISOString(),
+      returnAt: returnedAt,
       notes,
     };
     onSuccess(updated);
@@ -49,6 +63,7 @@ export function ReturnForm({ item, onSuccess, onCancel }: ReturnFormProps) {
       </div>
 
       <div className="space-y-3">
+        {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>}
         <Select
           label="Состояние оборудования"
           options={conditionOptions}

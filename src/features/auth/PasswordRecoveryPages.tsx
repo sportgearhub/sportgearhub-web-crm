@@ -30,7 +30,7 @@ export function ForgotPasswordPage({ initialEmail = '', onNavigate }: { initialE
 
   return (
     <AuthShell title="Восстановление пароля">
-      {sent && <Notice kind="success">Отправили письмо для восстановления, проверьте почту.</Notice>}
+      {sent && <Notice kind="success">Отправили письмо для восстановления.</Notice>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Почта" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" required />
         <Button type="submit" variant="primary" loading={loading} className="w-full justify-center">

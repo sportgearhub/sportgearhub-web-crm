@@ -235,7 +235,7 @@ function PublishabilityImpact({ impact }: { impact: PricingDiagnostics['publisha
     );
   }
 
-  if ('reason' in impact && impact.reason) {
+  if ('reason' in impact && typeof impact.reason === 'string' && impact.reason) {
     return <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">{impact.reason}</p>;
   }
 

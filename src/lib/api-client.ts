@@ -2,6 +2,12 @@ import type {
   Provider,
   AuthUser,
   ProviderMembership,
+  ProviderMember,
+  ProviderMemberInvitationResult,
+  ProviderMemberOptions,
+  ProviderInvitation,
+  CatalogCity,
+  ProviderLocation,
   DashboardResponse,
   OnboardingResponse,
   Resource,
@@ -19,17 +25,23 @@ import type {
   PricingDiagnostics,
   ProviderPolicy,
   PolicyDiagnostics,
+  PolicyDeposit,
   Offer,
   OfferVariantExposure,
+  OfferReadiness,
   OfferRoutability,
   OfferPublishability,
+  OfferVisibility,
   OfferAuthoringOptions,
   BookingListItem,
   BookingDetail,
   BookingStatus,
   FulfillmentCommandResult,
   AcquiringConnection,
+  AcquiringDealBinding,
   AcquiringOnboardingPayload,
+  AcquiringRecipientRoute,
+  AcquiringRoutability,
   ResourceStatus,
   OfferStatus,
 } from '../types';
@@ -37,7 +49,7 @@ import type {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const AUTH_APP = 'crm';
 const AUTH_CLIENT_ID = 'sportgearhub-provider';
-const PROVIDER_AUTH_SCOPE = 'openid profile email offline_access roles provider_api';
+const PROVIDER_AUTH_SCOPE = 'openid profile email roles provider_api offline_access';
 const TOKEN_STORAGE_KEY = 'sportgearhub.provider.oidc';
 const PROVIDER_BASE_URL = '/api/v1/provider';
 
@@ -67,6 +79,7 @@ type ApiUser = {
 type RegistrationInvitationContext = {
   email: string;
   expiresAt: string;
+  requiresPassword: boolean;
 };
 
 type ApiResource = {
@@ -101,6 +114,12 @@ type ApiOffer = {
   canonicalOfferId?: string | null;
   publishability?: OfferPublishability | null;
   executionLink?: Record<string, unknown> | null;
+  location?: Record<string, unknown> | null;
+  locationRef?: Offer['locationRef'];
+  fulfillmentLocationId?: string | null;
+  meetupLocation?: Record<string, unknown> | null;
+  locationSummary?: Record<string, unknown> | null;
+  visibility?: OfferVisibility | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -215,15 +234,32 @@ export type ProviderOnboardingDraft = {
   legalName: string | null;
   legalCountryCode: string | null;
   legalForm: string | null;
+  taxationSystem: string | null;
   taxNumber: string | null;
   registrationNumber: string | null;
   branchNumber: string | null;
   registeredAddress: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  cityId: string | null;
   city: string | null;
   address: string | null;
   description: string | null;
+  acquiringProvider: string | null;
+  payoutSchedule: string | null;
+  payoutDraft: ProviderOnboardingPayoutDraft | null;
+};
+
+export type ProviderOnboardingPayoutDraft = {
+  mode: string | null;
+  beneficiaryName: string | null;
+  bankName: string | null;
+  bik: string | null;
+  bankAccount: string | null;
+  correspondentAccount: string | null;
+  displayBankName: string | null;
+  phone: string | null;
+  sbpMemberId: string | null;
 };
 
 export type ProviderOnboarding = {
@@ -238,6 +274,7 @@ export type ProviderOnboarding = {
   checklist: {
     profile: OnboardingChecklistValue;
     legal: OnboardingChecklistValue;
+    finance: OnboardingChecklistValue;
   } | null;
   draft: ProviderOnboardingDraft | null;
   updatedAt: string;
@@ -252,6 +289,47 @@ export type OnboardingLegalFormOption = {
 export type ProviderOnboardingOptions = {
   legalCountries: Array<{ value: string; label: string }>;
   legalForms: OnboardingLegalFormOption[];
+  taxationSystems: Array<{ value: string; label: string; supportedLegalForms?: string[] | null }>;
+  acquiringProviders: Array<{
+    value: string;
+    label: string;
+    description?: string | null;
+    available?: boolean;
+    requiresPayoutSchedule?: boolean;
+    requiresProviderCredentials?: boolean;
+  }>;
+  payoutSchedules: Array<{
+    value: string;
+    label: string;
+    cadence?: string | null;
+    settlementDelayDays?: number | null;
+    payoutDaysOfMonth?: number[] | null;
+    platformTransferFeePercent?: number | null;
+  }>;
+  payoutModes?: Array<{
+    value: string;
+    label: string;
+    description?: string | null;
+    supportedLegalForms?: string[] | null;
+    requiredFields?: string[] | null;
+    bankPayoutFee?: {
+      percent: number | null;
+      minimumAmount: number | null;
+      currency: string | null;
+    } | null;
+    available?: boolean;
+  }>;
+};
+
+export type SbpMemberReference = {
+  sbpMemberId: string;
+  displayBankName: string;
+  bankName: string;
+};
+
+export type SbpMembersReferenceResponse = {
+  source: string;
+  items: SbpMemberReference[];
 };
 
 export type RuAddressSuggestion = {
@@ -276,6 +354,34 @@ export type RuAddressSuggestion = {
 export type RuAddressSuggestionsResponse = {
   source: string;
   suggestions: RuAddressSuggestion[];
+};
+
+export type RuAddressGeolocatePayload = {
+  lat: number;
+  lon: number;
+  count?: number;
+  radiusMeters?: number;
+  language?: string;
+};
+
+export type RuBankLookupResponse = {
+  source: string;
+  value: string;
+  unrestrictedValue: string | null;
+  bic: string | null;
+  swift: string | null;
+  swifts: string[];
+  inn: string | null;
+  branchNumber: string | null;
+  registrationNumber: string | null;
+  correspondentAccount: string | null;
+  paymentName: string | null;
+  shortName: string | null;
+  paymentCity: string | null;
+  opfType: string | null;
+  address: string | null;
+  unrestrictedAddress: string | null;
+  stateStatus: string | null;
 };
 
 export type RuLegalIdentityLookupResponse = {
@@ -344,6 +450,7 @@ function normalizeResource(resource: ApiResource): Resource {
     updatedAt,
     id: resourceId,
     slug: resourceId,
+    categoryId: category?.slug ?? resourceType,
     categoryName: category?.title ?? (resourceType === 'equipment' ? 'Equipment' : resourceType),
     variantCount: 0,
   };
@@ -370,6 +477,12 @@ function normalizeOffer(offer: ApiOffer): Offer {
     variantExposureMode: offer.variantExposureMode,
     title,
     description: offer.description ?? undefined,
+    location: offer.location ?? null,
+    locationRef: offer.locationRef ?? undefined,
+    fulfillmentLocationId: offer.fulfillmentLocationId ?? readFulfillmentLocationId(offer),
+    meetupLocation: offer.meetupLocation ?? null,
+    locationSummary: offer.locationSummary ?? null,
+    visibility: offer.visibility ?? undefined,
     price: offer.price ?? null,
     currency: offer.currency ?? 'RUB',
     mediaPreviewUrl: offer.mediaPreviewUrl ?? null,
@@ -388,6 +501,17 @@ function normalizeOffer(offer: ApiOffer): Offer {
     isPublishable: publishability.status === 'publishable',
     publishabilityIssues: publishability.status === 'publishable' ? [] : [publishability.reason].filter(Boolean),
   };
+}
+
+function readFulfillmentLocationId(offer: ApiOffer) {
+  const fromSummary = offer.locationSummary?.fulfillmentLocation;
+  if (fromSummary && typeof fromSummary === 'object') {
+    const id = (fromSummary as Record<string, unknown>).fulfillmentLocationId;
+    if (typeof id === 'string') return id;
+  }
+
+  const legacyId = offer.location?.providerLocationId;
+  return typeof legacyId === 'string' ? legacyId : null;
 }
 
 function loadStoredToken(): StoredOidcToken | null {
@@ -608,6 +732,12 @@ export const authApi = {
       auth: false,
       body: JSON.stringify({ token, newPassword }),
     }),
+  acceptProviderInvitation: async (data: { token: string; name: string; surname: string; password: string }) =>
+    normalizeUser(await request<ApiUser>('/api/v1/provider-invitations/accept', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify(data),
+    })),
   signout: async () => {
     try {
       await request<void>('/api/v1/auth/signout', { method: 'POST' });
@@ -625,10 +755,10 @@ export const authApi = {
 export const providerOnboardingApi = {
   options: () => request<ProviderOnboardingOptions>('/api/v1/provider-onboarding/options'),
   current: () => request<ProviderOnboarding>('/api/v1/provider-onboarding/current'),
-  create: () =>
+  create: (data: Partial<ProviderOnboardingDraft> = {}) =>
     request<ProviderOnboarding>('/api/v1/provider-onboarding/current', {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(data),
     }),
   updateProfile: (data: Partial<ProviderOnboardingDraft>) =>
     request<ProviderOnboarding>('/api/v1/provider-onboarding/current/profile', {
@@ -649,6 +779,8 @@ export const providerOnboardingApi = {
 
     return request<RuLegalIdentityLookupResponse>(`/api/v1/provider-onboarding/legal-identity/ru/lookup?${params.toString()}`);
   },
+  lookupRuBank: (bic: string) =>
+    request<RuBankLookupResponse>(`/api/v1/provider-onboarding/banks/ru/lookup?${new URLSearchParams({ bic }).toString()}`),
 };
 
 export const addressesApi = {
@@ -660,6 +792,20 @@ export const addressesApi = {
 
     return request<RuAddressSuggestionsResponse>(`/api/v1/addresses/ru/suggestions?${params.toString()}`);
   },
+  ruGeolocate: (payload: RuAddressGeolocatePayload) =>
+    request<RuAddressSuggestionsResponse>('/api/v1/addresses/ru/geolocate', {
+      method: 'POST',
+      body: JSON.stringify({
+        count: 1,
+        radiusMeters: 100,
+        language: 'ru',
+        ...payload,
+      }),
+    }),
+};
+
+export const paymentReferenceApi = {
+  sbpMembers: () => request<SbpMembersReferenceResponse>('/api/v1/payment-reference/sbp-members'),
 };
 
 // ─── Profile & Dashboard ──────────────────────────────────────────────────────
@@ -689,6 +835,84 @@ export const profileApi = {
     providerRequest<OnboardingResponse>('/onboarding/submit', {
       method: 'POST',
       body: JSON.stringify({ note }),
+    }),
+};
+
+// ─── Cities & Provider Locations ─────────────────────────────────────────────
+
+export const catalogApi = {
+  cities: () => request<CatalogCity[]>('/api/v1/catalog/cities'),
+};
+
+export const locationsApi = {
+  list: async () => (await providerRequest<Array<Omit<ProviderLocation, 'locationId'> & { locationId?: string }>>('/fulfillment-locations'))
+    .map(location => ({
+      ...location,
+      locationId: location.locationId ?? location.fulfillmentLocationId,
+    })),
+
+  create: (data: {
+    cityId: string;
+    name: string;
+    address: string;
+    type: string;
+    isDefaultPickup: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
+    description?: string | null;
+  }) =>
+    providerRequest<Omit<ProviderLocation, 'locationId'> & { locationId?: string }>('/fulfillment-locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }).then(location => ({
+      ...location,
+      locationId: location.locationId ?? location.fulfillmentLocationId,
+    })),
+
+  patch: (
+    fulfillmentLocationId: string,
+    data: Partial<Pick<ProviderLocation, 'cityId' | 'name' | 'address' | 'type' | 'isDefaultPickup' | 'description' | 'latitude' | 'longitude'>>
+  ) =>
+    providerRequest<Omit<ProviderLocation, 'locationId'> & { locationId?: string }>(`/fulfillment-locations/${fulfillmentLocationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }).then(location => ({
+      ...location,
+      locationId: location.locationId ?? location.fulfillmentLocationId,
+    })),
+};
+
+export const providerMembersApi = {
+  options: (providerId: string) =>
+    providerRequest<ProviderMemberOptions>(`/providers/${encodeURIComponent(providerId)}/members/options`),
+
+  listMembers: (providerId: string) =>
+    providerRequest<ProviderMember[]>(`/providers/${encodeURIComponent(providerId)}/members`),
+
+  invite: (providerId: string, data: { email: string; role: string }) =>
+    providerRequest<ProviderMemberInvitationResult>(`/providers/${encodeURIComponent(providerId)}/members/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({
+        email: data.email,
+        role: data.role,
+      }),
+    }),
+
+  listInvitations: (providerId: string) =>
+    providerRequest<ProviderInvitation[]>(`/providers/${encodeURIComponent(providerId)}/members/invitations`),
+
+  updateRole: (providerId: string, membershipId: string, role: string) =>
+    providerRequest<ProviderMember>(
+      `/providers/${encodeURIComponent(providerId)}/members/${encodeURIComponent(membershipId)}/role`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ role }),
+      }
+    ),
+
+  remove: (providerId: string, membershipId: string) =>
+    providerRequest<void>(`/providers/${encodeURIComponent(providerId)}/members/${encodeURIComponent(membershipId)}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -1021,8 +1245,16 @@ export const policyApi = {
 
   putProfile: (data: {
     policyScope: string;
-    ruleset: ProviderPolicy['ruleset'];
     status: string;
+    leadTimeHours?: number;
+    cancellationWindowHours?: number;
+    isCancellationAllowed?: boolean;
+    noShowChargePercent?: number;
+    deposit?: PolicyDeposit;
+    checkInGraceMinutes?: number;
+    assuranceMode?: string;
+    weatherException?: boolean;
+    minimumAge?: number;
   }) =>
     providerRequest<ProviderPolicy>('/policy-profile', {
       method: 'PUT',
@@ -1089,6 +1321,8 @@ export const offersApi = {
     title: string;
     subtitle?: string;
     description?: string;
+    fulfillmentLocationId?: string | null;
+    meetupLocation?: Record<string, unknown> | null;
     locationRef?: Offer['locationRef'];
     variantExposureMode?: string | null;
   }) => providerRequest<ApiOffer>('/offers', { method: 'POST', body: JSON.stringify(data) }).then(normalizeOffer),
@@ -1100,6 +1334,8 @@ export const offersApi = {
     data: {
       title?: string;
       description?: string;
+      fulfillmentLocationId?: string | null;
+      meetupLocation?: Record<string, unknown> | null;
       locationRef?: Offer['locationRef'];
     }
   ) => providerRequest<ApiOffer>(`/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify(data) }).then(normalizeOffer),
@@ -1130,6 +1366,12 @@ export const offersApi = {
   getVariantExposure: (offerId: string) =>
     providerRequest<OfferVariantExposure[]>(`/offers/${offerId}/variant-exposure`),
 
+  putVariantExposureMode: (offerId: string, variantExposureMode: string) =>
+    providerRequest<Offer>(`/offers/${offerId}/variant-exposure-mode`, {
+      method: 'PUT',
+      body: JSON.stringify({ variantExposureMode }),
+    }),
+
   putVariantExposure: (
     offerId: string,
     variantId: string,
@@ -1144,6 +1386,20 @@ export const offersApi = {
     providerRequest<OfferRoutability>(`/offers/${offerId}/routability`),
 
   listRoutability: () => providerRequest<OfferRoutability[]>('/offers/routability'),
+
+  getReadiness: (offerId: string) =>
+    providerRequest<OfferReadiness>(`/offers/${offerId}/readiness`),
+
+  listReadiness: () => providerRequest<OfferReadiness[]>('/offers/readiness'),
+
+  getVisibility: (offerId: string) =>
+    providerRequest<OfferVisibility>(`/offers/${offerId}/visibility`),
+
+  putVisibility: (offerId: string, data: OfferVisibility) =>
+    providerRequest<OfferVisibility>(`/offers/${offerId}/visibility`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 };
 
 // ─── Bookings ─────────────────────────────────────────────────────────────────
@@ -1239,15 +1495,15 @@ export const acquiringApi = {
     providerRequest<AcquiringConnection>(`/acquiring-connections/${connectionId}`),
 
   getRoutability: (connectionId: string) =>
-    providerRequest<Record<string, unknown>>(`/acquiring-connections/${connectionId}/routability`),
+    providerRequest<AcquiringRoutability>(`/acquiring-connections/${connectionId}/routability`),
 
   getRecipientRoutes: (connectionId: string) =>
-    providerRequest<Record<string, unknown>[]>(
+    providerRequest<AcquiringRecipientRoute[]>(
       `/acquiring-connections/${connectionId}/recipient-routes`
     ),
 
   getDealBinding: (connectionId: string) =>
-    providerRequest<Record<string, unknown>>(
+    providerRequest<AcquiringDealBinding>(
       `/acquiring-connections/${connectionId}/deal-binding`
     ),
 

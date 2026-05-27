@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, resourcesApi } from '../../lib/api-client';
 import type { Resource } from '../../types';
+import type { HeaderBreadcrumb } from '../../components/layout/Header';
 import { ResourceDeleteDialog } from './ResourceDeleteDialog';
 import { ResourceDetail } from './ResourceDetail';
 import { ResourceError } from './ResourcePageChrome';
@@ -8,7 +9,7 @@ import { ResourceError } from './ResourcePageChrome';
 interface ResourceDetailPageProps {
   resourceId: string;
   onNavigate: (path: string) => void;
-  onHeaderContentChange?: (content: { title: string; subtitle?: string } | null) => void;
+  onHeaderContentChange?: (content: { title: string; subtitle?: string; breadcrumbs?: HeaderBreadcrumb[] } | null) => void;
 }
 
 export function ResourceDetailPage({ resourceId, onNavigate, onHeaderContentChange }: ResourceDetailPageProps) {

@@ -1,6 +1,6 @@
 import { Check, Circle, X } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import type { Offer } from '../../types';
+import type { Offer, OfferReadiness, OfferReadinessSection } from '../../types';
 
 type ReadinessTone = 'ready' | 'blocked' | 'pending';
 
@@ -16,7 +16,46 @@ function statusOf(offer: Offer, key: string) {
   return String(offer.executionLink?.[key] ?? '');
 }
 
+function toneFromStatus(status: string): ReadinessTone {
+  const normalized = status.toLowerCase();
+  if (normalized === 'ready' || normalized === 'ok') return 'ready';
+  if (normalized === 'blocked' || normalized === 'failed') return 'blocked';
+  return 'pending';
+}
+
+function sectionLabel(section: OfferReadinessSection) {
+  if (section.title) return section.title;
+
+  const labels: Record<string, string> = {
+    offer_status: 'Статус предложения',
+    resource: 'Ресурс выбран',
+    category: 'Категория',
+    variants: 'Модели',
+    inventory: 'Инвентарь',
+    availability: 'Доступность',
+    pricing: 'Цена',
+    policy: 'Правила проката',
+    location: 'Место выдачи',
+    visibility: 'Видимость',
+    payment_route: 'Оплата',
+    routability: 'Маршрутизация',
+  };
+
+  return labels[section.code] ?? section.code;
+}
+
+function readinessItems(readiness: OfferReadiness): ReadinessItem[] {
+  return readiness.sections.map(section => ({
+    key: section.code,
+    label: sectionLabel(section),
+    detail: section.message || section.reasonCodes?.join(', ') || 'Требуется проверка.',
+    tone: toneFromStatus(section.status),
+  }));
+}
+
 export function offerReadinessItems(offer: Offer): ReadinessItem[] {
+  if (offer.readiness) return readinessItems(offer.readiness);
+
   const resource = statusOf(offer, 'resourceLinkStatus');
   const availability = statusOf(offer, 'availabilityLinkStatus');
   const pricing = statusOf(offer, 'pricingLinkStatus');
@@ -79,9 +118,10 @@ export function OfferReadinessChecklist({
   const visibleItems = compact ? items.filter(item => item.tone !== 'ready').slice(0, 2) : items;
   const blockedCount = items.filter(item => item.tone === 'blocked').length;
   const pendingCount = items.filter(item => item.tone === 'pending').length;
+  const readiness = offer.readiness;
 
   if (compact && visibleItems.length === 0) {
-    return <span className="text-xs font-medium text-emerald-700">Готово к публикации</span>;
+    return <span className="text-xs font-medium text-emerald-700">{readiness?.customerVisibleNow ? 'Видимо клиентам' : 'Готово к аренде'}</span>;
   }
 
   return (
@@ -90,8 +130,11 @@ export function OfferReadinessChecklist({
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Готовность предложения</p>
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${blockedCount > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-            {blockedCount > 0 ? `Блокеров: ${blockedCount}` : 'Можно публиковать'}
+            {blockedCount > 0 ? `Блокеров: ${blockedCount}` : readiness?.customerVisibleNow ? 'Видимо клиентам' : 'Готово к аренде'}
           </span>
+          {readiness && !readiness.customerVisibleNow && readiness.bookingSetupReady && (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">Настройка готова</span>
+          )}
           {pendingCount > 0 && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">В подготовке: {pendingCount}</span>}
         </div>
       )}
