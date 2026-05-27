@@ -103,6 +103,7 @@ export interface OperatingState {
 export interface Provider {
   providerId: string;
   displayName: string;
+  slug?: string | null;
   legalName?: string;
   contactEmail: string;
   contactPhone?: string;
@@ -114,6 +115,45 @@ export interface Provider {
   lifecycleState?: string;
   moderationStatus?: string;
   updatedAt: string;
+}
+
+export interface StorefrontSettings {
+  providerId: string;
+  slug: string | null;
+  host: string | null;
+  enabled: boolean;
+  publicName: string | null;
+  description: string | null;
+  logoImageId: string | null;
+  coverImageId: string | null;
+  theme: {
+    primaryColor: string | null;
+    accentColor: string | null;
+  };
+  contacts: {
+    phone: string | null;
+    email: string | null;
+    telegram: string | null;
+  };
+  seo: {
+    title: string | null;
+    description: string | null;
+  };
+  updatedAt: string | null;
+}
+
+export type StorefrontSettingsPatch = Partial<Pick<
+  StorefrontSettings,
+  'enabled' | 'publicName' | 'description' | 'logoImageId' | 'coverImageId'
+>> & {
+  theme?: Partial<StorefrontSettings['theme']>;
+  contacts?: Partial<StorefrontSettings['contacts']>;
+  seo?: Partial<StorefrontSettings['seo']>;
+};
+
+export interface StorefrontEditSession {
+  previewUrl: string;
+  expiresAt: string;
 }
 
 export interface DashboardCounts {

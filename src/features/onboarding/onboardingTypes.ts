@@ -3,7 +3,7 @@ import type {
   RuLegalIdentityLookupResponse,
 } from '../../lib/api-client';
 
-export type FormFieldKey = keyof Omit<ProviderOnboardingDraft, 'payoutDraft'>;
+export type FormFieldKey = keyof Omit<ProviderOnboardingDraft, 'chiefExecutive' | 'payoutDraft'>;
 export type FormState = Record<FormFieldKey, string>;
 
 export type BankRequisitesForm = {
@@ -18,6 +18,14 @@ export type SbpPayoutForm = {
   sbpMemberId: string;
   displayBankName: string;
   bankName: string;
+};
+
+export type ChiefExecutiveForm = {
+  firstName: string;
+  lastName: string;
+  middleName: string;
+  position: string;
+  citizenship: string;
 };
 
 export type FieldErrorKey = keyof FormState | keyof BankRequisitesForm | keyof SbpPayoutForm | 'payoutMode';

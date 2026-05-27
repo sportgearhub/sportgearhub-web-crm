@@ -1,10 +1,12 @@
 import type {
   ProviderOnboarding,
+  ProviderOnboardingChiefExecutive,
+  ProviderOnboardingChiefExecutivePrefill,
   ProviderOnboardingDraft,
   ProviderOnboardingPayoutDraft,
   ProviderOnboardingOptions,
 } from '../../lib/api-client';
-import type { BankRequisitesForm, FormFieldKey, FormState, SbpPayoutForm } from './onboardingTypes';
+import type { BankRequisitesForm, ChiefExecutiveForm, FormFieldKey, FormState, SbpPayoutForm } from './onboardingTypes';
 
 export const emptyForm: FormState = {
   displayName: '',
@@ -40,6 +42,14 @@ export const emptySbpForm: SbpPayoutForm = {
   bankName: '',
 };
 
+export const emptyChiefExecutiveForm: ChiefExecutiveForm = {
+  firstName: '',
+  lastName: '',
+  middleName: '',
+  position: '',
+  citizenship: '',
+};
+
 export function formFromDraft(draft: ProviderOnboardingDraft | null): FormState {
   if (!draft) return { ...emptyForm };
 
@@ -48,9 +58,54 @@ export function formFromDraft(draft: ProviderOnboardingDraft | null): FormState 
       const typedKey = key as FormFieldKey;
       if (typedKey === 'legalCountryCode') return [typedKey, 'RU'];
       if (typedKey === 'contactPhone') return [typedKey, normalizeRuPhoneLocal(draft.contactPhone ?? '')];
+      if (typedKey === 'legalName') return [typedKey, draft.legalName ?? chiefExecutiveFullName(draft.chiefExecutive) ?? ''];
       return [typedKey, draft[typedKey] ?? emptyForm[typedKey]];
     })
   ) as FormState;
+}
+
+export function chiefExecutiveFormFromDraft(draft: ProviderOnboardingDraft | null): ChiefExecutiveForm {
+  if (!draft?.chiefExecutive) return { ...emptyChiefExecutiveForm };
+
+  return {
+    firstName: draft.chiefExecutive.firstName ?? '',
+    lastName: draft.chiefExecutive.lastName ?? '',
+    middleName: draft.chiefExecutive.middleName ?? '',
+    position: draft.chiefExecutive.position ?? '',
+    citizenship: draft.chiefExecutive.citizenship ?? '',
+  };
+}
+
+export function chiefExecutiveFormFromPrefill(
+  prefill: ProviderOnboardingChiefExecutivePrefill | null | undefined
+): ChiefExecutiveForm {
+  if (!prefill) return { ...emptyChiefExecutiveForm };
+
+  return {
+    firstName: prefill.firstName ?? '',
+    lastName: prefill.lastName ?? '',
+    middleName: prefill.middleName ?? '',
+    position: prefill.position ?? '',
+    citizenship: prefill.citizenship ?? '',
+  };
+}
+
+export function chiefExecutiveFullName(
+  chiefExecutive: {
+    firstName?: string | null;
+    lastName?: string | null;
+    middleName?: string | null;
+  } | null | undefined
+) {
+  if (!chiefExecutive) return null;
+
+  const name = [
+    chiefExecutive.lastName,
+    chiefExecutive.firstName,
+    chiefExecutive.middleName,
+  ].filter(Boolean).join(' ').trim();
+
+  return name || null;
 }
 
 export function bankFormFromDraft(draft: ProviderOnboardingDraft | null): BankRequisitesForm {
@@ -134,27 +189,43 @@ export function payoutModeDescription(mode: NonNullable<ProviderOnboardingOption
   return parts.join('. ') || null;
 }
 
-export function buildQuickOnboardingDraft(form: FormState): Partial<ProviderOnboardingDraft> {
-  return {
+export function buildQuickOnboardingDraft(
+  form: FormState,
+  chiefExecutive: ChiefExecutiveForm
+): Partial<ProviderOnboardingDraft> {
+  const draft: Partial<ProviderOnboardingDraft> = {
     legalCountryCode: 'RU',
     taxNumber: form.taxNumber.trim() || null,
     legalForm: form.legalForm.trim() || null,
+    legalName: form.legalName.trim() || chiefExecutiveFullName(chiefExecutive),
+    registrationNumber: form.registrationNumber.trim() || null,
+    branchNumber: form.branchNumber.trim() || null,
+    registeredAddress: form.registeredAddress.trim() || null,
     taxationSystem: form.taxationSystem.trim() || null,
     displayName: form.displayName.trim() || null,
     cityId: form.cityId.trim() || null,
   };
+
+  const chiefExecutivePayload = buildChiefExecutivePayload(chiefExecutive);
+  if (chiefExecutivePayload) draft.chiefExecutive = chiefExecutivePayload;
+
+  return draft;
 }
 
 export function buildFullOnboardingPatch(
   form: FormState,
   bankForm: BankRequisitesForm,
-  sbpForm: SbpPayoutForm
+  sbpForm: SbpPayoutForm,
+  chiefExecutive: ChiefExecutiveForm
 ): Partial<ProviderOnboardingDraft> {
-  return {
+  const draft: Partial<ProviderOnboardingDraft> = {
     displayName: form.displayName.trim() || null,
-    legalName: form.legalName.trim() || null,
+    legalName: form.legalName.trim() || chiefExecutiveFullName(chiefExecutive),
     legalForm: form.legalForm.trim() || null,
     taxNumber: form.taxNumber.trim() || null,
+    registrationNumber: form.registrationNumber.trim() || null,
+    branchNumber: form.branchNumber.trim() || null,
+    registeredAddress: form.registeredAddress.trim() || null,
     taxationSystem: form.taxationSystem.trim() || null,
     contactEmail: form.contactEmail.trim() || null,
     contactPhone: formatRuPhoneForApi(form.contactPhone),
@@ -164,6 +235,11 @@ export function buildFullOnboardingPatch(
     payoutSchedule: form.payoutSchedule.trim() || null,
     payoutDraft: buildPayoutDraft(form, bankForm, sbpForm),
   };
+
+  const chiefExecutivePayload = buildChiefExecutivePayload(chiefExecutive);
+  if (chiefExecutivePayload) draft.chiefExecutive = chiefExecutivePayload;
+
+  return draft;
 }
 
 export function isSelfEmployedLegalForm(legalForm: string, taxationSystem: string) {
@@ -180,8 +256,20 @@ function formatPercent(value: number | null | undefined) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(value);
 }
 
+function buildChiefExecutivePayload(chiefExecutive: ChiefExecutiveForm): ProviderOnboardingChiefExecutive | null {
+  const payload = {
+    firstName: chiefExecutive.firstName.trim() || null,
+    lastName: chiefExecutive.lastName.trim() || null,
+    middleName: chiefExecutive.middleName.trim() || null,
+    position: chiefExecutive.position.trim() || null,
+    citizenship: chiefExecutive.citizenship.trim() || null,
+  };
+
+  return Object.values(payload).some(Boolean) ? payload : null;
+}
+
 function buildPayoutDraft(form: FormState, bankForm: BankRequisitesForm, sbpForm: SbpPayoutForm): ProviderOnboardingPayoutDraft {
-  const beneficiaryName = form.legalName.trim() || form.displayName.trim() || null;
+  const beneficiaryName = form.legalName.trim() || null;
 
   if (isSelfEmployedLegalForm(form.legalForm, form.taxationSystem)) {
     return {

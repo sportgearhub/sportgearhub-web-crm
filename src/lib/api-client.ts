@@ -42,16 +42,20 @@ import type {
   AcquiringOnboardingPayload,
   AcquiringRecipientRoute,
   AcquiringRoutability,
+  StorefrontEditSession,
+  StorefrontSettings,
+  StorefrontSettingsPatch,
   ResourceStatus,
   OfferStatus,
 } from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-const AUTH_APP = 'crm';
-const AUTH_CLIENT_ID = 'sportgearhub-provider';
-const PROVIDER_AUTH_SCOPE = 'openid profile email roles provider_api offline_access';
+const AUTH_APP = import.meta.env.VITE_AUTH_APP || 'crm';
+const AUTH_CLIENT_ID = import.meta.env.VITE_AUTH_CLIENT_ID || 'sportgearhub-provider';
+const PROVIDER_AUTH_SCOPE = import.meta.env.VITE_PROVIDER_AUTH_SCOPE || 'openid profile email roles offline_access provider_api';
 const TOKEN_STORAGE_KEY = 'sportgearhub.provider.oidc';
 const PROVIDER_BASE_URL = '/api/v1/provider';
+const REQUIRED_AUTH_SCOPES = PROVIDER_AUTH_SCOPE.split(/\s+/);
 
 export class ApiError extends Error {
   status: number;
@@ -247,7 +251,20 @@ export type ProviderOnboardingDraft = {
   description: string | null;
   acquiringProvider: string | null;
   payoutSchedule: string | null;
+  chiefExecutive: ProviderOnboardingChiefExecutive | null;
   payoutDraft: ProviderOnboardingPayoutDraft | null;
+};
+
+export type ProviderOnboardingChiefExecutive = {
+  firstName: string | null;
+  lastName: string | null;
+  middleName: string | null;
+  position: string | null;
+  citizenship: string | null;
+};
+
+export type ProviderOnboardingChiefExecutivePrefill = ProviderOnboardingChiefExecutive & {
+  source: string | null;
 };
 
 export type ProviderOnboardingPayoutDraft = {
@@ -393,6 +410,7 @@ export type RuLegalIdentityLookupResponse = {
   registrationNumber: string | null;
   branchNumber: string | null;
   registeredAddress: string | null;
+  chiefExecutivePrefill: ProviderOnboardingChiefExecutivePrefill | null;
 };
 
 function normalizeUser(user: ApiUser): AuthUser {
@@ -555,6 +573,11 @@ function clearStoredToken() {
   }
 }
 
+function tokenHasRequiredScopes(token: StoredOidcToken) {
+  const scopes = new Set((token.scope || '').split(/\s+/).filter(Boolean));
+  return REQUIRED_AUTH_SCOPES.every(scope => scopes.has(scope));
+}
+
 async function oidcTokenRequest(body: URLSearchParams, scope: string) {
   const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
     method: 'POST',
@@ -595,13 +618,15 @@ async function refreshGrant(token: StoredOidcToken) {
     return null;
   }
 
+  const scope = PROVIDER_AUTH_SCOPE;
+
   try {
     return await oidcTokenRequest(new URLSearchParams({
       grant_type: 'refresh_token',
       client_id: AUTH_CLIENT_ID,
       refresh_token: token.refresh_token,
-      scope: token.scope || PROVIDER_AUTH_SCOPE,
-    }), token.scope || PROVIDER_AUTH_SCOPE);
+      scope,
+    }), scope);
   } catch {
     clearStoredToken();
     return null;
@@ -612,7 +637,7 @@ async function getAccessToken() {
   if (!authToken) return null;
 
   const refreshSkewMs = 30_000;
-  if (authToken.expires_at - refreshSkewMs > Date.now()) {
+  if (tokenHasRequiredScopes(authToken) && authToken.expires_at - refreshSkewMs > Date.now()) {
     return authToken.access_token;
   }
 
@@ -819,6 +844,7 @@ export const profileApi = {
 
   patch: (data: {
     displayName?: string;
+    slug?: string;
     legalName?: string;
     contactEmail?: string;
     contactPhone?: string;
@@ -835,6 +861,22 @@ export const profileApi = {
     providerRequest<OnboardingResponse>('/onboarding/submit', {
       method: 'POST',
       body: JSON.stringify({ note }),
+    }),
+};
+
+export const storefrontApi = {
+  get: () => providerRequest<StorefrontSettings>('/storefront'),
+
+  patch: (data: StorefrontSettingsPatch) =>
+    providerRequest<StorefrontSettings>('/storefront', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  createEditSession: () =>
+    providerRequest<StorefrontEditSession>('/storefront/edit-session', {
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
 };
 
@@ -1485,10 +1527,10 @@ export const fulfillmentApi = {
 export const acquiringApi = {
   list: () => providerRequest<AcquiringConnection[]>('/acquiring-connections'),
 
-  create: (acquiringProvider: string) =>
+  create: (acquiringProvider?: string) =>
     providerRequest<AcquiringConnection>('/acquiring-connections', {
       method: 'POST',
-      body: JSON.stringify({ acquiringProvider }),
+      body: JSON.stringify(acquiringProvider ? { acquiringProvider } : {}),
     }),
 
   get: (connectionId: string) =>

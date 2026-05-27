@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, CreditCard, MapPin, Plus, Save, Shield, Trash2, UserRound, UsersRound } from 'lucide-react';
+import { Building2, CreditCard, Globe2, MapPin, Plus, Save, Shield, Trash2, UserRound, UsersRound } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -8,12 +8,13 @@ import { Modal } from '../../components/ui/Modal';
 import { Select } from '../../components/ui/Select';
 import { Textarea } from '../../components/ui/Textarea';
 import { useAuth } from '../../context/useAuth';
-import { ApiError, acquiringApi, profileApi, providerMembersApi } from '../../lib/api-client';
-import type { AcquiringConnection, AcquiringOnboardingPayload, ProviderInvitation, ProviderMember, ProviderMemberRoleOption } from '../../types';
+import { ApiError, acquiringApi, profileApi, providerMembersApi, storefrontApi } from '../../lib/api-client';
+import type { AcquiringConnection, AcquiringOnboardingPayload, Provider, ProviderInvitation, ProviderMember, ProviderMemberRoleOption, StorefrontEditSession, StorefrontSettings } from '../../types';
 import { LocationsPage } from '../locations/LocationsPage';
 import { PolicyPage } from '../policy/PolicyPage';
 
-type SettingsTab = 'profile' | 'policy' | 'locations' | 'account' | 'employees' | 'payments';
+type SettingsTab = 'shop' | 'storefront' | 'policy' | 'locations' | 'account' | 'employees' | 'payments';
+type StorefrontTab = 'settings' | 'live';
 
 interface SettingsPageProps {
   tab: SettingsTab;
@@ -22,43 +23,66 @@ interface SettingsPageProps {
 
 const tabs: { id: SettingsTab; label: string; path: string; icon: typeof Building2 }[] = [
   { id: 'account', label: 'Аккаунт', path: '/settings/account', icon: UserRound },
-  { id: 'profile', label: 'Магазин', path: '/settings/profile', icon: Building2 },
   { id: 'employees', label: 'Сотрудники', path: '/settings/employees', icon: UsersRound },
-  { id: 'locations', label: 'Пункты выдачи', path: '/settings/locations', icon: MapPin },
+  { id: 'locations', label: 'Локации', path: '/settings/locations', icon: MapPin },
   { id: 'policy', label: 'Правила', path: '/settings/policy', icon: Shield },
-  { id: 'payments', label: 'Оплата', path: '/settings/payments', icon: CreditCard },
+  { id: 'payments', label: 'Выплаты', path: '/settings/payments', icon: CreditCard },
 ];
 
+type PaymentSection = 'legal' | 'contact' | 'business' | 'settlement';
+
+const paymentSections: Array<{ id: PaymentSection; label: string }> = [
+  { id: 'legal', label: 'Юридические данные' },
+  { id: 'contact', label: 'Контактное лицо' },
+  { id: 'business', label: 'Бизнес-профиль' },
+  { id: 'settlement', label: 'Расчетный счет' },
+];
+
+const reservedProviderSlugs = new Set([
+  'www',
+  'api',
+  'admin',
+  'app',
+  'crm',
+  'support',
+  'mail',
+]);
+
 export function SettingsPage({ tab, onNavigate }: SettingsPageProps) {
+  const showSettingsTabs = tab !== 'shop' && tab !== 'storefront';
+
   return (
     <div className="flex min-h-full flex-col bg-white">
-      <div className="shrink-0 border-b border-gray-200 bg-white px-6">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map(item => {
-            const Icon = item.icon;
-            const active = item.id === tab;
+      {showSettingsTabs && (
+        <div className="shrink-0 border-b border-gray-200 bg-white px-6">
+          <div className="flex flex-wrap gap-2">
+            {tabs.map(item => {
+              const Icon = item.icon;
+              const active = item.id === tab;
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onNavigate(item.path)}
-                className={`flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-medium transition ${
-                  active
-                    ? 'border-blue-600 text-blue-700'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
-                }`}
-              >
-                <Icon size={15} />
-                {item.label}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onNavigate(item.path)}
+                  className={`flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-medium transition ${
+                    active
+                      ? 'border-blue-600 text-blue-700'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900'
+                  }`}
+                >
+                  <Icon size={15} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="min-h-0 flex-1 bg-white">
-        {tab === 'profile' && <ShopProfileSettings />}
+        {tab === 'shop' && <ShopProfileSettings />}
+        {tab === 'storefront' && <StorefrontSettingsPage />}
         {tab === 'policy' && <PolicyPage embedded />}
         {tab === 'locations' && <LocationsPage embedded />}
         {tab === 'employees' && <EmployeesSettings />}
@@ -202,6 +226,316 @@ function ShopProfileSettings() {
           <Button variant="primary" onClick={() => void save()} loading={saving}>
             <Save size={14} /> Сохранить
           </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StorefrontSettingsPage() {
+  const [activeTab, setActiveTab] = useState<StorefrontTab>('settings');
+  const [profile, setProfile] = useState<Provider | null>(null);
+  const [storefront, setStorefront] = useState<StorefrontSettings | null>(null);
+  const [editSession, setEditSession] = useState<StorefrontEditSession | null>(null);
+  const [form, setForm] = useState({
+    slug: '',
+    enabled: false,
+    publicName: '',
+    description: '',
+    logoImageId: '',
+    coverImageId: '',
+    primaryColor: '',
+    accentColor: '',
+    phone: '',
+    email: '',
+    telegram: '',
+    seoTitle: '',
+    seoDescription: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [slugError, setSlugError] = useState('');
+  const [colorError, setColorError] = useState('');
+
+  const normalizedSlug = form.slug.trim().toLowerCase();
+  const publicUrl = normalizedSlug ? `https://${normalizedSlug}.sportgearhub.ru` : '';
+
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [nextProfile, nextStorefront] = await Promise.all([
+        profileApi.get(),
+        storefrontApi.get(),
+      ]);
+      setProfile(nextProfile);
+      setStorefront(nextStorefront);
+      setForm({
+        slug: nextProfile.slug ?? nextStorefront.slug ?? '',
+        enabled: nextStorefront.enabled === true,
+        publicName: nextStorefront.publicName ?? nextProfile.displayName ?? '',
+        description: nextStorefront.description ?? '',
+        logoImageId: nextStorefront.logoImageId ?? '',
+        coverImageId: nextStorefront.coverImageId ?? '',
+        primaryColor: nextStorefront.theme?.primaryColor ?? '',
+        accentColor: nextStorefront.theme?.accentColor ?? '',
+        phone: nextStorefront.contacts?.phone ?? nextProfile.contactPhone ?? '',
+        email: nextStorefront.contacts?.email ?? nextProfile.contactEmail ?? '',
+        telegram: nextStorefront.contacts?.telegram ?? '',
+        seoTitle: nextStorefront.seo?.title ?? nextStorefront.publicName ?? nextProfile.displayName ?? '',
+        seoDescription: nextStorefront.seo?.description ?? '',
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось загрузить настройки сайта.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const validateSlug = () => {
+    if (!normalizedSlug) return form.enabled ? 'Укажите slug перед включением сайта.' : '';
+    if (normalizedSlug.length < 3 || normalizedSlug.length > 48) return 'Slug должен быть от 3 до 48 символов.';
+    if (!/^[a-z0-9-]+$/.test(normalizedSlug)) return 'Используйте латинские буквы, цифры и дефисы.';
+    if (normalizedSlug.startsWith('-') || normalizedSlug.endsWith('-')) return 'Slug не может начинаться или заканчиваться дефисом.';
+    if (normalizedSlug.includes('--')) return 'Slug не может содержать два дефиса подряд.';
+    if (reservedProviderSlugs.has(normalizedSlug)) return 'Этот slug зарезервирован.';
+    return '';
+  };
+
+  const validateColors = () => {
+    const hexColor = /^#[0-9a-fA-F]{6}$/;
+    if (form.primaryColor && !hexColor.test(form.primaryColor)) return 'Основной цвет должен быть в формате #RRGGBB.';
+    if (form.accentColor && !hexColor.test(form.accentColor)) return 'Акцентный цвет должен быть в формате #RRGGBB.';
+    return '';
+  };
+
+  const save = async () => {
+    const nextSlugError = validateSlug();
+    const nextColorError = validateColors();
+    if (nextSlugError || nextColorError) {
+      setSlugError(nextSlugError);
+      setColorError(nextColorError);
+      return;
+    }
+
+    setSaving(true);
+    setSaved(false);
+    setError('');
+    setSlugError('');
+    setColorError('');
+    try {
+      const slugChanged = normalizedSlug !== (profile?.slug ?? '');
+      if (slugChanged) {
+        await profileApi.patch({ slug: normalizedSlug });
+      }
+
+      const nextStorefront = await storefrontApi.patch({
+        enabled: form.enabled,
+        publicName: form.publicName.trim() || null,
+        description: form.description.trim() || null,
+        logoImageId: form.logoImageId.trim() || null,
+        coverImageId: form.coverImageId.trim() || null,
+        theme: {
+          primaryColor: form.primaryColor.trim() || null,
+          accentColor: form.accentColor.trim() || null,
+        },
+        contacts: {
+          phone: form.phone.trim() || null,
+          email: form.email.trim() || null,
+          telegram: form.telegram.trim() || null,
+        },
+        seo: {
+          title: form.seoTitle.trim() || null,
+          description: form.seoDescription.trim() || null,
+        },
+      });
+
+      setStorefront(nextStorefront);
+      setProfile(current => current ? { ...current, slug: normalizedSlug } : current);
+      setEditSession(null);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось сохранить сайт.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const createEditSession = async (force = false) => {
+    if ((!force && editSession) || sessionLoading) return;
+
+    const nextSlugError = validateSlug();
+    if (nextSlugError || !normalizedSlug) {
+      setSlugError(nextSlugError || 'Укажите slug перед запуском live-редактора.');
+      setActiveTab('settings');
+      return;
+    }
+
+    setSessionLoading(true);
+    setError('');
+    setSlugError('');
+    try {
+      const slugChanged = normalizedSlug !== (profile?.slug ?? '');
+      if (slugChanged) {
+        await profileApi.patch({ slug: normalizedSlug });
+        setProfile(current => current ? { ...current, slug: normalizedSlug } : current);
+      }
+      const nextSession = await storefrontApi.createEditSession();
+      setEditSession(nextSession);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось открыть live-редактор.');
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (loading || activeTab !== 'live' || editSession || sessionLoading) return;
+    void createEditSession();
+  }, [activeTab, editSession, loading, sessionLoading]);
+
+  useEffect(() => {
+    if (activeTab !== 'live' || !editSession?.expiresAt) return;
+
+    const expiresAt = new Date(editSession.expiresAt).getTime();
+    const refreshInMs = Number.isNaN(expiresAt)
+      ? 10 * 60 * 1000
+      : Math.max(0, expiresAt - Date.now() - 60 * 1000);
+    const timeoutId = window.setTimeout(() => {
+      void createEditSession(true);
+    }, refreshInMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, editSession?.expiresAt]);
+
+  return (
+    <Card className="rounded-none border-0 p-0 shadow-none">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-6">
+        <div className="flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('settings')}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+              activeTab === 'settings' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Настройки
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('live')}
+            className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+              activeTab === 'live' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            Live
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          {saved && activeTab === 'settings' && <Badge variant="green">сохранено</Badge>}
+          {storefront && <Badge variant={form.enabled ? 'green' : 'gray'}>{form.enabled ? 'включен' : 'выключен'}</Badge>}
+          {activeTab === 'live' && editSession && (
+            <a href={editSession.previewUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-blue-700 hover:text-blue-800">
+              Открыть в новой вкладке
+            </a>
+          )}
+          {activeTab === 'settings' && (
+            <Button type="button" variant="primary" onClick={() => void save()} loading={saving} disabled={loading}>
+              <Save size={14} /> Сохранить
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {error && <p className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+
+      {loading ? (
+        <p className="p-6 text-sm text-gray-500">Загружаем настройки сайта...</p>
+      ) : activeTab === 'settings' ? (
+        <div className="space-y-5 p-6">
+          {publicUrl && (
+            <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800">
+              <Globe2 size={13} /> {publicUrl}
+            </a>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input
+              label="Slug"
+              value={form.slug}
+              onChange={event => {
+                setSlugError('');
+                setForm(current => ({ ...current, slug: event.target.value.trim().toLowerCase() }));
+              }}
+              error={slugError}
+              placeholder="megaprokat-ufa"
+              hint={publicUrl || 'Латиница, цифры и дефисы.'}
+            />
+            <label className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
+              <span className="min-w-0 text-xs text-gray-600">Включить сайт</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.enabled}
+                onClick={() => {
+                  setSlugError('');
+                  setForm(current => ({ ...current, enabled: !current.enabled }));
+                }}
+                className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${
+                  form.enabled ? 'border-blue-600 bg-blue-600' : 'border-gray-300 bg-gray-200'
+                }`}
+              >
+                <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${form.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </label>
+            <Input label="Публичное название" value={form.publicName} onChange={event => setForm(current => ({ ...current, publicName: event.target.value }))} />
+            <Input label="Телефон" value={form.phone} onChange={event => setForm(current => ({ ...current, phone: event.target.value }))} />
+            <Input label="Email" type="email" value={form.email} onChange={event => setForm(current => ({ ...current, email: event.target.value }))} />
+            <Input label="Telegram" value={form.telegram} onChange={event => setForm(current => ({ ...current, telegram: event.target.value }))} placeholder="megaprokat_ufa" />
+          </div>
+
+          <Textarea label="Описание сайта" rows={3} value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} />
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="Logo image ID" value={form.logoImageId} onChange={event => setForm(current => ({ ...current, logoImageId: event.target.value }))} />
+            <Input label="Cover image ID" value={form.coverImageId} onChange={event => setForm(current => ({ ...current, coverImageId: event.target.value }))} />
+            <Input label="Основной цвет" value={form.primaryColor} onChange={event => {
+              setColorError('');
+              setForm(current => ({ ...current, primaryColor: event.target.value }));
+            }} placeholder="#0f766e" error={colorError && colorError.includes('Основной') ? colorError : undefined} />
+            <Input label="Акцентный цвет" value={form.accentColor} onChange={event => {
+              setColorError('');
+              setForm(current => ({ ...current, accentColor: event.target.value }));
+            }} placeholder="#f59e0b" error={colorError && colorError.includes('Акцентный') ? colorError : undefined} />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Input label="SEO title" value={form.seoTitle} onChange={event => setForm(current => ({ ...current, seoTitle: event.target.value }))} />
+            <Input label="SEO description" value={form.seoDescription} onChange={event => setForm(current => ({ ...current, seoDescription: event.target.value }))} />
+          </div>
+        </div>
+      ) : (
+        <div>
+          {!editSession ? (
+            <div className="border-y border-gray-100 px-6 py-8">
+              <p className="text-sm font-medium text-gray-900">
+                {sessionLoading ? 'Открываем live-редактор...' : 'Live-редактор недоступен.'}
+              </p>
+              {slugError && <p className="mt-1 text-xs text-red-700">{slugError}</p>}
+            </div>
+          ) : (
+            <iframe
+              src={editSession.previewUrl}
+              title="Live-редактор онлайн магазина"
+              className="block h-[calc(100vh-105px)] min-h-[720px] w-full border-0 bg-white"
+            />
+          )}
         </div>
       )}
     </Card>
@@ -544,6 +878,7 @@ function PaymentSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [activeSection, setActiveSection] = useState<PaymentSection>('legal');
   const [form, setForm] = useState({
     legalEntityName: activeMembership?.displayName ?? '',
     taxpayerNumber: '',
@@ -567,7 +902,6 @@ function PaymentSettings() {
   });
 
   const selected = connections.find(connection => connection.connectionId === selectedId) ?? connections[0] ?? null;
-  const routability = selected?.routability;
 
   const loadConnections = async () => {
     setLoading(true);
@@ -592,7 +926,7 @@ function PaymentSettings() {
     setError('');
     setSaved(false);
     try {
-      const connection = await acquiringApi.create('t_bank');
+      const connection = await acquiringApi.create();
       setConnections(current => [connection, ...current]);
       setSelectedId(connection.connectionId);
       setSaved(true);
@@ -657,118 +991,109 @@ function PaymentSettings() {
     }
   };
 
+  const actionControls = (
+    <>
+      {saved && <Badge variant="green">сохранено</Badge>}
+      {!loading && !selected && (
+        <Button type="button" variant="primary" size="sm" onClick={() => void createConnection()} loading={saving}>
+          <Plus size={14} /> Создать настройку
+        </Button>
+      )}
+      {!loading && selected && (
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void loadConnections()} disabled={saving}>
+            Обновить
+          </Button>
+          <Button type="button" variant="primary" size="sm" onClick={() => void submitOnboarding()} loading={saving}>
+            <Save size={14} /> Отправить
+          </Button>
+        </>
+      )}
+    </>
+  );
+
   return (
     <Card className="rounded-none border-0 p-6 shadow-none">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-gray-900">Оплата</h2>
-          <p className="mt-0.5 text-xs text-gray-500">T-Bank, маршрут выплат и статус привязки сделки.</p>
-        </div>
-        {saved && <Badge variant="green">сохранено</Badge>}
-      </div>
-
       {error && <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
       {loading ? (
         <div className="py-8 text-center text-sm text-gray-500">Загружаем платежную настройку...</div>
       ) : !selected ? (
         <div className="border-y border-gray-100 py-8">
-          <p className="text-sm font-medium text-gray-900">Черновик платежной заявки еще не создан.</p>
-          <p className="mt-1 max-w-xl text-xs text-gray-500">
-            Создайте черновик T-Bank, заполните данные по разделам и отправьте заявку на проверку.
-          </p>
-          <Button className="mt-4" type="button" variant="primary" onClick={() => void createConnection()} loading={saving}>
-            <Plus size={14} /> Создать черновик
-          </Button>
+          <div className="mb-4 flex justify-end">{actionControls}</div>
+          <p className="text-sm font-medium text-gray-900">Настройка выплат еще не создана.</p>
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="border-y border-gray-100 py-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Черновик платежной заявки</h3>
-                <p className="mt-0.5 text-xs text-gray-500">Заявка T-Bank и операторская готовность маршрута выплат.</p>
-              </div>
-              <Badge variant={routability?.paymentRouteable ? 'green' : selected.status === 'draft' ? 'yellow' : 'gray'}>
-                {routability?.paymentRouteable ? 'готово' : selected.status}
-              </Badge>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200">
+            <div className="flex flex-wrap gap-1">
+              {paymentSections.map(section => (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => setActiveSection(section.id)}
+                  className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+                    activeSection === section.id
+                      ? 'border-blue-600 text-blue-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {section.label}
+                </button>
+              ))}
             </div>
-            <div className="grid gap-3 md:grid-cols-4">
-              <PaymentState label="Статус" value={selected.status} />
-              <PaymentState label="Магазин" value={selected.shopCode || '—'} />
-              <PaymentState label="Маршрут" value={selected.routing?.routeStatus ?? (routability?.recipientRouteReady ? 'ready' : 'missing')} />
-              <PaymentState label="Сделка" value={selected.dealBinding?.status ?? (routability?.dealBindingReady ? 'ready' : 'missing')} />
+            <div className="flex flex-wrap items-center gap-2 pb-2">
+              {actionControls}
             </div>
           </div>
 
-          {routability && (
-            <div className={`rounded-md border px-3 py-2 text-xs ${
-              routability.paymentRouteable ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'
-            }`}>
-              {routability.paymentRouteable
-                ? 'Платежный маршрут готов.'
-                : `Платежный маршрут ожидает настройки: ${routability.reasonCodes.join(', ') || 'проверка не завершена'}.`}
-            </div>
+          {activeSection === 'legal' && (
+            <PaymentDraftSection>
+              <Input label="Юридическое лицо" value={form.legalEntityName} onChange={event => setForm(current => ({ ...current, legalEntityName: event.target.value }))} />
+              <Input label="ИНН" value={form.taxpayerNumber} onChange={event => setForm(current => ({ ...current, taxpayerNumber: event.target.value }))} />
+              <Input label="ОГРН" value={form.registrationNumber} onChange={event => setForm(current => ({ ...current, registrationNumber: event.target.value }))} />
+              <Input label="Юридический адрес" value={form.registeredAddress} onChange={event => setForm(current => ({ ...current, registeredAddress: event.target.value }))} />
+            </PaymentDraftSection>
           )}
 
-          <PaymentDraftSection title="Юридические данные">
-            <Input label="Юридическое лицо" value={form.legalEntityName} onChange={event => setForm(current => ({ ...current, legalEntityName: event.target.value }))} />
-            <Input label="ИНН" value={form.taxpayerNumber} onChange={event => setForm(current => ({ ...current, taxpayerNumber: event.target.value }))} />
-            <Input label="ОГРН" value={form.registrationNumber} onChange={event => setForm(current => ({ ...current, registrationNumber: event.target.value }))} />
-            <Input label="Юридический адрес" value={form.registeredAddress} onChange={event => setForm(current => ({ ...current, registeredAddress: event.target.value }))} />
-          </PaymentDraftSection>
+          {activeSection === 'contact' && (
+            <PaymentDraftSection>
+              <Input label="Фамилия" value={form.contactSurname} onChange={event => setForm(current => ({ ...current, contactSurname: event.target.value }))} />
+              <Input label="Имя" value={form.contactName} onChange={event => setForm(current => ({ ...current, contactName: event.target.value }))} />
+              <Input label="Email" type="email" value={form.contactEmail} onChange={event => setForm(current => ({ ...current, contactEmail: event.target.value }))} />
+              <Input label="Телефон" value={form.contactPhone} onChange={event => setForm(current => ({ ...current, contactPhone: event.target.value }))} />
+              <Input label="Должность" value={form.contactPosition} onChange={event => setForm(current => ({ ...current, contactPosition: event.target.value }))} />
+            </PaymentDraftSection>
+          )}
 
-          <PaymentDraftSection title="Контактное лицо">
-            <Input label="Фамилия" value={form.contactSurname} onChange={event => setForm(current => ({ ...current, contactSurname: event.target.value }))} />
-            <Input label="Имя" value={form.contactName} onChange={event => setForm(current => ({ ...current, contactName: event.target.value }))} />
-            <Input label="Email" type="email" value={form.contactEmail} onChange={event => setForm(current => ({ ...current, contactEmail: event.target.value }))} />
-            <Input label="Телефон" value={form.contactPhone} onChange={event => setForm(current => ({ ...current, contactPhone: event.target.value }))} />
-            <Input label="Должность" value={form.contactPosition} onChange={event => setForm(current => ({ ...current, contactPosition: event.target.value }))} />
-          </PaymentDraftSection>
+          {activeSection === 'business' && (
+            <PaymentDraftSection>
+              <Input label="Краткое название" value={form.shortName} onChange={event => setForm(current => ({ ...current, shortName: event.target.value }))} />
+              <Input label="Название в выписке" value={form.billingDescriptor} onChange={event => setForm(current => ({ ...current, billingDescriptor: event.target.value }))} />
+              <Input label="Сайт" value={form.siteUrl} onChange={event => setForm(current => ({ ...current, siteUrl: event.target.value }))} />
+              <Input label="ОКВЭД" value={form.okved} onChange={event => setForm(current => ({ ...current, okved: event.target.value }))} />
+              <Input label="Фактический адрес" value={form.actualAddress} onChange={event => setForm(current => ({ ...current, actualAddress: event.target.value }))} />
+            </PaymentDraftSection>
+          )}
 
-          <PaymentDraftSection title="Бизнес-профиль">
-            <Input label="Краткое название" value={form.shortName} onChange={event => setForm(current => ({ ...current, shortName: event.target.value }))} />
-            <Input label="Название в выписке" value={form.billingDescriptor} onChange={event => setForm(current => ({ ...current, billingDescriptor: event.target.value }))} />
-            <Input label="Сайт" value={form.siteUrl} onChange={event => setForm(current => ({ ...current, siteUrl: event.target.value }))} />
-            <Input label="ОКВЭД" value={form.okved} onChange={event => setForm(current => ({ ...current, okved: event.target.value }))} />
-            <Input label="Фактический адрес" value={form.actualAddress} onChange={event => setForm(current => ({ ...current, actualAddress: event.target.value }))} />
-          </PaymentDraftSection>
-
-          <PaymentDraftSection title="Расчетный счет">
-            <Input label="Банк" value={form.bankName} onChange={event => setForm(current => ({ ...current, bankName: event.target.value }))} />
-            <Input label="Расчетный счет" value={form.bankAccount} onChange={event => setForm(current => ({ ...current, bankAccount: event.target.value }))} />
-            <Input label="Корреспондентский счет" value={form.correspondentAccount} onChange={event => setForm(current => ({ ...current, correspondentAccount: event.target.value }))} />
-            <Input label="БИК" value={form.bik} onChange={event => setForm(current => ({ ...current, bik: event.target.value }))} />
-            <Input label="Получатель" value={form.beneficiaryName} onChange={event => setForm(current => ({ ...current, beneficiaryName: event.target.value }))} />
-          </PaymentDraftSection>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="primary" onClick={() => void submitOnboarding()} loading={saving}>
-              <Save size={14} /> Отправить заявку
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => void loadConnections()} disabled={saving}>
-              Обновить статус
-            </Button>
-          </div>
+          {activeSection === 'settlement' && (
+            <PaymentDraftSection>
+              <Input label="Банк" value={form.bankName} onChange={event => setForm(current => ({ ...current, bankName: event.target.value }))} />
+              <Input label="Расчетный счет" value={form.bankAccount} onChange={event => setForm(current => ({ ...current, bankAccount: event.target.value }))} />
+              <Input label="Корреспондентский счет" value={form.correspondentAccount} onChange={event => setForm(current => ({ ...current, correspondentAccount: event.target.value }))} />
+              <Input label="БИК" value={form.bik} onChange={event => setForm(current => ({ ...current, bik: event.target.value }))} />
+              <Input label="Получатель" value={form.beneficiaryName} onChange={event => setForm(current => ({ ...current, beneficiaryName: event.target.value }))} />
+            </PaymentDraftSection>
+          )}
         </div>
       )}
     </Card>
   );
 }
 
-function PaymentState({ label, value }: { label: string; value: string }) {
+function PaymentDraftSection({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-1 truncate text-sm font-medium text-gray-900">{value}</p>
-    </div>
-  );
-}
-
-function PaymentDraftSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-md border border-gray-100 bg-gray-50/40 p-4">
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</h3>
+    <section>
       <div className="grid gap-3 md:grid-cols-2">
         {children}
       </div>

@@ -41,6 +41,8 @@ const pageConfig: Record<string, PageConfig> = {
   '/pricing': { title: 'Цены', subtitle: 'Правила ценообразования и корректировки' },
   '/settings': { title: '' },
   '/settings/profile': { title: '' },
+  '/settings/shop': { title: '' },
+  '/settings/storefront': { title: '' },
   '/settings/policy': { title: '' },
   '/settings/locations': { title: '' },
   '/settings/employees': { title: '' },
@@ -162,7 +164,8 @@ function AppShell() {
     if (appPath === '/availability') return <AvailabilityPage onNavigate={navigateTo} />;
     if (appPath === '/pricing') return <PricingPage onNavigate={navigateTo} />;
     if (appPath === '/settings' || appPath === '/settings/account') return <SettingsPage tab="account" onNavigate={navigateTo} />;
-    if (appPath === '/settings/profile') return <SettingsPage tab="profile" onNavigate={navigateTo} />;
+    if (appPath === '/settings/profile' || appPath === '/settings/shop') return <SettingsPage tab="shop" onNavigate={navigateTo} />;
+    if (appPath === '/settings/storefront') return <SettingsPage tab="storefront" onNavigate={navigateTo} />;
     if (appPath === '/settings/policy' || appPath === '/policy') return <SettingsPage tab="policy" onNavigate={navigateTo} />;
     if (appPath === '/settings/locations' || appPath === '/locations') return <SettingsPage tab="locations" onNavigate={navigateTo} />;
     if (appPath === '/settings/employees') return <SettingsPage tab="employees" onNavigate={navigateTo} />;

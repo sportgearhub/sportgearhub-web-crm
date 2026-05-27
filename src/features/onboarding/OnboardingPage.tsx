@@ -23,6 +23,7 @@ import { DecisionState, LoadingState, OnboardingFrame } from './components/Onboa
 import { ChecklistLine, SectionHeader, StepChoice } from './components/OnboardingPrimitives';
 import type {
   BankRequisitesForm,
+  ChiefExecutiveForm,
   FieldErrors,
   FormFieldKey,
   FormState,
@@ -35,7 +36,11 @@ import {
   bankFormFromDraft,
   buildFullOnboardingPatch,
   buildQuickOnboardingDraft,
+  chiefExecutiveFormFromDraft,
+  chiefExecutiveFormFromPrefill,
+  chiefExecutiveFullName,
   emptyBankForm,
+  emptyChiefExecutiveForm,
   emptyForm,
   emptySbpForm,
   formFromDraft,
@@ -123,6 +128,7 @@ export function OnboardingPage() {
   const [form, setForm] = useState<FormState>({ ...emptyForm });
   const [bankForm, setBankForm] = useState<BankRequisitesForm>({ ...emptyBankForm });
   const [sbpForm, setSbpForm] = useState<SbpPayoutForm>({ ...emptySbpForm });
+  const [chiefExecutive, setChiefExecutive] = useState<ChiefExecutiveForm>({ ...emptyChiefExecutiveForm });
   const [currentStep, setCurrentStep] = useState(0);
   const [activeFullSection, setActiveFullSection] = useState<FullSectionKey>('organization');
   const [loading, setLoading] = useState(true);
@@ -167,9 +173,7 @@ export function OnboardingPage() {
       : 'Данные организации';
   const legalNameLabel = isSelfEmployed
     ? 'ФИО'
-    : form.legalForm === 'sole_proprietor'
-      ? 'Название ИП'
-      : 'Название организации';
+    : 'Юридическое лицо';
   const fullSections = fullSectionKeys.map(section => ({
     ...section,
     label: section.key === 'organization' ? legalSectionTitle : section.label,
@@ -189,6 +193,7 @@ export function OnboardingPage() {
     ?? options?.payoutModes?.find(option => option.value === 't_bank_sbp_individual');
   const activePayoutMode = isSelfEmployed ? sbpPayoutMode : bankPayoutMode;
   const activePayoutModeDescription = payoutModeDescription(activePayoutMode);
+  const chiefExecutiveName = chiefExecutiveFullName(chiefExecutive);
 
   const load = async () => {
     setError('');
@@ -208,6 +213,7 @@ export function OnboardingPage() {
       setForm(nextForm);
       setBankForm(bankFormFromDraft(next.draft));
       setSbpForm(sbpFormFromDraft(next.draft));
+      setChiefExecutive(chiefExecutiveFormFromDraft(next.draft));
     } catch {
       setError('Ошибка в работе сервиса.');
     } finally {
@@ -236,6 +242,7 @@ export function OnboardingPage() {
       setLegalIdentitySuggestions([]);
       setAppliedLegalIdentityTaxNumber('');
       setLegalLookupError('');
+      setChiefExecutive({ ...emptyChiefExecutiveForm });
     }
     setFieldErrors(current => {
       const next = { ...current };
@@ -315,6 +322,7 @@ export function OnboardingPage() {
       registeredAddress: current.legalForm && current.legalForm !== legalForm ? '' : current.registeredAddress,
       taxationSystem: supportedTaxationSystems.some(option => option.value === current.taxationSystem) ? current.taxationSystem : '',
     }));
+    setChiefExecutive(current => form.legalForm && form.legalForm !== legalForm ? { ...emptyChiefExecutiveForm } : current);
     if (isSelfEmployedLegalForm(legalForm, '')) {
       setBankForm({ ...emptyBankForm });
     } else {
@@ -344,12 +352,13 @@ export function OnboardingPage() {
       ...current,
       legalCountryCode: 'RU',
       legalForm: suggestion.legalForm || current.legalForm,
-      legalName: suggestion.legalName ?? current.legalName,
+      legalName: suggestion.legalName ?? chiefExecutiveFullName(suggestion.chiefExecutivePrefill) ?? current.legalName,
       taxNumber: suggestion.taxNumber ?? current.taxNumber,
       registrationNumber: suggestion.registrationNumber ?? current.registrationNumber,
       branchNumber: suggestion.branchNumber ?? current.branchNumber,
       registeredAddress: suggestion.registeredAddress ?? current.registeredAddress,
     }));
+    setChiefExecutive(chiefExecutiveFormFromPrefill(suggestion.chiefExecutivePrefill));
 
     if (suggestion.legalForm && form.legalForm && suggestion.legalForm !== form.legalForm) {
       setLegalFormMismatch({
@@ -417,7 +426,7 @@ export function OnboardingPage() {
   };
 
   const saveDraft = async () => {
-    const payload = buildQuickOnboardingDraft(form);
+    const payload = buildQuickOnboardingDraft(form, chiefExecutive);
     const next = onboarding?.status === 'not_started'
       ? await providerOnboardingApi.create(payload)
       : await providerOnboardingApi.updateProfile(payload);
@@ -425,6 +434,7 @@ export function OnboardingPage() {
     setForm(current => ({ ...current, ...formFromDraft(next.draft) }));
     setBankForm(bankFormFromDraft(next.draft));
     setSbpForm(sbpFormFromDraft(next.draft));
+    setChiefExecutive(chiefExecutiveFormFromDraft(next.draft));
     return next;
   };
 
@@ -451,6 +461,21 @@ export function OnboardingPage() {
 
   const validateFullForm = () => {
     const nextErrors: FieldErrors = {};
+    if (!form.legalName.trim()) nextErrors.legalName = isSelfEmployed ? 'Укажите ФИО.' : 'Укажите юридическое лицо.';
+    if (!isValidRuInn(form.taxNumber)) {
+      nextErrors.taxNumber = 'Введите корректный ИНН: 10 или 12 цифр с верным контрольным числом.';
+    }
+    if (!form.legalForm.trim()) nextErrors.legalForm = 'Выберите статус.';
+    if (!form.taxationSystem.trim()) nextErrors.taxationSystem = 'Выберите систему налогообложения.';
+    if (!isSelfEmployed && shouldShowLegalIdentityField('registrationNumber') && !form.registrationNumber.trim()) {
+      nextErrors.registrationNumber = 'Заполните ОГРН или ОГРНИП из данных по ИНН.';
+    }
+    if (!isSelfEmployed && shouldShowLegalIdentityField('branchNumber') && !form.branchNumber.trim()) {
+      nextErrors.branchNumber = 'Заполните КПП из данных по ИНН.';
+    }
+    if (!isSelfEmployed && shouldShowLegalIdentityField('registeredAddress') && !form.registeredAddress.trim()) {
+      nextErrors.registeredAddress = 'Заполните юридический адрес из данных по ИНН.';
+    }
     if (!form.contactEmail.trim()) nextErrors.contactEmail = 'Укажите почту для связи.';
     if (form.contactEmail.trim() && !/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) {
       nextErrors.contactEmail = 'Укажите корректную почту.';
@@ -487,11 +512,12 @@ export function OnboardingPage() {
     setError('');
     setSaving(true);
     try {
-      const next = await providerOnboardingApi.updateProfile(buildFullOnboardingPatch(form, bankForm, sbpForm));
+      const next = await providerOnboardingApi.updateProfile(buildFullOnboardingPatch(form, bankForm, sbpForm, chiefExecutive));
       setOnboarding(next);
       setForm(current => ({ ...current, ...formFromDraft(next.draft) }));
       setBankForm(bankFormFromDraft(next.draft));
       setSbpForm(sbpFormFromDraft(next.draft));
+      setChiefExecutive(chiefExecutiveFormFromDraft(next.draft));
       return next;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Ошибка в работе сервиса.');
@@ -507,11 +533,12 @@ export function OnboardingPage() {
     setError('');
     setSubmitting(true);
     try {
-      const saved = await providerOnboardingApi.updateProfile(buildFullOnboardingPatch(form, bankForm, sbpForm));
+      const saved = await providerOnboardingApi.updateProfile(buildFullOnboardingPatch(form, bankForm, sbpForm, chiefExecutive));
       setOnboarding(saved);
       setForm(current => ({ ...current, ...formFromDraft(saved.draft) }));
       setBankForm(bankFormFromDraft(saved.draft));
       setSbpForm(sbpFormFromDraft(saved.draft));
+      setChiefExecutive(chiefExecutiveFormFromDraft(saved.draft));
       if (!isChecklistReady(saved.checklist)) {
         setError('Заполните все обязательные разделы перед отправкой.');
         return;
@@ -521,6 +548,7 @@ export function OnboardingPage() {
       setForm(current => ({ ...current, ...formFromDraft(next.draft) }));
       setBankForm(bankFormFromDraft(next.draft));
       setSbpForm(sbpFormFromDraft(next.draft));
+      setChiefExecutive(chiefExecutiveFormFromDraft(next.draft));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Ошибка в работе сервиса.');
     } finally {
@@ -640,8 +668,17 @@ export function OnboardingPage() {
                         label={legalNameLabel}
                         value={form.legalName}
                         onChange={event => updateField('legalName', event.target.value)}
+                        error={fieldErrors.legalName}
                         disabled={isReviewing}
                       />
+                      {!isSelfEmployed && chiefExecutiveName && (
+                        <Input
+                          label="ФИО"
+                          value={chiefExecutiveName}
+                          disabled
+                          readOnly
+                        />
+                      )}
                       <FancySelect
                         label="Статус"
                         value={form.legalForm}
@@ -663,6 +700,7 @@ export function OnboardingPage() {
                         <Input
                           label="ОГРН / ОГРНИП"
                           value={form.registrationNumber}
+                          error={fieldErrors.registrationNumber}
                           disabled
                           readOnly
                         />
@@ -671,6 +709,7 @@ export function OnboardingPage() {
                         <Input
                           label="КПП"
                           value={form.branchNumber}
+                          error={fieldErrors.branchNumber}
                           disabled
                           readOnly
                         />
@@ -679,6 +718,7 @@ export function OnboardingPage() {
                         <Input
                           label="Юр. адрес"
                           value={form.registeredAddress}
+                          error={fieldErrors.registeredAddress}
                           disabled
                           readOnly
                         />
@@ -968,6 +1008,11 @@ export function OnboardingPage() {
                     {legalIdentitySuggestions.map(suggestion => {
                       const suggestionTaxNumber = normalizeInn(suggestion.taxNumber ?? form.taxNumber);
                       const isApplied = appliedLegalIdentityTaxNumber === suggestionTaxNumber;
+                      const chiefExecutiveName = [
+                        suggestion.chiefExecutivePrefill?.lastName,
+                        suggestion.chiefExecutivePrefill?.firstName,
+                        suggestion.chiefExecutivePrefill?.middleName,
+                      ].filter(Boolean).join(' ');
                       return (
                         <button
                           key={`${suggestionTaxNumber}-${suggestion.branchNumber ?? 'main'}`}
@@ -992,6 +1037,11 @@ export function OnboardingPage() {
                             </span>
                             {suggestion.registeredAddress && (
                               <span className="mt-1 block text-xs leading-4 text-gray-500">{suggestion.registeredAddress}</span>
+                            )}
+                            {chiefExecutiveName && (
+                              <span className="mt-1 block text-xs leading-4 text-gray-500">
+                                Руководитель: {chiefExecutiveName}
+                              </span>
                             )}
                           </span>
                         </button>
