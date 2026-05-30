@@ -45,7 +45,6 @@ const navItems: NavItem[] = [
       { label: 'Сотрудники', path: '/settings/employees' },
       { label: 'Локации', path: '/settings/locations' },
       { label: 'Правила', path: '/settings/policy' },
-      { label: 'Выплаты', path: '/settings/payments' },
     ],
   },
   { label: 'Отчеты', icon: ClipboardList, path: '/reports' },

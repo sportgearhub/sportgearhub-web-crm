@@ -46,7 +46,6 @@ const pageConfig: Record<string, PageConfig> = {
   '/settings/policy': { title: '' },
   '/settings/locations': { title: '' },
   '/settings/employees': { title: '' },
-  '/settings/payments': { title: '' },
   '/settings/account': { title: '' },
   '/policy': { title: '' },
   '/locations': { title: '' },
@@ -169,7 +168,6 @@ function AppShell() {
     if (appPath === '/settings/policy' || appPath === '/policy') return <SettingsPage tab="policy" onNavigate={navigateTo} />;
     if (appPath === '/settings/locations' || appPath === '/locations') return <SettingsPage tab="locations" onNavigate={navigateTo} />;
     if (appPath === '/settings/employees') return <SettingsPage tab="employees" onNavigate={navigateTo} />;
-    if (appPath === '/settings/payments') return <SettingsPage tab="payments" onNavigate={navigateTo} />;
     if (appPath === '/reports') return <ReportsPage />;
     return <DashboardPage onNavigate={navigateTo} />;
   };

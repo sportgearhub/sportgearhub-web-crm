@@ -223,6 +223,7 @@ Provider console has two phases:
 
 - pre-provider user: auth, email verification, provider onboarding
 - provider member: provider workspace access after approval creates `ProviderMembership`
+- payout setup is admin-side after approval; approval creates a payout contract in review from the onboarding requisites
 
 Do not grant provider access in frontend state. Use:
 
@@ -432,6 +433,12 @@ Draft creation response:
 ```
 
 After this response, route to full onboarding forms because `status` is `draft`.
+
+The API rejects duplicate provider legal identity during draft create/update. If
+`legalCountryCode + taxNumber` already belongs to an active provider or active onboarding application,
+the response is `409` with `code: "provider_onboarding.tax_number_already_registered"`. Treat this as
+"provider already exists or is under review": do not start a second onboarding for a changed
+`self_employed`/`sole_proprietor` legal form.
 
 Full onboarding profile patch:
 
@@ -1231,6 +1238,9 @@ Policy options endpoint does not exist yet. Keep MVP policy labels/defaults loca
 
 Payment route setup has a provider-facing onboarding part and an internal/operator activation part.
 
+Provider web only collects payout/onboarding data and shows readiness. It does not activate T-Bank connections,
+recipient routes, or deal bindings.
+
 Provider-facing routes:
 
 ```http
@@ -1243,7 +1253,118 @@ GET  /api/v1/provider/acquiring-connections/{connectionId}/deal-binding
 GET  /api/v1/provider/acquiring-connections/{connectionId}/routability
 ```
 
-Create connection:
+### Onboarding Finance Setup
+
+Before provider approval, payout data is collected on the provider onboarding draft.
+
+Options:
+
+```http
+GET /api/v1/provider-onboarding/options
+GET /api/v1/payment-reference/sbp-members
+GET /api/v1/provider-onboarding/banks/ru/lookup?bic={bic}
+```
+
+Current option rules:
+
+- `acquiringProvider`: only `t_bank_multishop`
+- `payoutSchedule`: only `daily`
+- `legalForm: "self_employed"` uses `payoutDraft.mode: "t_bank_sbp_individual"`
+- `legalForm: "sole_proprietor"` and `legalForm: "company"` use `payoutDraft.mode: "t_bank_bank_account"`
+
+Patch onboarding finance for ИП/ООО:
+
+```http
+PATCH /api/v1/provider-onboarding/current/profile
+```
+
+```json
+{
+  "payoutSchedule": "daily",
+  "payoutDraft": {
+    "mode": "t_bank_bank_account",
+    "beneficiaryName": "ИП Иванов Иван Иванович",
+    "bankName": "ПАО СБЕРБАНК",
+    "bik": "044525225",
+    "bankAccount": "40802810000000000000",
+    "correspondentAccount": "30101810400000000225"
+  }
+}
+```
+
+Patch onboarding finance for self-employed:
+
+```json
+{
+  "payoutSchedule": "daily",
+  "payoutDraft": {
+    "mode": "t_bank_sbp_individual",
+    "beneficiaryName": "Иванов Иван Иванович",
+    "phone": "+79990000000",
+    "displayBankName": "T-Bank",
+    "sbpMemberId": "100000000004"
+  }
+}
+```
+
+Onboarding response shape:
+
+```json
+{
+  "applicationId": "0c0aaab4-34ca-44e7-82cf-9057be84dbe9",
+  "providerId": null,
+  "status": "draft",
+  "checklist": {
+    "profile": "ready",
+    "legal": "ready",
+    "finance": "ready"
+  },
+  "draft": {
+    "displayName": "Sportgearhub - все для людей",
+    "legalName": "ИП Иванов Иван Иванович",
+    "legalCountryCode": "RU",
+    "legalForm": "sole_proprietor",
+    "taxationSystem": "usn",
+    "taxNumber": "667100000000",
+    "registrationNumber": "326667100000000",
+    "branchNumber": null,
+    "registeredAddress": "620000, Екатеринбург, Ленина 1",
+    "contactEmail": "owner@example.ru",
+    "contactPhone": "+79990000000",
+    "cityId": "edededed-eded-eded-eded-ededededed01",
+    "address": null,
+    "description": null,
+    "chiefExecutive": {
+      "firstName": "Иван",
+      "lastName": "Иванов",
+      "middleName": "Иванович",
+      "position": "Индивидуальный предприниматель",
+      "citizenship": "Россия"
+    },
+    "acquiringProvider": "t_bank_multishop",
+    "payoutSchedule": "daily",
+    "payoutDraft": {
+      "mode": "t_bank_bank_account",
+      "beneficiaryName": "ИП Иванов Иван Иванович",
+      "bankName": "ПАО СБЕРБАНК",
+      "bik": "044525225",
+      "bankAccount": "40802810000000000000",
+      "correspondentAccount": "30101810400000000225",
+      "displayBankName": null,
+      "phone": null,
+      "sbpMemberId": null
+    }
+  },
+  "review": null,
+  "updatedAt": "2026-05-29T06:00:00Z"
+}
+```
+
+### Acquiring Connection Draft
+
+After onboarding is approved and provider exists, provider web can fetch/create the connection draft.
+
+Create connection. `acquiringProvider` may be omitted; backend defaults to `t_bank_multishop`.
 
 ```json
 {
@@ -1260,18 +1381,24 @@ Connection response shape:
   "acquiringProvider": "t_bank_multishop",
   "status": "draft",
   "shopCode": null,
-  "onboardingSnapshot": {
-    "snapshotPresent": false,
-    "snapshotVersion": null,
-    "integrationProvider": null,
+  "payoutTarget": {
+    "type": "t_bank_shop",
+    "status": "draft",
+    "targetId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "shopCode": null,
+    "displayBankName": "ПАО СБЕРБАНК",
+    "phone": null,
+    "sbpMemberId": null
+  },
+  "onboardingDraft": {
+    "draftPresent": false,
     "chiefExecutivePresent": false,
     "founderCount": 0,
-    "submittedAt": null
+    "lastSentToBankAt": null
   },
   "routing": {
     "routeStatus": "missing",
     "paymentRecipientId": null,
-    "partnerId": null,
     "levelOfConfidence": null
   },
   "dealBinding": {
@@ -1298,48 +1425,153 @@ Connection response shape:
 }
 ```
 
-Submit onboarding:
+For self-employed providers, `payoutTarget` is SBP-specific:
 
 ```json
 {
-  "legalProfile": {
-    "legalEntityName": "ООО Мегапрокат",
-    "legalName": "ООО Мегапрокат",
-    "taxpayerNumber": "6671000000",
-    "registrationNumber": "1026600000000",
-    "registeredAddress": "г Екатеринбург, ул Ленина, д 1"
+  "type": "t_bank_sbp_individual",
+  "status": "draft",
+  "targetId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "shopCode": null,
+  "displayBankName": "T-Bank",
+  "phone": "+79990000000",
+  "sbpMemberId": "100000000004"
+}
+```
+
+### Submit T-Bank Shop Onboarding
+
+Submit is an action. It does not accept payload.
+
+```http
+POST /api/v1/provider/acquiring-connections/{connectionId}/submit-onboarding
+```
+
+Request has no body.
+
+Provider web does not submit T-Bank shop registration data anymore. Payout setup and T-Bank registration are
+admin-side. This action only moves the provider-visible connection toward review when the provider explicitly asks
+for setup review.
+
+Submit response is `ProviderAcquiringConnectionResponse`. Expected state after provider submission:
+
+```json
+{
+  "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "providerId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "acquiringProvider": "t_bank_multishop",
+  "status": "pending_review",
+  "shopCode": null,
+  "payoutTarget": {
+    "type": "t_bank_shop",
+    "status": "pending_review",
+    "targetId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "shopCode": null,
+    "displayBankName": "Банк",
+    "phone": null,
+    "sbpMemberId": null
   },
-  "contactProfile": {
-    "surname": "Иванов",
-    "name": "Иван",
-    "patronymic": "Иванович",
-    "email": "owner@example.ru",
-    "phone": "+79990000000",
-    "position": "Директор"
+  "onboardingDraft": {
+    "draftPresent": true,
+    "chiefExecutivePresent": true,
+    "founderCount": 0,
+    "lastSentToBankAt": null
   },
-  "businessProfile": {
-    "billingDescriptor": "MEGAPROKAT",
-    "shortName": "Мегапрокат",
-    "siteUrl": "https://example.ru",
-    "okved": "77.21",
-    "registrationDepartment": "ФНС",
-    "registrationDate": "2020-01-15",
-    "actualAddress": "г Екатеринбург, ул Ленина, д 1",
-    "comment": null
+  "routing": {
+    "routeStatus": "missing",
+    "paymentRecipientId": null,
+    "levelOfConfidence": null
   },
-  "chiefExecutive": null,
-  "founders": [],
-  "settlementProfile": {
-    "mode": "bank_account",
-    "bankName": "Банк",
-    "bankAccount": "40702810000000000000",
-    "correspondentAccount": "30101810000000000000",
-    "bik": "044525000",
-    "beneficiaryName": "ООО Мегапрокат",
-    "phone": "+79990000000",
-    "sbpMemberId": null,
-    "displayBankName": "Банк"
+  "dealBinding": {
+    "status": "missing",
+    "mode": null,
+    "dealId": null,
+    "createDealWithType": null
+  },
+  "routability": {
+    "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "paymentRouteable": false,
+    "connectionStatus": "pending_review",
+    "shopCodePresent": false,
+    "terminalReady": false,
+    "recipientRouteReady": false,
+    "dealBindingReady": false,
+    "reasonCodes": ["connection_not_active", "shop_code_missing", "recipient_route_missing", "deal_binding_missing"],
+    "diagnostics": null,
+    "checkedAt": "2026-05-29T06:00:00Z"
+  },
+  "diagnostics": null,
+  "createdAt": "2026-05-29T06:00:00Z",
+  "updatedAt": "2026-05-29T06:00:00Z"
+}
+```
+
+### Read Recipient Routes
+
+```http
+GET /api/v1/provider/acquiring-connections/{connectionId}/recipient-routes
+```
+
+```json
+[
+  {
+    "routeId": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+    "routeScope": "provider_default",
+    "routeStatus": "active",
+    "paymentRecipientId": null,
+    "levelOfConfidence": "bank_confirmed",
+    "createdAt": "2026-05-29T06:00:00Z",
+    "updatedAt": "2026-05-29T06:00:00Z"
   }
+]
+```
+
+Provider web reads this for diagnostics only. Route creation/activation is internal-only.
+
+### Read Deal Binding
+
+```http
+GET /api/v1/provider/acquiring-connections/{connectionId}/deal-binding
+```
+
+```json
+{
+  "bindingId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+  "routeId": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+  "status": "active",
+  "mode": "create_deal_with_type",
+  "dealId": null,
+  "createDealWithType": "safe_deal",
+  "diagnostics": null,
+  "createdAt": "2026-05-29T06:00:00Z",
+  "updatedAt": "2026-05-29T06:00:00Z"
+}
+```
+
+### Read Routability
+
+```http
+GET /api/v1/provider/acquiring-connections/{connectionId}/routability
+```
+
+```json
+{
+  "connectionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "paymentRouteable": true,
+  "connectionStatus": "active",
+  "shopCodePresent": true,
+  "terminalReady": true,
+  "recipientRouteReady": true,
+  "dealBindingReady": true,
+  "reasonCodes": [],
+  "diagnostics": {
+    "activeDefaultRouteCount": 1,
+    "activeDealBindingCount": 1,
+    "shopCode": "123456789",
+    "terminalKeyRef": "tbank-default-terminal"
+  },
+  "checkedAt": "2026-05-29T06:00:00Z"
 }
 ```
 

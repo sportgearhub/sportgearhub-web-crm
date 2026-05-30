@@ -705,6 +705,13 @@ function providerRequest<T>(path: string, options: RequestInit = {}) {
   return request<T>(`${PROVIDER_BASE_URL}${path}`, options);
 }
 
+const lookupRuBankByBic = (bic: string) =>
+  request<RuBankLookupResponse>('/api/v1/public/suggestions/bank-by-bic', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ bic }),
+  });
+
 export const authApi = {
   startEmailFlow: (email: string) =>
     request<void>('/api/v1/auth/email/start', {
@@ -804,19 +811,16 @@ export const providerOnboardingApi = {
 
     return request<RuLegalIdentityLookupResponse>(`/api/v1/provider-onboarding/legal-identity/ru/lookup?${params.toString()}`);
   },
-  lookupRuBank: (bic: string) =>
-    request<RuBankLookupResponse>(`/api/v1/provider-onboarding/banks/ru/lookup?${new URLSearchParams({ bic }).toString()}`),
+  lookupRuBank: lookupRuBankByBic,
 };
 
 export const addressesApi = {
-  ruSuggestions: (query: string, count = 10) => {
-    const params = new URLSearchParams({
-      query,
-      count: String(count),
-    });
-
-    return request<RuAddressSuggestionsResponse>(`/api/v1/addresses/ru/suggestions?${params.toString()}`);
-  },
+  ruSuggestions: (query: string, count = 10) =>
+    request<RuAddressSuggestionsResponse>('/api/v1/public/suggestions/address', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ query, count }),
+    }),
   ruGeolocate: (payload: RuAddressGeolocatePayload) =>
     request<RuAddressSuggestionsResponse>('/api/v1/addresses/ru/geolocate', {
       method: 'POST',
@@ -827,6 +831,11 @@ export const addressesApi = {
         ...payload,
       }),
     }),
+};
+
+export const publicSuggestionsApi = {
+  lookupRuBank: lookupRuBankByBic,
+  ruAddress: addressesApi.ruSuggestions,
 };
 
 export const paymentReferenceApi = {
